@@ -92,6 +92,7 @@
     firefox
     zed-editor
     btop
+    dunst
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
