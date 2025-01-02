@@ -8,14 +8,32 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
+      ../../Modules/nixos/apps/virtualization.nix
       inputs.home-manager.nixosModules.default
     ];
 
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
+  nixpkgs.overlays = 
+    [
+      (final: prev: {
+        dmraid = prev.dmraid.overrideAttrs (oA: {
+	  patches = oA.patches ++ [
+	    (prev.fetchpatch2 {
+	      url = "https://raw.githubusercontent.com/NixOS/nixpkgs/f298cd74e67a841289fd0f10ef4ee85cfbbc4133/pkgs/os-specific/linux/dmraid/fix-dmevent_tool.patch";
+	      hash = "sha256-MmAzpdM3UNRdOk66CnBxVGgbJTzJK43E8EVBfuCFppc=";
+	    })
+	  ];
+	});
+      })
+    ];
+  
+
+  boot.loader.grub.enable = true;
+  boot.loader.grub.device = "nodev";
+  boot.loader.grub.useOSProber = true;
+  boot.loader.grub.efiSupport = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  services.xserver.displayManager.sddm.enable = true;
+  services.displayManager.sddm.enable = true;
   services.xserver.enable = true;
 
   networking.hostName = "silicon"; # Define your hostname.
@@ -45,15 +63,12 @@
   #   useXkbConfig = true; # use xkb.options in tty.
   # };
 
-  # Enable the X11 windowing system.
-  # services.xserver.enable = true;
   programs.steam = {
     enable = true;
     remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
     dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
   };
-  virtualisation.libvirtd.enable = true;
-  programs.virt-manager.enable = true;
+  
   programs.hyprland.enable = true;
   programs.zsh.enable = true;
 
@@ -70,7 +85,7 @@
   # services.xserver.xkb.options = "eurosign:e,caps:escape";
 
   # Enable CUPS to print documents.
-  # services.printing.enable = true;
+  services.printing.enable = true;
 
   # Enable sound.
   # hardware.pulseaudio.enable = true;
@@ -83,8 +98,6 @@
   systemd.tmpfiles.rules = [ "L+ /var/lib/qemu/firmware - - - - ${pkgs.qemu}/share/qemu/firmware" ];
 
   # Enable touchpad support (enabled default in most desktopManager).
-  services.libinput.enable = true;
-
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.cryptix = {
     isNormalUser = true;
@@ -103,23 +116,26 @@
     wofi
     rofi-wayland
     firefox
-    zed-editor
-    btop
     dunst
-    protonvpn-gui
     qemu
+    direnv
     nix-direnv
     brightnessctl
     dolphin
     yazi
-    tmux
+    git
     bat
     nh
+    home-manager
+    lutris
+    clang
+    zed-editor
+    xfce.thunar
+    inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default
   ];
 
   fonts.packages = with pkgs; [
-    (nerdfonts.override { fonts = [ "JetBrainsMono" ]; })
-    jetbrains-mono
+    nerd-fonts.jetbrains-mono
   ];
 
 

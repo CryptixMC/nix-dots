@@ -1,18 +1,26 @@
-{ config, pkgs, ... }:
+{ config, pkgs, inputs, ... }:
 
 {
   home.username = "cryptix";
   home.homeDirectory = "/home/cryptix";
+  
+  imports = [
+    inputs.nixvim.homeManagerModules.nixvim
+  ];
 
   home.packages = [
     pkgs.cargo
     pkgs.rustc
+    pkgs.rust-analyzer
+    pkgs.nixd
     pkgs.gcc
     pkgs.bottom
     pkgs.eza
     pkgs.disfetch
     pkgs.fd
     pkgs.onefetch
+    pkgs.prismlauncher
+    pkgs.gfn-electron
   ];
 
   home.file = {
@@ -36,7 +44,7 @@
       autosuggestion.enable = true;
       enableCompletion = true;
       shellAliases = {
-        ls = "eza --icons -l -T -L=2";
+        ls = "eza --icons -T -L=2";
 	cat = "bat";
 	fd = "fd -Lu";
 	fetch = "disfetch";
@@ -48,9 +56,20 @@
         theme = "robbyrussell";
       };
       envExtra = ''
-        fetch
+        disfetch
         eval "$(direnv hook zsh)"  
       '';
+    };
+
+    nixvim = {
+      enable = true;
+      options = {
+        number = true;
+	relativenumber = true;
+	shiftwidth = 2;
+      };
+      colorschemes.catppuccin.enable = true;
+      plugins.nvchad.enable = true;
     };
   };
 
