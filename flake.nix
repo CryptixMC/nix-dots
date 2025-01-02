@@ -33,7 +33,7 @@
       modules = [
         ./Hosts/Carbon/configuration.nix
         inputs.home-manager.nixosModules.default
-	inputs.nixvim.homeManagerModules.nixvim
+	#inputs.nixvim.homeManagerModules.nixvim
 	#stylix.nixosModules.stylix
       ];
     };
