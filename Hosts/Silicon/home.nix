@@ -6,6 +6,7 @@
   
   imports = [
     #inputs.nixvim.homeManagerModules.nixvim
+    #../../Modules/home-manager/style/stylix.nix
   ];
 
   home.packages = [

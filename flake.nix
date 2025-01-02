@@ -5,8 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     stylix.url = "github:danth/stylix";
     nixvim = {
-      url = "github:nix-community/nixvim";
-       #If using a stable channel you can use `url = "github:nix-community/nixvim/nixos-<version>"`
+      url = "github:nix-community/nixvim"; 
       inputs.nixpkgs.follows = "nixpkgs";
     };
     home-manager = {
@@ -16,7 +15,7 @@
     rose-pine-hyprcursor.url = "github:ndom91/rose-pine-hyprcursor";
   };
 
-  outputs = { self, nixpkgs, ... }@inputs: 
+  outputs = { self, nixpkgs, stylix, ... }@inputs: 
   let 
     system = "x86_x64-linux";
     pkgs = import nixpkgs {
@@ -42,6 +41,7 @@
       modules = [
         ./Hosts/Silicon/configuration.nix
 	inputs.home-manager.nixosModules.default
+	stylix.nixosModules.stylix
 	#inputs.nixvim.homeManagerModules.nixvim
       ];
     };
