@@ -5,7 +5,7 @@
   home.homeDirectory = "/home/cryptix";
   
   imports = [
-    inputs.nixvim.homeManagerModules.nixvim
+    #inputs.nixvim.homeManagerModules.nixvim
   ];
 
   home.packages = [
@@ -61,16 +61,16 @@
       '';
     };
 
-    nixvim = {
-      enable = true;
-      options = {
-        number = true;
-	relativenumber = true;
-	shiftwidth = 2;
-      };
-      colorschemes.catppuccin.enable = true;
-      plugins.nvchad.enable = true;
-    };
+    #nixvim = {
+      #enable = true;
+      #options = {
+        #number = true;
+	#relativenumber = true;
+	#shiftwidth = 2;
+      #};
+      #colorschemes.catppuccin.enable = true;
+      #plugins.nvchad.enable = true;
+    #};
   };
 
   home.sessionVariables = {

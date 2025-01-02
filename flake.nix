@@ -3,10 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    #stylix.url = "github:danth/stylix";
+    stylix.url = "github:danth/stylix";
     nixvim = {
       url = "github:nix-community/nixvim";
-      # If using a stable channel you can use `url = "github:nix-community/nixvim/nixos-<version>"`
+       #If using a stable channel you can use `url = "github:nix-community/nixvim/nixos-<version>"`
       inputs.nixpkgs.follows = "nixpkgs";
     };
     home-manager = {
@@ -38,9 +38,11 @@
       ];
     };
     silicon = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
+      specialArgs = {inherit inputs system;};
       modules = [
         ./Hosts/Silicon/configuration.nix
+	inputs.home-manager.nixosModules.default
+	#inputs.nixvim.homeManagerModules.nixvim
       ];
     };
   };
