@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, ... }:
+{ config, pkgs, inputs, ... }:
 
 {
   imports =
@@ -8,7 +8,7 @@
       inputs.home-manager.nixosModules.default
     ];
 
-  nixpkgs.overlays = 
+  nixpkgs.overlays =
     [
       (final: prev: {
         dmraid = prev.dmraid.overrideAttrs (oA: {
@@ -21,13 +21,26 @@
 	});
       })
     ];
-  
+
 
   boot.loader.grub.enable = true;
   boot.loader.grub.device = "nodev";
   boot.loader.grub.useOSProber = true;
   boot.loader.grub.efiSupport = true;
   boot.loader.efi.canTouchEfiVariables = true;
+
+  hardware.graphics = {
+    enable = true;
+  };
+
+  hardware.nvidia = {
+    modesetting.enable = true;
+    package = config.boot.kernelPackages.nvidiaPackages.stable;
+    nvidiaSettings = true;
+    open = true;
+  };
+
+  services.xserver.videoDrivers = [ "nvidia" ];
 
   services.displayManager.sddm.enable = true;
   services.xserver.enable = true;
@@ -49,7 +62,12 @@
     remotePlay.openFirewall = true;
     dedicatedServer.openFirewall = true;
   };
-  
+
+  services.ollama = {
+    enable = true;
+    acceleration = "cuda";
+  };
+
   programs.hyprland.enable = true;
   programs.zsh.enable = true;
 
@@ -98,6 +116,8 @@
     lutris
     clang
     zed-editor
+    nixd
+    nvtopPackages.full
     xfce.thunar
     inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default
   ];
