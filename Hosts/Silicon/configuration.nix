@@ -80,6 +80,13 @@
 
   services.printing.enable = true;
 
+  services.octoprint.enable = true;
+  services.octoprint.port = 5000;
+  
+  services.devmon.enable = true;
+  services.gvfs.enable = true; 
+  services.udisks2.enable = true;
+
   services.pipewire = {
     enable = true;
     pulse.enable = true;
@@ -89,7 +96,7 @@
 
   users.users.cryptix = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "libvirtd" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "networkmanager" "libvirtd" "dialout" ]; # Enable ‘sudo’ for the user.
     shell = pkgs.zsh;
   };
 
@@ -102,6 +109,7 @@
     wofi
     rofi-wayland
     firefox
+    obs-studio
     dunst
     qemu
     direnv
@@ -116,7 +124,10 @@
     lutris
     clang
     zed-editor
+    pavucontrol
     nixd
+    mpv
+    octoprint
     nvtopPackages.full
     xfce.thunar
     inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default

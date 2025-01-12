@@ -22,6 +22,7 @@
     pkgs.onefetch
     pkgs.prismlauncher
     pkgs.gfn-electron
+    pkgs.prusa-slicer
   ];
 
   home.file = {
