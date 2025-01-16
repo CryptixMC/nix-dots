@@ -40,6 +40,8 @@
     open = true;
   };
 
+  hardware.graphics.enable32Bit = true;
+
   services.xserver.videoDrivers = [ "nvidia" ];
 
   services.displayManager.sddm.enable = true;
@@ -82,9 +84,9 @@
 
   services.octoprint.enable = true;
   services.octoprint.port = 5000;
-  
+
   services.devmon.enable = true;
-  services.gvfs.enable = true; 
+  services.gvfs.enable = true;
   services.udisks2.enable = true;
 
   services.pipewire = {
@@ -127,7 +129,7 @@
     pavucontrol
     nixd
     mpv
-    octoprint
+    xwayland
     nvtopPackages.full
     xfce.thunar
     inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default

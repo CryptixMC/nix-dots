@@ -3,7 +3,7 @@
 {
   home.username = "cryptix";
   home.homeDirectory = "/home/cryptix";
-  
+
   imports = [
     #inputs.nixvim.homeManagerModules.nixvim
     #../../Modules/home-manager/style/stylix.nix
@@ -40,7 +40,7 @@
         cm = "commit";
       };
     };
-  
+
     zsh = {
       enable = true;
       autosuggestion.enable = true;
@@ -59,7 +59,7 @@
       };
       envExtra = ''
         disfetch
-        eval "$(direnv hook zsh)"  
+        eval "$(direnv hook zsh)"
       '';
     };
 
