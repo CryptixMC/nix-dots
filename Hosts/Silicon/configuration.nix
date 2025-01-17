@@ -5,6 +5,7 @@
     [
       ./hardware-configuration.nix
       ../../Modules/nixos/apps/virtualization.nix
+      ../../Modules/nixos/style/stylix.nix
       inputs.home-manager.nixosModules.default
     ];
 
@@ -108,8 +109,6 @@
     waybar
     eww
     kitty
-    wofi
-    rofi-wayland
     firefox
     obs-studio
     dunst

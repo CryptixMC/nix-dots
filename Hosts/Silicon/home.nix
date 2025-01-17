@@ -6,7 +6,6 @@
 
   imports = [
     #inputs.nixvim.homeManagerModules.nixvim
-    #../../Modules/home-manager/style/stylix.nix
   ];
 
   home.packages = [
@@ -30,6 +29,15 @@
   };
 
   programs = {
+    #kitty.enable = true;
+    #waybar.enable = true;
+    wofi.enable = true;
+    neovim.enable = true;
+
+    #hyprland = {
+      #enable = true;
+      #};
+
     git = {
       enable = true;
       userName = "cryptix";
@@ -47,9 +55,9 @@
       enableCompletion = true;
       shellAliases = {
         ls = "eza --icons -T -L=2";
-	cat = "bat";
-	fd = "fd -Lu";
-	fetch = "disfetch";
+        cat = "bat";
+        fd = "fd -Lu";
+        fetch = "disfetch";
         gitfetch = "onefetch";
       };
       oh-my-zsh = {
