@@ -6,10 +6,7 @@
 
     stylix.url = "github:danth/stylix";
 
-    nixvim = {
-      url = "github:nix-community/nixvim";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nvf.url = "github:notashelf/nvf";
 
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -46,7 +43,7 @@
         ./Hosts/Silicon/configuration.nix
         inputs.home-manager.nixosModules.default
         inputs.stylix.nixosModules.stylix
-        #inputs.nixvim.homeManagerModules.nixvim
+        inputs.nvf.nixosModules.default
       ];
     };
   };

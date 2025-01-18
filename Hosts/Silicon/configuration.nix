@@ -6,6 +6,7 @@
       ./hardware-configuration.nix
       ../../Modules/nixos/apps/virtualization.nix
       ../../Modules/nixos/style/stylix.nix
+      ../../Modules/nixos/apps/nvf.nix
       inputs.home-manager.nixosModules.default
     ];
 
@@ -83,9 +84,6 @@
 
   services.printing.enable = true;
 
-  services.octoprint.enable = true;
-  services.octoprint.port = 5000;
-
   services.devmon.enable = true;
   services.gvfs.enable = true;
   services.udisks2.enable = true;
@@ -124,6 +122,7 @@
     home-manager
     lutris
     clang
+    obsidian
     zed-editor
     pavucontrol
     nixd

@@ -22,6 +22,7 @@
     pkgs.prismlauncher
     pkgs.gfn-electron
     pkgs.prusa-slicer
+    pkgs.hyprpaper
   ];
 
   home.file = {
@@ -32,11 +33,12 @@
     #kitty.enable = true;
     #waybar.enable = true;
     wofi.enable = true;
+
     neovim.enable = true;
 
     #hyprland = {
       #enable = true;
-      #};
+    #};
 
     git = {
       enable = true;
@@ -70,17 +72,6 @@
         eval "$(direnv hook zsh)"
       '';
     };
-
-    #nixvim = {
-      #enable = true;
-      #options = {
-        #number = true;
-	#relativenumber = true;
-	#shiftwidth = 2;
-      #};
-      #colorschemes.catppuccin.enable = true;
-      #plugins.nvchad.enable = true;
-    #};
   };
 
   home.sessionVariables = {
