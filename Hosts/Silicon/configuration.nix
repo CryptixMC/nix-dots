@@ -46,7 +46,7 @@
 
   services.xserver.videoDrivers = [ "nvidia" ];
 
-  services.displayManager.sddm.enable = true;
+  services.displayManager.ly.enable = true;
   services.xserver.enable = true;
 
   networking.hostName = "silicon";
