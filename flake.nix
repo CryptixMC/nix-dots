@@ -33,8 +33,8 @@
       modules = [
         ./Hosts/Carbon/configuration.nix
         inputs.home-manager.nixosModules.default
-        #inputs.nixvim.homeManagerModules.nixvim
-        #stylix.nixosModules.stylix
+        inputs.stylix.nixosModules.stylix
+	inputs.nvf.nixosModules.default
       ];
     };
     silicon = nixpkgs.lib.nixosSystem {
