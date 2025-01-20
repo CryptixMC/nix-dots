@@ -40,6 +40,12 @@
         inputs.nvf.nixosModules.default
       ];
     };
+    hydrogen = nixpkgs.lib.nixosSystem {
+      specialArgs = {inherit inputs system;};
+      modules = [
+        ./Hosts/Hydrogen/configuration.nix
+      ];
+    };
   };
   };
 }
