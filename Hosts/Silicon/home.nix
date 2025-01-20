@@ -30,7 +30,7 @@
   };
 
   programs = {
-    #kitty.enable = true;
+    kitty.enable = true;
     #waybar.enable = true;
     wofi.enable = true;
 
