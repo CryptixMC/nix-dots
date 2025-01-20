@@ -1,4 +1,4 @@
-{ config, pkgs, inputs, ... }:
+{ pkgs,... }:
 
 {
   home.username = "cryptix";
@@ -34,8 +34,6 @@
     #waybar.enable = true;
     wofi.enable = true;
 
-    neovim.enable = true;
-
     #hyprland = {
       #enable = true;
     #};
@@ -68,7 +66,6 @@
         theme = "robbyrussell";
       };
       envExtra = ''
-        disfetch
         eval "$(direnv hook zsh)"
       '';
     };

@@ -19,12 +19,6 @@
   outputs = { self, nixpkgs, stylix, ... }@inputs:
   let
     system = "x86_x64-linux";
-    pkgs = import nixpkgs {
-      inherit system;
-      config = {
-        allowUnfree = true;
-      };
-    };
   in
   {
   nixosConfigurations = {
@@ -34,7 +28,7 @@
         ./Hosts/Carbon/configuration.nix
         inputs.home-manager.nixosModules.default
         inputs.stylix.nixosModules.stylix
-	inputs.nvf.nixosModules.default
+        inputs.nvf.nixosModules.default
       ];
     };
     silicon = nixpkgs.lib.nixosSystem {
