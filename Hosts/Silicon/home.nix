@@ -5,7 +5,8 @@
   home.homeDirectory = "/home/cryptix";
 
   imports = [
-    #inputs.nixvim.homeManagerModules.nixvim
+    ../../Modules/home-manager/apps/git.nix
+    ../../Modules/home-manager/shell/zsh.nix
   ];
 
   home.packages = [
@@ -16,7 +17,6 @@
     pkgs.gcc
     pkgs.bottom
     pkgs.eza
-    pkgs.disfetch
     pkgs.fd
     pkgs.onefetch
     pkgs.prismlauncher
@@ -31,44 +31,9 @@
 
   programs = {
     kitty.enable = true;
-    #waybar.enable = true;
+    #waybar
     wofi.enable = true;
-
-    #hyprland = {
-      #enable = true;
-    #};
-
-    git = {
-      enable = true;
-      userName = "cryptix";
-      userEmail = "cryptixmc@proton.me";
-      aliases = {
-        pu = "push";
-        co = "checkout";
-        cm = "commit";
-      };
-    };
-
-    zsh = {
-      enable = true;
-      autosuggestion.enable = true;
-      enableCompletion = true;
-      shellAliases = {
-        ls = "eza --icons -T -L=2";
-        cat = "bat";
-        fd = "fd -Lu";
-        fetch = "disfetch";
-        gitfetch = "onefetch";
-      };
-      oh-my-zsh = {
-        enable = true;
-        plugins = [ "git" ];
-        theme = "robbyrussell";
-      };
-      envExtra = ''
-        eval "$(direnv hook zsh)"
-      '';
-    };
+    #hyprland
   };
 
   home.sessionVariables = {

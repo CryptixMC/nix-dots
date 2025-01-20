@@ -1,4 +1,4 @@
-{ config, pkgs, inputs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   imports =
@@ -7,44 +7,16 @@
       ../../Modules/nixos/apps/virtualization.nix
       ../../Modules/nixos/style/stylix.nix
       ../../Modules/nixos/apps/nvf.nix
+      ../../Modules/nixos/hardware/grub.nix
+      ../../Modules/nixos/overlays/dmraid.nix
+      ../../Modules/nixos/hardware/printing.nix
+      ../../Modules/nixos/hardware/nvidia.nix
+      ../../Modules/nixos/apps/games.nix
+      ../../Modules/nixos/apps/ollama.nix
+      ../../Modules/nixos/wm/hyprland.nix
+      ../../Modules/nixos/wm/gnome.nix
       inputs.home-manager.nixosModules.default
     ];
-
-  nixpkgs.overlays =
-    [
-      (final: prev: {
-        dmraid = prev.dmraid.overrideAttrs (oA: {
-	  patches = oA.patches ++ [
-	    (prev.fetchpatch2 {
-	      url = "https://raw.githubusercontent.com/NixOS/nixpkgs/f298cd74e67a841289fd0f10ef4ee85cfbbc4133/pkgs/os-specific/linux/dmraid/fix-dmevent_tool.patch";
-	      hash = "sha256-MmAzpdM3UNRdOk66CnBxVGgbJTzJK43E8EVBfuCFppc=";
-	    })
-	  ];
-	});
-      })
-    ];
-
-
-  boot.loader.grub.enable = true;
-  boot.loader.grub.device = "nodev";
-  boot.loader.grub.useOSProber = true;
-  boot.loader.grub.efiSupport = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  hardware.graphics = {
-    enable = true;
-  };
-
-  hardware.nvidia = {
-    modesetting.enable = true;
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
-    nvidiaSettings = true;
-    open = true;
-  };
-
-  hardware.graphics.enable32Bit = true;
-
-  services.xserver.videoDrivers = [ "nvidia" ];
 
   services.displayManager.ly.enable = true;
   services.xserver.enable = true;
@@ -61,18 +33,6 @@
   xdg.portal.enable = true;
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 
-  programs.steam = {
-    enable = true;
-    remotePlay.openFirewall = true;
-    dedicatedServer.openFirewall = true;
-  };
-
-  services.ollama = {
-    enable = true;
-    acceleration = "cuda";
-  };
-
-  programs.hyprland.enable = true;
   programs.zsh.enable = true;
 
   home-manager = {
@@ -81,8 +41,6 @@
       "cryptix" = import ./home.nix;
     };
   };
-
-  services.printing.enable = true;
 
   services.devmon.enable = true;
   services.gvfs.enable = true;
