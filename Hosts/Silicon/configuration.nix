@@ -36,6 +36,7 @@
   programs.zsh.enable = true;
 
   home-manager = {
+    backupFileExtension = "bak";
     extraSpecialArgs = {inherit inputs;};
     users = {
       "cryptix" = import ./home.nix;

@@ -7,6 +7,7 @@
   imports = [
     ../../Modules/home-manager/apps/git.nix
     ../../Modules/home-manager/shell/zsh.nix
+    ../../Modules/home-manager/wm/hyprland.nix
   ];
 
   home.packages = [
@@ -22,7 +23,6 @@
     pkgs.prismlauncher
     pkgs.gfn-electron
     pkgs.prusa-slicer
-    pkgs.hyprpaper
   ];
 
   home.file = {
@@ -33,7 +33,6 @@
     kitty.enable = true;
     #waybar
     wofi.enable = true;
-    #hyprland
   };
 
   home.sessionVariables = {
