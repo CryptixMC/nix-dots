@@ -7,13 +7,14 @@
       ../../Modules/nixos/apps/virtualization.nix
       ../../Modules/nixos/style/stylix.nix
       ../../Modules/nixos/apps/nvf.nix
+      ../../Modules/nixos/wm/hyprland.nix
       inputs.home-manager.nixosModules.default
     ];
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  services.displayManager.sddm.enable = true;
+  services.displayManager.ly.enable = true;
   services.xserver.enable = true;
 
   services.xserver.videoDrivers = [ "amdgpu" ];
@@ -36,13 +37,13 @@
     remotePlay.openFirewall = true;
     dedicatedServer.openFirewall = true;
   };
+  
+  #programs.hyprland.enable = true;
 
-  virtualisation.libvirtd.enable = true;
-  programs.virt-manager.enable = true;
-  programs.hyprland.enable = true;
   programs.zsh.enable = true;
 
   home-manager = {
+    backupFileExtension = "bak";
     extraSpecialArgs = {inherit inputs;};
     users = {
       "cryptix" = import ./home.nix;

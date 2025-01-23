@@ -5,7 +5,9 @@
   home.homeDirectory = "/home/cryptix";
 
   imports = [
-
+    #../../Modules/home-manager/apps/git.nix
+    ../../Modules/home-manager/shell/zsh.nix
+    ../../Modules/home-manager/wm/hyprland.nix
   ];
 
   home.packages = [
@@ -16,7 +18,6 @@
     pkgs.gcc
     pkgs.bottom
     pkgs.eza
-    pkgs.disfetch
     pkgs.fd
     pkgs.onefetch
     pkgs.prismlauncher
@@ -28,38 +29,8 @@
   };
 
   programs = {
-    git = {
-      enable = true;
-      userName = "cryptix";
-      userEmail = "cryptixmc@proton.me";
-      aliases = {
-        pu = "push";
-        co = "checkout";
-        cm = "commit";
-      };
-    };
-
-    zsh = {
-      enable = true;
-      autosuggestion.enable = true;
-      enableCompletion = true;
-      shellAliases = {
-        ls = "eza --icons -T -L=2";
-	cat = "bat";
-	fd = "fd -Lu";
-	fetch = "disfetch";
-        gitfetch = "onefetch";
-      };
-      oh-my-zsh = {
-        enable = true;
-        plugins = [ "git" ];
-        theme = "robbyrussell";
-      };
-      envExtra = ''
-        disfetch
-        eval "$(direnv hook zsh)"
-      '';
-    };
+    kitty.enable = true;
+    wofi.enable = true;   
   };
 
   home.sessionVariables = {
