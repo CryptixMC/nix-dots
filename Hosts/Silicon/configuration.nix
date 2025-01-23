@@ -47,6 +47,8 @@
   services.gvfs.enable = true;
   services.udisks2.enable = true;
 
+  services.hardware.openrgb.enable = true;
+
   services.pipewire = {
     enable = true;
     pulse.enable = true;
@@ -83,10 +85,12 @@
     clang
     obsidian
     zed-editor
+    brave
     pavucontrol
     nixd
     mpv
     xwayland
+    openrgb-with-all-plugins
     nvtopPackages.full
     xfce.thunar
     inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default

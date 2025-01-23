@@ -1,7 +1,7 @@
 { pkgs, inputs, lib, ... }:
 
 let
-  theme = "catppuccin-mocha-emmet";
+  theme = "catppuccin-mocha";
   themePath = "../../../../Themes/"+theme+"/colors.yaml";
   themePolarity = lib.removeSuffix "\n" (builtins.readFile (./. + "../../../../Themes"+("/"+theme)+"/polarity.txt"));
   backgroundURL = builtins.readFile (./. + "../../../../Themes"+("/"+theme)+"/backgroundurl.txt");
@@ -12,10 +12,11 @@ in
     enable = true;
     autoEnable = true;
 
-    image = pkgs.fetchurl {
-      url = backgroundURL;
-      sha256 = backgroundSha256;
-    };
+    #image = pkgs.fetchurl {
+    #  url = backgroundURL;
+    #  sha256 = backgroundSha256;
+    #};
+    image = (./. +"../../../../Themes"+("/"+theme)+"/background.png");
 
     cursor.package = inputs.rose-pine-hyprcursor;
     cursor.name = "rose-pine-hyprcursor";

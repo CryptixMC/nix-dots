@@ -16,7 +16,7 @@
       $editor = nvim
       $editor2 = zeditor
 
-      exec-once = waybar # & swww init & swww img /home/cryptix/.config/wallpapers/astronaut.png & dunst
+      exec-once = waybar & hyprpaper & dunst
 
       env = XCURSOR_SIZE,24
       env = HYPRCURSOR_SIZE,24

@@ -8,6 +8,7 @@
     ../../Modules/home-manager/apps/git.nix
     ../../Modules/home-manager/shell/zsh.nix
     ../../Modules/home-manager/wm/hyprland.nix
+    ../../Modules/home-manager/shell/cli-apps.nix
   ];
 
   home.packages = [
@@ -23,6 +24,7 @@
     pkgs.prismlauncher
     pkgs.gfn-electron
     pkgs.prusa-slicer
+    pkgs.hyprpaper
   ];
 
   home.file = {
