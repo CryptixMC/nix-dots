@@ -7,7 +7,7 @@
       ../../Modules/nixos/apps/virtualization.nix
       ../../Modules/nixos/style/stylix.nix
       ../../Modules/nixos/apps/nvf.nix
-      #../../Modules/nixos/wm/hyprland.nix
+      ../../Modules/nixos/wm/hyprland.nix
       inputs.home-manager.nixosModules.default
     ];
 
@@ -38,7 +38,7 @@
     dedicatedServer.openFirewall = true;
   };
   
-  programs.hyprland.enable = true;
+  #programs.hyprland.enable = true;
 
   programs.zsh.enable = true;
 

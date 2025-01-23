@@ -8,6 +8,7 @@
       ../../Modules/nixos/style/stylix.nix
       ../../Modules/nixos/apps/nvf.nix
       ../../Modules/nixos/wm/hyprland.nix
+      ../../Modules/nixos/hardware/amd.nix
       inputs.home-manager.nixosModules.default
     ];
 
@@ -16,8 +17,6 @@
 
   services.displayManager.ly.enable = true;
   services.xserver.enable = true;
-
-  services.xserver.videoDrivers = [ "amdgpu" ];
 
   networking.hostName = "carbon";
 
