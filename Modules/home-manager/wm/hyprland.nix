@@ -6,8 +6,8 @@
 
     };
     extraConfig = ''
-      monitor=HDMI-A-1,preferred,0x0,1
-      monitor=DP-1,preferred,-1920x0,1
+      #monitor=HDMI-A-1,preferred,0x0,1
+      #monitor=DP-1,preferred,-1920x0,1
 
       $terminal = kitty
       $fileManager = thunar
@@ -181,6 +181,8 @@
       bindel = ,XF86AudioMicMute, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
       bindel = ,XF86MonBrightnessUp, exec, brightnessctl s 10%+
       bindel = ,XF86MonBrightnessDown, exec, brightnessctl s 10%-
+      bindel = $mainMod,KP_Subtract, exec, brightnessctl -d platform::kbd_backlight s 1-
+      bindel = $mainMod,KP_Add, exec, brightnessctl -d platform::kbd_backlight s +1
 
       bindl = , XF86AudioNext, exec, playerctl next
       bindl = , XF86AudioPause, exec, playerctl play-pause
