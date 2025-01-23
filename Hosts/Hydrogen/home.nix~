@@ -11,11 +11,18 @@
   ];
 
   home.packages = [
-    pkgs.gcc
-    pkgs.bottom
-    pkgs.eza
-    pkgs.fd
-    pkgs.onefetch
+    #pkgs.cargo
+    #pkgs.rustc
+    #pkgs.rust-analyzer
+    #pkgs.nixd
+    #pkgs.gcc
+    #pkgs.bottom
+    #pkgs.eza
+    #pkgs.fd
+    #pkgs.onefetch
+    #pkgs.prismlauncher
+    #pkgs.gfn-electron
+    #pkgs.prusa-slicer
   ];
 
   home.file = {
@@ -24,6 +31,7 @@
 
   programs = {
     kitty.enable = true;
+    #waybar
     wofi.enable = true;
   };
 
