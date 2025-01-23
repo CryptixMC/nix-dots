@@ -30,7 +30,11 @@
 
   programs = {
     kitty.enable = true;
-    wofi.enable = true;   
+    wofi.enable = true;
+  };
+
+  wayland.windowManager.hyprland.settings = {
+    monitor = ",preferred,auto,1";
   };
 
   home.sessionVariables = {

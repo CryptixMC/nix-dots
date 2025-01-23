@@ -38,8 +38,10 @@
   };
 
   wayland.windowManager.hyprland.settings = {
-    monitor = "HDMI-A-1,preferred,0x0,1"
-    monitor = "DP-1,preferred,-1920x0,1"
+    monitor = [
+      "HDMI-A-1,preferred,0x0,1"
+      "DP-1,preferred,-1920x0,1"
+    ];
   };
 
   home.sessionVariables = {
