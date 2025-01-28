@@ -11,20 +11,22 @@
     ../../Modules/home-manager/shell/cli-apps.nix
   ];
 
-  home.packages = [
-    pkgs.cargo
-    pkgs.rustc
-    pkgs.rust-analyzer
-    pkgs.nixd
-    pkgs.gcc
-    pkgs.bottom
-    pkgs.eza
-    pkgs.fd
-    pkgs.onefetch
-    pkgs.prismlauncher
-    pkgs.gfn-electron
-    pkgs.prusa-slicer
-    pkgs.hyprpaper
+  home.packages = with pkgs; [
+    cargo
+    rustc
+    rust-analyzer
+    nixd
+    gcc
+    bottom
+    eza
+    fd
+    onefetch
+    prismlauncher
+    gfn-electron
+    prusa-slicer
+    hyprpaper
+    gimp
+
   ];
 
   home.file = {
