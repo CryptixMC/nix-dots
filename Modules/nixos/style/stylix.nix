@@ -1,7 +1,7 @@
 { pkgs, inputs, lib, ... }:
 
 let
-  theme = "catppuccin-mocha";
+  theme = "ultraviolet";
   themePath = "../../../../Themes/"+theme+"/colors.yaml";
   themePolarity = lib.removeSuffix "\n" (builtins.readFile (./. + "../../../../Themes"+("/"+theme)+"/polarity.txt"));
   backgroundURL = builtins.readFile (./. + "../../../../Themes"+("/"+theme)+"/backgroundurl.txt");
