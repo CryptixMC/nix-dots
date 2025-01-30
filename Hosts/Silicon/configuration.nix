@@ -89,8 +89,12 @@
     pavucontrol
     nixd
     mpv
+    parsec-bin
     xwayland
     openrgb-with-all-plugins
+    discord
+    spotify
+    discordo
     nvtopPackages.full
     xfce.thunar
     inputs.rose-pine-hyprcursor.packages.${pkgs.system}.default

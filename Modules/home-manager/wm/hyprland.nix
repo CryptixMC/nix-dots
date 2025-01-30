@@ -3,12 +3,11 @@
   wayland.windowManager.hyprland = {
     enable = true;
     settings = {
+      general = {
 
+      };
     };
     extraConfig = ''
-      #monitor=HDMI-A-1,preferred,0x0,1
-      #monitor=DP-1,preferred,-1920x0,1
-
       $terminal = kitty
       $fileManager = thunar
       $menu = wofi --show drun
@@ -26,9 +25,6 @@
         gaps_out = 5
 
         border_size = 2
-
-        col.active_border = rgba(cba6f7ee) rgba(f5c2e7ee) 45deg
-        col.inactive_border = rgba(595959aa)
 
         resize_on_border = false
 

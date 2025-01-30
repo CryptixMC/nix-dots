@@ -26,7 +26,6 @@
     prusa-slicer
     hyprpaper
     gimp
-
   ];
 
   home.file = {
