@@ -8,7 +8,7 @@
     #../../Modules/home-manager/apps/git.nix
     ../../Modules/home-manager/shell/zsh.nix
     ../../Modules/home-manager/wm/hyprland.nix
-    ../../Modules/home-manager/wm/hyprpanel.nix
+    inputs.hyprpanel.homeManagerModules.hyprpanel
   ];
 
   home.packages = [
@@ -32,6 +32,22 @@
   programs = {
     kitty.enable = true;
     wofi.enable = true;
+
+    hyprpanel = {
+      enable = true;
+      overlay.enable = true;
+
+      settings = {
+        bar.launcher.autoDetectIcon = true;
+
+        menus.clock = {
+          time = {
+            hideSeconds = true;
+          };
+        };
+
+      };
+    };
   };
 
   wayland.windowManager.hyprland.settings = {
