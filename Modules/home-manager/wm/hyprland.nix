@@ -15,8 +15,8 @@
       $editor = nvim
       $editor2 = zeditor
 
-      #exec-once = waybar & hyprpaper & dunst
-      exec-once = hyprpaper
+      exec-once = waybar & hyprpaper & dunst
+      #exec-once = hyprpaper
 
       env = XCURSOR_SIZE,24
       env = HYPRCURSOR_SIZE,24

@@ -7,6 +7,12 @@
       viAlias = true;
       vimAlias = true;
 
+      theme = {
+        enable = true;
+        name = "catppuccin";
+        style = "mocha";
+      };
+
       languages = {
         enableLSP = true;
         enableFormat = true;

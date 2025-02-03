@@ -8,7 +8,7 @@
 
     nvf.url = "github:notashelf/nvf";
 
-    hyprpanel.url = "github:Jas-SinghFSU/HyprPanel";
+    #hyprpanel.url = "github:Jas-SinghFSU/HyprPanel";
 
     home-manager = {
       url = "github:nix-community/home-manager";

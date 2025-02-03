@@ -5,10 +5,10 @@
   home.homeDirectory = "/home/cryptix";
 
   imports = [
-    #../../Modules/home-manager/apps/git.nix
+    ../../Modules/home-manager/apps/git.nix
     ../../Modules/home-manager/shell/zsh.nix
     ../../Modules/home-manager/wm/hyprland.nix
-    ../../Modules/home-manager/wm/hyprpanel.nix
+    #../../Modules/home-manager/wm/hyprpanel.nix
   ];
 
   home.packages = [
