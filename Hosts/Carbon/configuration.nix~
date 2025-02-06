@@ -21,6 +21,9 @@
   networking.hostName = "carbon";
 
   networking.networkmanager.enable = true;
+  
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
@@ -42,7 +45,7 @@
   programs.zsh.enable = true;
 
   home-manager = {
-    backupFileExtension = "bak";
+    backupFileExtension = "backup";
     extraSpecialArgs = {inherit inputs;};
     users = {
       "cryptix" = import ./home.nix;
