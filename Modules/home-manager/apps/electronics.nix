@@ -1,9 +1,8 @@
 { pkgs, ... }:
 {
   home.packages = with pkgs; [
-    prismlauncher
-    gfn-electron
+    kicad
+    arduino
+    fritzing
   ];
 }
-# steam
-# lutris

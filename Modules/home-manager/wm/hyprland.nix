@@ -135,6 +135,7 @@
       bind = $mainMod, F, exec, $browser
       bind = $mainMod, N, exec, $editor
       bind = $mainMod, Z, exec, $editor2
+      bind = $mainMod, L, fullscreen
 
       bind = $mainMod, left, movefocus, l
       bind = $mainMod, right, movefocus, r

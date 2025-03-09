@@ -1,5 +1,10 @@
+{ pkgs, ... }:
+{
+  home.packages = with pkgs; [
+    godot_4
+  ];
+}
 # unreal
 # unity
-# godot
 # bevy
 # pygame

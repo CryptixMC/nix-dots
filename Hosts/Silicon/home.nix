@@ -9,23 +9,16 @@
     ../../Modules/home-manager/shell/zsh.nix
     ../../Modules/home-manager/wm/hyprland.nix
     ../../Modules/home-manager/shell/cli-apps.nix
+    ../../Modules/home-manager/apps/electronics.nix
+    ../../Modules/home-manager/apps/satelites.nix
+    ../../Modules/home-manager/apps/programming.nix
+    ../../Modules/home-manager/apps/gamedev.nix
+    ../../Modules/home-manager/apps/games.nix
+    ../../Modules/home-manager/apps/creating.nix
   ];
 
   home.packages = with pkgs; [
-    cargo
-    rustc
-    rust-analyzer
-    nixd
-    gcc
-    bottom
-    eza
-    fd
-    onefetch
-    prismlauncher
-    gfn-electron
-    prusa-slicer
     hyprpaper
-    gimp
   ];
 
   home.file = {

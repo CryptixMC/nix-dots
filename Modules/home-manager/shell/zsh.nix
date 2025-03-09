@@ -1,5 +1,13 @@
-{ ... }:
+{ pkgs, ... }:
 {
+  home.packages = with pkgs; [
+    bottom
+    bat
+    fd
+    eza
+    onefetch
+    disfetch
+  ];
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;

@@ -1,9 +1,6 @@
 { pkgs, ... }:
 {
   home.packages = with pkgs; [
-    prismlauncher
-    gfn-electron
+    #gpredict
   ];
 }
-# steam
-# lutris

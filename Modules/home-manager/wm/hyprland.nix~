@@ -15,8 +15,8 @@
       $editor = nvim
       $editor2 = zeditor
 
-      #exec-once = waybar & hyprpaper & dunst
-      exec-once = hyprpaper
+      exec-once = waybar & hyprpaper & dunst
+      #exec-once = hyprpaper
 
       env = XCURSOR_SIZE,24
       env = HYPRCURSOR_SIZE,24
@@ -135,6 +135,7 @@
       bind = $mainMod, F, exec, $browser
       bind = $mainMod, N, exec, $editor
       bind = $mainMod, Z, exec, $editor2
+      bind = $mainMod, L, exec, fullscreen
 
       bind = $mainMod, left, movefocus, l
       bind = $mainMod, right, movefocus, r
