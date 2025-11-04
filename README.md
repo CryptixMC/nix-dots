@@ -5,9 +5,32 @@ Welcome to my NixOS configuration! This repository is designed for modularity, t
 ---
 
 ## TO-DO
-- [ ] get all modules to be styled via stylix
-- [ ] add a template for styles
-- [ ] waybar is a WIP
+
+### Theming
+- [ ] Make themes easier to configure and switch, potentially using `walker`.
+- [ ] When switching themes, also update the Waybar configuration.
+- [ ] Get all modules to be styled via stylix.
+- [ ] Add a template for styles.
+
+### Waybar
+- [ ] Complete the Waybar configuration.
+- [ ] Integrate Waybar with theme switching.
+
+### Hyprland
+- [ ] Fine-tune Hyprland configuration.
+
+### File Browser
+- [ ] Choose and configure a file browser.
+
+### Walker (rofi replacement)
+- [ ] Implement `walker` as the main application launcher and window switcher.
+- [ ] Configure `walker` for theme switching.
+- [ ] Implement `walker` as a file searcher.
+- [ ] Explore and implement other `walker` features like:
+    - [ ] SSH launcher
+    - [ ] Clipboard manager
+    - [ ] Power management menu
+    - [ ] Calculator
 
 ---
 
@@ -40,15 +63,37 @@ This repo uses Nix flakes for reproducible system and user configurations. Key f
 
 ```
 nix-dots/
-├── assets/         # Extra theme assets (e.g., for editors)
-├── files/          # (Currently empty, for future use)
-├── hosts/          # Host-specific configs
-├── modules/        # Modular NixOS & Home Manager configs
-├── old-stuff/      # Legacy configs
-├── themes/         # Custom themes (e.g., Ultraviolet)
-├── flake.nix       # Flake entry point
-├── flake.lock      # Flake lock file
-└── README.md       # This file
+├── flake.lock
+├── flake.nix
+├── README.md
+├── hosts/
+│   └── carbon/
+│       ├── configuration.nix
+│       ├── hardware-configuration.nix
+│       └── home.nix
+├── modules/
+│   ├── home-manager/
+│   │   ├── apps/
+│   │   ├── core/
+│   │   ├── shell/
+│   │   └── wm/
+│   ├── nixos/
+│   │   ├── apps/
+│   │   ├── core/
+│   │   ├── hardware/
+│   │   ├── services/
+│   │   └── wm/
+│   └── style/
+│       └── stylix.nix
+└── themes/
+    └── ultraviolet/
+        ├── alyssa.png
+        ├── background.png
+        ├── backgroundsha256.txt
+        ├── backgroundurl.txt
+        ├── colors.yaml
+        ├── polarity.txt
+        └── ultraviolet.yaml
 ```
 
 ---
@@ -119,6 +164,11 @@ _Screenshot: Home Manager apps and settings_
    sudo nixos-rebuild switch --flake .#carbon
    ```
 
+   > [!NOTE]
+   > After the initial `nixos-rebuild switch`, you can use `nh` for faster rebuilds:
+   > - `nh os switch .`: Rebuilds the NixOS configuration.
+   > - `nh home switch .`: Rebuilds the Home Manager configuration.
+
 3. **Customize themes:**
    - Edit files in `themes/ultraviolet/`
    - Update `modules/nixos/style/stylix.nix` as needed
@@ -133,14 +183,3 @@ Add screenshots of your desktop, terminal, apps, etc. here for visual reference.
 - Host desktop: ![Host screenshot](screenshots/host-carbon.png)
 - Modules structure: ![Modules screenshot](screenshots/modules-structure.png)
 - Home Manager: ![Home Manager screenshot](screenshots/home-manager.png)
-
----
-
-## Credits
-
-- [Stylix](https://github.com/danth/stylix)
-- [Base16](https://github.com/chriskempson/base16)
-- [NixOS](https://nixos.org/)
-- [Home Manager](https://github.com/nix-community/home-manager)
-
----
