@@ -52,6 +52,7 @@
 
       env = XCURSOR_SIZE,24
       env = XCURSOR_THEME,XCursor-Pro-Dark
+      env = WLR_NO_HARDWARE_CURSORS,1
 
       ###################
       ### PERMISSIONS ###

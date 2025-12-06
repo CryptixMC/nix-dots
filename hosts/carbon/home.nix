@@ -15,6 +15,13 @@
   home.homeDirectory = "/home/cryptix";
   home.stateVersion = "25.05";
 
+  nixpkgs.config = {
+    allowUnfree = true; # Allow unfree packages like Cisco Packet Tracer
+    permittedInsecurePackages = [
+      "qtwebengine-5.15.19"
+    ];
+  };
+
   stylix.targets.zen-browser.enable = false;
 
   home.file = {

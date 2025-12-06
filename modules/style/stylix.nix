@@ -2,6 +2,7 @@
 {
   stylix = {
     enable = true;
+    enableReleaseChecks = false;
 
     image = ../../themes/ultraviolet/alyssa.png;
     base16Scheme = ../../themes/ultraviolet/ultraviolet.yaml;

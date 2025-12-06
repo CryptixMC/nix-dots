@@ -32,6 +32,24 @@
 
   system.stateVersion = "25.05";
 
+  # Enable FUSE for AppImages and unprivileged users
+  boot.kernelModules = [ "fuse" ];
+  boot.extraModprobeConfig = ''
+    options fuse allow_other
+  '';
+
+  # Allow non-root users to mount FUSE filesystems via polkit
+  security.polkit.enable = true;
+  security.polkit.extraConfig = ''
+    /* Allow any user to mount fuse */
+    polkit.addRule(function(action, subject) {
+      if (action.id == "org.freedesktop.udisks2.filesystem-mount-system" &&
+          subject.isInGroup("users")) {
+        return polkit.Result.YES;
+      }
+    });
+  '';
+
   nixpkgs.config = {
     allowBroken = true;
     permittedInsecurePackages = [

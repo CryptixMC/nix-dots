@@ -1,5 +1,9 @@
 { pkgs, ... }:
 {
+  imports = [
+    ../apps/it-tools.nix
+  ];
+
   home.packages = with pkgs; [
     neovim
     prismlauncher
@@ -7,5 +11,9 @@
     nixd
     nil
     vinegar
+    obs-studio
+    blender
+    zoom-us
+    openjdk
   ];
 }
