@@ -20,5 +20,6 @@
     onlyoffice-desktopeditors
     discord
     qbittorrent
+    ghidra
   ];
 }

@@ -9,6 +9,7 @@
     ../../modules/home-manager/apps/zen-browser.nix
     ../../modules/home-manager/apps/zed.nix
     ../../modules/style/stylix.nix
+    ../../modules/home-manager/core/portal.nix
   ];
 
   home.username = "cryptix";
