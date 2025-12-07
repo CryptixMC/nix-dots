@@ -225,7 +225,7 @@
       # Example binds, see https://wiki.hypr.land/Configuring/Binds/ for more
       bind = $mainMod, Q, exec, $terminal
       bind = $mainMod, C, killactive,
-      bind = $mainMod, M, exit,
+      bind = $mainMod, M, exec, sh -c "loginctl terminate-session $XDG_SESSION_ID"
       bind = $mainMod, E, exec, $fileManager
       bind = $mainMod, V, togglefloating,
       bind = $mainMod, R, exec, $menu
