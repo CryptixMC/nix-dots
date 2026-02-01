@@ -8,6 +8,7 @@
     ../../modules/home-manager/wm/waybar.nix
     ../../modules/home-manager/apps/zen-browser.nix
     ../../modules/home-manager/apps/zed.nix
+    ../../modules/home-manager/apps/minecraft.nix
     ../../modules/style/stylix.nix
     ../../modules/home-manager/core/portal.nix
   ];

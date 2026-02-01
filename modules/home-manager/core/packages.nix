@@ -5,6 +5,7 @@
   ];
 
   home.packages = with pkgs; [
+    mangohud
     neovim
     prismlauncher
     brightnessctl
@@ -14,6 +15,7 @@
     obs-studio
     blender
     zoom-us
-    openjdk
+    cura
+    super-slicer
   ];
 }

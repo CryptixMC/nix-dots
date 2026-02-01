@@ -21,5 +21,10 @@
     discord
     qbittorrent
     ghidra
+    gsettings-desktop-schemas
+    gtk3
+    glib-networking
+    zenity
+    zenmap
   ];
 }

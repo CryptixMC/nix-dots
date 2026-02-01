@@ -14,5 +14,8 @@
     bat
     bottom
     onefetch
+    telegram-desktop
+    whatsapp-electron
+
   ];
 }
