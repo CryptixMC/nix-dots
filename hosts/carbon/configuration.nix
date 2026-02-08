@@ -7,7 +7,7 @@
     ./hardware-configuration.nix
     ../../modules/nixos/hardware/fprintd.nix
     ../../modules/nixos/hardware/nvidia.nix
-    ../../modules/nixos/wm/gnome.nix
+    #../../modules/nixos/wm/gnome.nix
     ../../modules/nixos/wm/hyprland.nix
     ../../modules/nixos/apps/games.nix
     ../../modules/nixos/apps/virtualization.nix
@@ -61,5 +61,26 @@
     LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [ pkgs.cudaPackages.cudatoolkit ]}";
     CUDA_VISIBLE_DEVICES = "0";
   };
+
+  services.displayManager.gdm.enable = true;
+
+  services.displayManager.sessionPackages = [
+    (
+      (pkgs.makeDesktopItem {
+        name = "hyprland-custom";
+        desktopName = "Hyprland (Fixed)";
+        exec = "Hyprland";
+        icon = "hyprland";
+        type = "Application";
+        destination = "/share/wayland-sessions";
+      }).overrideAttrs
+      (oldAttrs: {
+        # We attach the required metadata here, outside the makeDesktopItem call
+        passthru = (oldAttrs.passthru or { }) // {
+          providedSessions = [ "hyprland-custom" ];
+        };
+      })
+    )
+  ];
 
 }

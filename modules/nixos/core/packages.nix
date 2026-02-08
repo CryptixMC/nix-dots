@@ -6,6 +6,7 @@
     nh
     git
     pciutils
+    bolt
     foliate
     cudaPackages.cudatoolkit
     protonvpn-gui
