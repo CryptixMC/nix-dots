@@ -16,6 +16,6 @@
     onefetch
     telegram-desktop
     whatsapp-electron
-
+    mangohud
   ];
 }
