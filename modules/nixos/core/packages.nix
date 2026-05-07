@@ -13,12 +13,12 @@
     direnv
     nix-direnv
     flameshot
-    python311
     xwayland
     lazygit
     celeste
     onlyoffice-desktopeditors
     discord
     qbittorrent
+    elephant
   ];
 }

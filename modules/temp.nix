@@ -1,9 +1,6 @@
 { pkgs, ... }:
 {
   environment.systemPackages = with pkgs; [
-    gimp
-    gimpPlugins.gmic
-    gimp-with-plugins
     ghostty
     #zen-browser
     zenith

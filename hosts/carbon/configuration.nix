@@ -1,12 +1,9 @@
 {
-  pkgs,
   ...
 }:
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/nixos/hardware/fprintd.nix
-    ../../modules/nixos/hardware/nvidia.nix
     ../../modules/nixos/wm/gnome.nix
     ../../modules/nixos/wm/hyprland.nix
     ../../modules/nixos/apps/games.nix
@@ -28,20 +25,9 @@
     ../../modules/nixos/core/nix.nix
     ../../modules/nixos/core/packages.nix
     ../../modules/nixos/core/programs.nix
+    ../../modules/nixos/hardware/amd.nix
   ];
 
-  system.stateVersion = "25.05";
-
-  nixpkgs.config = {
-    allowBroken = true;
-    permittedInsecurePackages = [
-      "electron-35.7.5"
-    ];
-  };
-
-  environment.variables = {
-    LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath [ pkgs.cudaPackages.cudatoolkit ]}";
-    CUDA_VISIBLE_DEVICES = "0";
-  };
+  system.stateVersion = "25.11";
 
 }
