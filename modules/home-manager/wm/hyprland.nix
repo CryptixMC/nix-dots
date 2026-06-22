@@ -52,7 +52,6 @@
 
       env = XCURSOR_SIZE,24
       env = XCURSOR_THEME,XCursor-Pro-Dark
-      env = AQ_DRM_DEVICES,/dev/dri/by-path/pci-0000:00:02.0-card:/dev/dri/by-path/pci-0000:54:00.0-card
 
       ###################
       ### PERMISSIONS ###

@@ -194,10 +194,21 @@ in
     # Runtime PM will lose the Thunderbolt link on GPU sleep.
     "amdgpu.runpm=0"
 
+    # The DC stack retries DPIA (TB DisplayPort) link training indefinitely when
+    # no monitor is attached at init, causing a hang on kernel 6.18+.
+    "amdgpu.dcdebugmask=0x400"
+    "amdgpu.sg_display=0"
+
     # Enable kernel-native PCIe hotplug instead of ACPI-managed.
     # Required for the kernel to detect the GPU on the PCIe bus after TB auth.
     "pcie_ports=native"
   ];
+
+  # Suppress "cannot get freq at ep 0x86" spam from the dock's USB audio chip.
+  # The feedback endpoint on this device doesn't implement GET_CUR for freq.
+  boot.extraModprobeConfig = ''
+    options snd-usb-audio implicit_fb=1
+  '';
 
   # --- Graphics ---
   hardware.graphics = {
