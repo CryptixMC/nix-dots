@@ -7,5 +7,10 @@
     nixd
     nil
     vinegar
+    easyeffects
+    lsp-plugins
+    rnnoise-plugin
+    calf
+    tenacity
   ];
 }

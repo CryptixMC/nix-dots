@@ -13,9 +13,9 @@
       ################
 
       # See https://wiki.hypr.land/Configuring/Monitors/
-      monitor=DP-5,preferred,0x0,1
-      monitor=eDP-1,preferred,0x1080,1
-      monitor=DP-7,preferred,-1080x0,1,transform,1
+      monitor=DP-6,1920x1080,0x420,1
+      monitor=HDMI-A-2,1920x1080,1920x0,1,transform,3
+      monitor=eDP-1,preferred,auto,1
 
 
       ###################
@@ -40,7 +40,7 @@
 
       # exec-once = $terminal
       # exec-once = nm-applet &
-      exec-once = waybar & hyprpaper & kanshi & elephant
+      exec-once = waybar & hyprpaper & elephant
       exec = gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
 
 
@@ -52,6 +52,7 @@
 
       env = XCURSOR_SIZE,24
       env = XCURSOR_THEME,XCursor-Pro-Dark
+      env = AQ_DRM_DEVICES,/dev/dri/by-path/pci-0000:00:02.0-card:/dev/dri/by-path/pci-0000:54:00.0-card
 
       ###################
       ### PERMISSIONS ###

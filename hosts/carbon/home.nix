@@ -5,6 +5,7 @@
     ../../modules/home-manager/core/variables.nix
     ../../modules/home-manager/apps/ghostty.nix
     ../../modules/home-manager/wm/hyprland.nix
+    ../../modules/home-manager/wm/kanshi.nix
     ../../modules/home-manager/wm/waybar.nix
     ../../modules/home-manager/apps/zen-browser.nix
     ../../modules/home-manager/apps/zed.nix

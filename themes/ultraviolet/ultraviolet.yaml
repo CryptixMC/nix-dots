@@ -1,5 +1,6 @@
 scheme: "Ultraviolet"
 author: "cryptix (https://github.com/CryptixMC/ultraviolet-theme.git)"
+variant: "dark"
 base00: "050505"
 base01: "080808"
 base02: "0f0f0f"

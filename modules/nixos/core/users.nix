@@ -7,6 +7,8 @@
       "networkmanager"
       "wheel"
       "docker"
+      "render"
+      "video"
     ];
     shell = pkgs.zsh;
   };

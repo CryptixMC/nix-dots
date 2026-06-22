@@ -20,5 +20,7 @@
     discord
     qbittorrent
     elephant
+    claude-code
+    claude-code-acp
   ];
 }
