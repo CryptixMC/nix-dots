@@ -2,9 +2,10 @@
 {
   services.kanshi = {
     enable = true;
-    profiles = {
-      docked = {
-        outputs = [
+    settings = [
+      {
+        profile.name = "docked";
+        profile.outputs = [
           {
             criteria = "Samsung Electric Company LF24T35 H1AK500000";
             status = "enable";
@@ -24,9 +25,10 @@
             status = "disable";
           }
         ];
-      };
-      laptop = {
-        outputs = [
+      }
+      {
+        profile.name = "laptop";
+        profile.outputs = [
           {
             criteria = "AU Optronics 0xFA9B";
             status = "enable";
@@ -34,7 +36,7 @@
             position = "0,0";
           }
         ];
-      };
-    };
+      }
+    ];
   };
 }

@@ -2,12 +2,16 @@
 {
   networking.hostName = "carbon";
   networking.networkmanager.enable = true;
-  # Intel CNVi WiFi (Alder Lake) drops association under power save — disable it
+  networking.networkmanager.wifi.backend = "iwd";
   networking.networkmanager.wifi.powersave = false;
-  boot.extraModprobeConfig = "options iwlwifi power_save=0";
-  networking.firewall.allowedUDPPorts = [
-    53
-    67
-    68
-  ];
+
+  services.iwd.config = {
+    General.PowerSaveMode = "off";
+  };
+
+  hardware.wirelessRegulatoryDatabase = true;
+  boot.extraModprobeConfig = ''
+    options cfg80211 ieee80211_regdom=CA
+    options iwlwifi power_save=0
+  '';
 }

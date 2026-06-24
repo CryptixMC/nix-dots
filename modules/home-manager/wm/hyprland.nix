@@ -2,6 +2,7 @@
 {
   wayland.windowManager.hyprland = {
     enable = true;
+    configType = "hyprlang";
     settings = {
       general = {
 
@@ -164,8 +165,7 @@
 
       # See https://wiki.hypr.land/Configuring/Dwindle-Layout/ for more
       dwindle {
-          pseudotile = true # Master switch for pseudotiling. Enabling is bound to mainMod + P in the keybinds section below
-          preserve_split = true # You probably want this
+          preserve_split = true
       }
 
       # See https://wiki.hypr.land/Configuring/Master-Layout/ for more
@@ -229,7 +229,7 @@
       bind = $mainMod, V, togglefloating,
       bind = $mainMod, R, exec, $menu
       bind = $mainMod, P, pseudo, # dwindle
-      bind = $mainMod, J, togglesplit, # dwindle
+      bind = $mainMod, J, layoutmsg, togglesplit
       bind = $mainMod, Z, exec, $editor
       bind = $mainMod, F, exec, $browser
 
