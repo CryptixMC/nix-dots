@@ -5,10 +5,6 @@
   networking.networkmanager.wifi.backend = "iwd";
   networking.networkmanager.wifi.powersave = false;
 
-  services.iwd.config = {
-    General.PowerSaveMode = "off";
-  };
-
   hardware.wirelessRegulatoryDatabase = true;
   boot.extraModprobeConfig = ''
     options cfg80211 ieee80211_regdom=CA
