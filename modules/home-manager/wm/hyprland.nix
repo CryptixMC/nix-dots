@@ -165,7 +165,8 @@
 
       # See https://wiki.hypr.land/Configuring/Dwindle-Layout/ for more
       dwindle {
-          preserve_split = true
+          pseudotile = true # Master switch for pseudotiling. Enabling is bound to mainMod + P in the keybinds section below
+          preserve_split = true # You probably want this
       }
 
       # See https://wiki.hypr.land/Configuring/Master-Layout/ for more
@@ -177,6 +178,10 @@
       misc {
           force_default_wallpaper = 0 # Set to 0 or 1 to disable the anime mascot wallpapers
           disable_hyprland_logo = false # If true disables the random hyprland logo / anime girl background. :(
+      }
+
+      render {
+          direct_scanout = false
       }
 
 
@@ -229,7 +234,7 @@
       bind = $mainMod, V, togglefloating,
       bind = $mainMod, R, exec, $menu
       bind = $mainMod, P, pseudo, # dwindle
-      bind = $mainMod, J, layoutmsg, togglesplit
+      bind = $mainMod, J, togglesplit, # dwindle
       bind = $mainMod, Z, exec, $editor
       bind = $mainMod, F, exec, $browser
 
