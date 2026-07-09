@@ -6,9 +6,10 @@
     nh
     git
     pciutils
+    iw
+    wirelesstools
     foliate
-    cudaPackages.cudatoolkit
-    protonvpn-gui
+    proton-vpn
     unzip
     direnv
     nix-direnv
@@ -21,6 +22,6 @@
     qbittorrent
     elephant
     claude-code
-    claude-code-acp
+    claude-agent-acp
   ];
 }

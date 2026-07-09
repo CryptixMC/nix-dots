@@ -3,7 +3,15 @@
   stylix.targets.zed.enable = true;
   programs.zed-editor = {
     enable = true;
-    package = pkgs.zed-editor;
+    package = pkgs.symlinkJoin {
+      name = "zed-editor";
+      paths = [ pkgs.zed-editor ];
+      nativeBuildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/zeditor \
+          --set CLAUDE_CODE_EXECUTABLE "${pkgs.claude-code}/bin/claude"
+      '';
+    };
     extensions = [
       "nix"
       "toml"
@@ -25,6 +33,20 @@
             type = "registry";
             env = {
               PATH = "/run/wrappers/bin:/home/cryptix/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin";
+              CLAUDE_CODE_EXECUTABLE = "/run/current-system/sw/bin/claude";
+            };
+          };
+        };
+      };
+
+      agent = {
+        enabled = true;
+        agent_servers = {
+          "claude-acp" = {
+            type = "registry";
+            env = {
+              PATH = "/run/wrappers/bin:/home/cryptix/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin";
+              CLAUDE_CODE_EXECUTABLE = "/run/current-system/sw/bin/claude";
             };
           };
         };

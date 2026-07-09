@@ -12,6 +12,8 @@
     ../../modules/style/stylix.nix
   ];
 
+  nixpkgs.config.allowUnfree = true;
+
   home.username = "cryptix";
   home.homeDirectory = "/home/cryptix";
   home.stateVersion = "25.05";
