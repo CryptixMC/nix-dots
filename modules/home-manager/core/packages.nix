@@ -12,6 +12,10 @@
     rnnoise-plugin
     calf
     tenacity
+    amdgpu_top
     seahorse
+    google-chrome
+    obsidian
+    gh
   ];
 }

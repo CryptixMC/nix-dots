@@ -16,6 +16,7 @@
     ../../modules/nixos/services/ssh.nix
     ../../modules/nixos/services/tailscale.nix
     ../../modules/nixos/services/xserver.nix
+    ../../modules/nixos/services/ollama.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
     ../../modules/nixos/core/bootloader.nix
@@ -28,6 +29,13 @@
     ../../modules/nixos/hardware/amd.nix
   ];
 
+  programs.claude-desktop.enable = true;
+
   system.stateVersion = "25.11";
+
+  services.logind = {
+    lidSwitch = "ignore";
+    lidSwitchExternalPower = "ignore";
+  };
 
 }

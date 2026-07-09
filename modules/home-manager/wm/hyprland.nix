@@ -27,8 +27,11 @@
 
       # Set programs that you use
       $terminal = ghostty
-      $fileManager = dolphin
-      $menu = walker
+      $fileManager = nautilus
+      $claudeApp = claude-desktop
+      $menu = walker -t float
+      $menuRail = walker -t rail --maxwidth 272 --minwidth 272
+      $menuGrid = walker -t grid
       $editor = zeditor
       $browser = zen-twilight
 
@@ -165,7 +168,6 @@
 
       # See https://wiki.hypr.land/Configuring/Dwindle-Layout/ for more
       dwindle {
-          pseudotile = true # Master switch for pseudotiling. Enabling is bound to mainMod + P in the keybinds section below
           preserve_split = true # You probably want this
       }
 
@@ -182,6 +184,10 @@
 
       render {
           direct_scanout = false
+      }
+
+      cursor {
+          no_hardware_cursors = true
       }
 
 
@@ -233,10 +239,13 @@
       bind = $mainMod, E, exec, $fileManager
       bind = $mainMod, V, togglefloating,
       bind = $mainMod, R, exec, $menu
+      bind = $mainMod SHIFT, R, exec, $menuRail
+      bind = $mainMod CTRL, R, exec, $menuGrid
       bind = $mainMod, P, pseudo, # dwindle
-      bind = $mainMod, J, togglesplit, # dwindle
+      bind = $mainMod, J, layoutmsg, togglesplit
       bind = $mainMod, Z, exec, $editor
       bind = $mainMod, F, exec, $browser
+      bind = $mainMod, A, exec, $claudeApp
 
       # Move focus with mainMod + arrow keys
       bind = $mainMod, left, movefocus, l

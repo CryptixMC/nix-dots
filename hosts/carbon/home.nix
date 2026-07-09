@@ -4,6 +4,8 @@
     ../../modules/home-manager/core/packages.nix
     ../../modules/home-manager/core/variables.nix
     ../../modules/home-manager/apps/ghostty.nix
+    ../../modules/home-manager/apps/walker.nix
+    ../../modules/home-manager/shell/zsh.nix
     ../../modules/home-manager/wm/hyprland.nix
     ../../modules/home-manager/wm/kanshi.nix
     ../../modules/home-manager/wm/waybar.nix
