@@ -12,5 +12,6 @@
     rnnoise-plugin
     calf
     tenacity
+    seahorse
   ];
 }
