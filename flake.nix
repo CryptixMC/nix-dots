@@ -15,6 +15,9 @@
     zen-browser.inputs.nixpkgs.follows = "nixpkgs";
     zen-browser.inputs.home-manager.follows = "home-manager";
 
+    claude-desktop.url = "github:poeck/claude-desktop-nix-flake";
+    claude-desktop.inputs.nixpkgs.follows = "nixpkgs";
+
   };
 
   outputs =
@@ -23,14 +26,17 @@
       nixpkgs,
       home-manager,
       stylix,
+      claude-desktop,
       ...
     }@inputs:
     {
       nixosConfigurations = {
         carbon = nixpkgs.lib.nixosSystem {
+          specialArgs = { inherit inputs; };
           modules = [
             ./hosts/carbon/configuration.nix
             stylix.nixosModules.stylix
+            claude-desktop.nixosModules.claude-desktop
           ];
         };
       };
