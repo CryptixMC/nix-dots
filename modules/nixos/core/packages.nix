@@ -10,6 +10,11 @@
     wirelesstools
     foliate
     proton-vpn
+    proton-pass
+    proton-authenticator
+    protonmail-bridge-gui
+    protonmail-desktop
+    (pkgs.callPackage ../../../pkgs/proton-drive-cli { })
     unzip
     direnv
     nix-direnv
