@@ -19,6 +19,7 @@
     gh
     nodejs
     supabase-cli
+    mangohud
   ];
 
   # Vercel CLI isn't packaged in nixpkgs (fast-moving, npm-only, no
