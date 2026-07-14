@@ -202,6 +202,33 @@ in
     # Enable kernel-native PCIe hotplug instead of ACPI-managed.
     # Required for the kernel to detect the GPU on the PCIe bus after TB auth.
     "pcie_ports=native"
+
+    # amdgpu has its own internal ASPM control, separate from the global
+    # pcie_aspm=off above — under sustained heavy PCIe traffic (e.g. gaming)
+    # the ASPM handshake between the platform and the GPU broke down,
+    # flooding dmesg with PCIe AER "BadTLP"/"BadDLLP" correctable errors on
+    # the inner TB bridge (0000:51:01.0) and eventually hard-hanging the
+    # system. This is a known gap in amdgpu's Linux ASPM handling for
+    # Thunderbolt-tunneled GPUs (works fine on Windows, where AMD's
+    # proprietary driver has the tuning). Disabling ASPM at both the global
+    # and amdgpu-internal level, plus PCIe port power management entirely,
+    # is the documented fix.
+    "amdgpu.aspm=0"
+    "pcie_port_pm=off"
+
+    # The Adaptertek Tamales2 board is a Thunderbolt 3 (Titan Ridge/JHL7440)
+    # device tunneled through this laptop's native TB4/USB4 controller. The
+    # Linux thunderbolt driver has no AER error_detected recovery callback,
+    # so when the tunneled PCIe link (0000:51:01.0) throws an Uncorrectable
+    # (Fatal) error under sustained load, the kernel's AER recovery attempt
+    # gets stuck ("AER: can't recover") and cascades into a hung_task and a
+    # full hang. A patch to skip AER on Thunderbolt/external-facing ports
+    # was proposed upstream (Kai-Heng Feng, 2022) but never merged — the
+    # discussion pivoted to a PM-aware AER suspend/resume fix that also
+    # never landed. Disabling AER entirely is the practical workaround: the
+    # PCIe link's own hardware-level retry/ACK mechanism is independent of
+    # AER and keeps working without it.
+    "pci=noaer"
   ];
 
   # Suppress "cannot get freq at ep 0x86" spam from the dock's USB audio chip.

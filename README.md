@@ -11,6 +11,28 @@ Welcome to my NixOS configuration! This repository is designed for modularity, t
 
 ---
 
+## Known Hardware Issues
+
+**carbon (ThinkPad T14 Gen3) — AMD RX 6800 XT eGPU over Thunderbolt**
+
+The eGPU (Adaptertek Tamales2, TB3/Titan Ridge) tunneled through the laptop's
+native TB4 controller was hard-hanging under sustained gaming load: a PCIe
+AER correctable-error flood would escalate and eventually hit an
+Uncorrectable (Fatal) error, which Linux's AER recovery can't handle for
+Thunderbolt-tunneled devices (no `error_detected` driver callback), wedging
+into a `hung_task` and a full system hang. Fixed by adding `pci=noaer` to
+`boot.kernelParams` in `modules/nixos/hardware/amd.nix` — see the comment
+there for the full root-cause writeup.
+
+**Caution:** don't physically unplug the eGPU while it's live. Surprise
+removal makes amdgpu's teardown path time out (`ring kiq test failed`,
+`failed to halt cp gfx`), which wedges the Hyprland compositor into a full
+black screen (audio keeps working) that only a reboot clears. Deauthorize
+it first via `/sys/bus/thunderbolt/devices/<id>/authorized` (write `0`)
+before disconnecting.
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
