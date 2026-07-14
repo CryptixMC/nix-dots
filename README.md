@@ -31,6 +31,18 @@ black screen (audio keeps working) that only a reboot clears. Deauthorize
 it first via `/sys/bus/thunderbolt/devices/<id>/authorized` (write `0`)
 before disconnecting.
 
+**Ollama/ROCm: "cudaMalloc failed: out of memory" on a large model after an
+aborted load.** If a model load is interrupted (e.g. the client gives up
+waiting mid-load), amdgpu can be left with fragmented/leaked VRAM that
+causes the *next* load attempt to fail with a ROCm OOM — even for a model
+that fit fine before. This is **not** a PCIe BAR/VRAM-aperture limit: the
+GPU's BAR 0 is fixed at 256MB by `egpu-bar-fix.service` (see above), but
+ROCm can still place full-size allocations well beyond that in "invisible"
+VRAM — confirmed live by loading a 36B model (~16GB) to completion on a
+freshly restarted `ollama.service`, with no BAR/kernel changes needed. If
+you hit this OOM, `sudo systemctl restart ollama.service` and retry before
+assuming a hardware ceiling.
+
 ---
 
 ## Table of Contents
