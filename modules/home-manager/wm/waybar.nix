@@ -18,6 +18,7 @@
         ];
         modules-center = [ "clock" ];
         modules-right = [
+          "tray"
           "network"
           "battery"
           "backlight"
@@ -34,6 +35,11 @@
           persistent-workspaces = {
             "*" = 5;
           };
+        };
+
+        tray = {
+          icon-size = 15;
+          spacing = 10;
         };
 
         "hyprland/window" = {
@@ -106,7 +112,10 @@
             "󰃟"
             "󰃠"
           ];
-          tooltip-format = "<span size='small' color='#b047ff'>BRIGHTNESS</span>\n{percent}%";
+          # waybar's backlight module calls set_tooltip_text() (not
+          # set_tooltip_markup()), so pango markup here would render as
+          # literal <span> tags instead of being styled.
+          tooltip-format = "BRIGHTNESS\n{percent}%";
           on-scroll-up = "brightnessctl set +5%";
           on-scroll-down = "brightnessctl set 5%-";
         };
@@ -146,7 +155,9 @@
             "󱃂"
           ];
           format-critical = "󰸁";
-          tooltip-format = "<span size='small' color='#b047ff'>CPU TEMP</span>\n{temperatureC}°C\n<span size='small' color='#505050'>normal</span>";
+          # Same as backlight: temperature also uses set_tooltip_text(),
+          # so pango markup would show up as raw text rather than render.
+          tooltip-format = "CPU TEMP\n{temperatureC}°C";
           critical-threshold = 80;
         };
 
@@ -232,6 +243,7 @@
       }
 
       /* ── Right-Side Modules ── */
+      #tray,
       #network,
       #battery,
       #backlight,
@@ -254,6 +266,18 @@
       #temperature:hover,
       #custom-notifications:hover {
         color: rgba(176, 71, 255, 0.88);
+      }
+
+      #tray {
+        padding-right: 4px;
+      }
+
+      #tray > .passive {
+        opacity: 0.5;
+      }
+
+      #tray > .needs-attention {
+        color: #ff5de0;
       }
 
       /* Critical animations */
