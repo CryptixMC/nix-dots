@@ -23,6 +23,18 @@ let
   '';
 
 
+  # The ThinkPad USB-C Dock Gen2's built-in Realtek RTL8153 (r8152) Ethernet
+  # controller sometimes comes up autonegotiated at 100 Mbps/Fast-Ethernet
+  # instead of Gigabit after boot or hotplug, even though the chip is
+  # natively Gigabit-capable. Forcing a clean autoneg restart on interface
+  # add reliably recovers the full link speed.
+  ethGigabitFixScript = pkgs.writeShellScript "eth-gigabit-fix" ''
+    PATH=${lib.makeBinPath [ pkgs.ethtool ]}:$PATH
+    iface="$1"
+    ethtool -s "$iface" autoneg off
+    ethtool -s "$iface" speed 1000 duplex full autoneg on
+  '';
+
   # When the AMD GPU appears via Thunderbolt PCIe tunneling, its BAR 0
   # (256MB VRAM aperture) is stuck at address 0x0 because the inner TB
   # bridge (51:01.0) was given only a 3MB prefetchable window at enumeration
@@ -140,6 +152,9 @@ let
       if [ "$BAR0" != "0x0000000000000000" ]; then
         log "Success — triggering driver bind"
         echo "$(basename "$d")" > /sys/bus/pci/drivers/amdgpu/bind 2>/dev/null || true
+        # ollama.service may have started before the eGPU was bound and
+        # come up CPU-only — kick it so it re-probes and picks up ROCm.
+        systemctl try-restart ollama.service 2>/dev/null || true
       else
         log "BAR 0 still 0x0 — manual intervention needed"
       fi
@@ -166,6 +181,12 @@ in
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x1002", ATTR{device}=="0x73bf", TAG+="systemd", ENV{SYSTEMD_WANTS}="egpu-bar-fix.service"
     # Enable USB wakeup chain for ThinkPad USB-C Dock Gen2 power button.
     ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="a38f", RUN+="${dockWakeupScript} $env{DEVPATH}"
+    # Force a clean autoneg restart on the dock's r8152 Ethernet controller
+    # so it doesn't get stuck at 100 Mbps instead of Gigabit.
+    ACTION=="add", SUBSYSTEM=="net", DRIVERS=="r8152", RUN+="${ethGigabitFixScript} $env{INTERFACE}"
+    # Keep USB autosuspend off for the dock's Ethernet controller — autosuspend
+    # cycling on this device has been observed causing spurious carrier drops.
+    ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="a387", ATTR{power/control}="on"
   '';
 
   # --- AMD GPU ---
@@ -272,5 +293,6 @@ in
     vulkan-tools
     pciutils
     clinfo
+    ethtool
   ];
 }

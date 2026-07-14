@@ -12,6 +12,16 @@
       curl
       libuuid
       libgcc
+      icu
+      vulkan-loader
+      libGL
+      wayland
+      libxkbcommon
+      xorg.libX11
+      xorg.libXcursor
+      xorg.libXi
+      xorg.libXrandr
+      libpulseaudio
     ];
   };
 }
