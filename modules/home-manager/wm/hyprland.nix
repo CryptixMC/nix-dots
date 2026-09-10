@@ -455,10 +455,11 @@ in
           # DRI_PRIME env vars above.
           (mkExecBind "${mainMod} + G" "gamescope --steam -W 1920 -H 1080 -f -- steam")
 
-          # Dev-only toggle for evaluating the Quickshell scaffold
-          # (quickshell/, see TODO.md §3) against the current Waybar bar
-          # without running both at once — layer-shell exclusive-zone
-          # reservations would otherwise stack instead of overlapping.
+          # Rollback/comparison toggle now that Quickshell (quickshell/, see
+          # TODO.md §3) is the default bar — swap back to Waybar without a
+          # rebuild if something regresses, or to eyeball them side by side.
+          # Not run together: layer-shell exclusive-zone reservations on the
+          # same edge stack instead of overlapping.
           (mkExecBind "${mainMod} + SHIFT + up" "pkill waybar; quickshell -p ~/nix-dots/quickshell &")
           (mkExecBind "${mainMod} + SHIFT + down" "pkill quickshell; waybar &")
         ];
@@ -471,7 +472,10 @@ in
     # passed through as-is, so hl.on/hl.exec_cmd are real calls here already.
     extraConfig = ''
       hl.on("hyprland.start", function()
-          hl.exec_cmd("waybar & hyprpaper & elephant")
+          -- Quickshell (quickshell/, see TODO.md §3) replaces Waybar as the
+          -- default bar as of this line. SUPER+SHIFT+down still swaps back
+          -- to Waybar live if something regresses (see binds above).
+          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & hyprpaper & elephant")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
       end)
     '';

@@ -43,7 +43,10 @@ QtObject {
     readonly property string fontFamily: "JetBrainsMono Nerd Font Mono"
     readonly property int fontSizeBase: 13
     readonly property int fontSizeSmall: 11
-    readonly property int fontSizeWorkspace: 8
+    // Bigger than waybar's original 8px (waybar.nix's `#workspaces button
+    // label` CSS) — a deliberate divergence from 1:1 parity, per user
+    // preference: waybar's dots read as too small.
+    readonly property int fontSizeWorkspace: 12
 
     readonly property int barHeight: 26
     readonly property int trayIconSize: 15
