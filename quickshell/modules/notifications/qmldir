@@ -1,0 +1,4 @@
+singleton NotificationState 1.0 NotificationState.qml
+NotifierServer 1.0 NotifierServer.qml
+Toast 1.0 Toast.qml
+Notifications 1.0 Notifications.qml

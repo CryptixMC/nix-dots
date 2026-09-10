@@ -454,6 +454,13 @@ in
           # picker. Device selection comes from the MESA_VK_DEVICE_SELECT/
           # DRI_PRIME env vars above.
           (mkExecBind "${mainMod} + G" "gamescope --steam -W 1920 -H 1080 -f -- steam")
+
+          # Dev-only toggle for evaluating the Quickshell scaffold
+          # (quickshell/, see TODO.md §3) against the current Waybar bar
+          # without running both at once — layer-shell exclusive-zone
+          # reservations would otherwise stack instead of overlapping.
+          (mkExecBind "${mainMod} + SHIFT + up" "pkill waybar; quickshell -p ~/nix-dots/quickshell &")
+          (mkExecBind "${mainMod} + SHIFT + down" "pkill quickshell; waybar &")
         ];
     };
 

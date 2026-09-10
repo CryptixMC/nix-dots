@@ -28,5 +28,6 @@
     elephant
     claude-code
     claude-agent-acp
+    quickshell # desktop shell toolkit — quickshell/ scaffold, see TODO.md §3
   ];
 }
