@@ -1,13 +1,17 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Quickshell.Io
 
 // Facade over ThemeLoader's discovered/assembled theme entries. Quickshell
 // renders before ThemeLoader's async discovery+yq+FileView chain resolves,
 // so `fallback` (built from ultraviolet's real base16 values, via the same
 // ThemeDefaults.build() every theme goes through) covers that gap and any
 // case where the active theme folder is ever missing/broken.
-QtObject {
+//
+// Rooted as a plain Item (not QtObject) because the Ghostty sync below
+// needs a FileView child — same reasoning as ThemeState.qml/ThemeLoader.qml.
+Item {
     id: root
 
     readonly property var fallback: ThemeDefaults.build({
@@ -21,6 +25,7 @@ QtObject {
         ?? ThemeLoader.themes[ThemeState.defaultTheme]
         ?? root.fallback
 
+    readonly property var base16: root.current.base16
     readonly property var color: root.current.color
     readonly property var radius: root.current.radius
     readonly property var spacing: root.current.spacing
@@ -64,6 +69,80 @@ QtObject {
         Quickshell.execDetached(["hyprctl", "eval", inactiveExpr]);
     }
 
-    onColorChanged: root.syncHyprlandBorders()
-    Component.onCompleted: root.syncHyprlandBorders()
+    // Live-syncs Ghostty's colors to the active theme. Ghostty has no
+    // "set config value" IPC — the mechanism is a config-file include:
+    // ghostty.nix's settings declare `config-file =
+    // "?~/.local/state/quickshell-ghostty-theme.conf"` (the `?` means
+    // "don't error if missing"), and per Ghostty's own documented
+    // load-order semantics, an included file's directives always apply
+    // *after* the rest of the file that included it — so this always wins
+    // over the `theme = stylix` baseline in ghostty.nix regardless of
+    // where the config-file line falls textually. Palette uses the
+    // standard base16-to-ANSI-16 convention (0/8=base00/03 black,
+    // 1/9=base08/08 red, ... 7/15=base05/07 white) — confirmed against
+    // Theme.base16 (the raw per-theme palette, not the semantic
+    // Theme.color remapping, since a real 16-slot terminal palette needs
+    // all 16 base16 slots).
+    //
+    // Any newly-opened Ghostty window picks this up immediately (config is
+    // read at window-open time) — confirmed by reading Ghostty's own
+    // startup log during testing. Whether Ghostty's `reload-config` D-Bus
+    // action (org.gtk.Actions on com.mitchellh.ghostty, confirmed to
+    // exist and be callable without error) actually live-refreshes an
+    // *already-open* window wasn't reliably confirmed in this session's
+    // testing — firing it here is harmless best-effort either way, but
+    // don't take it as a guarantee; ctrl+shift+, is Ghostty's own default
+    // reload-config keybind if a manual nudge is ever needed.
+    function ghosttyConfText() {
+        const b = root.base16;
+        if (!b || !b.base00)
+            return "";
+        return [
+            `background = ${b.base00}`,
+            `foreground = ${b.base05}`,
+            `cursor-color = ${b.base05}`,
+            `selection-background = ${b.base02}`,
+            `selection-foreground = ${b.base05}`,
+            `palette = 0=#${b.base00}`,
+            `palette = 1=#${b.base08}`,
+            `palette = 2=#${b.base0B}`,
+            `palette = 3=#${b.base0A}`,
+            `palette = 4=#${b.base0D}`,
+            `palette = 5=#${b.base0E}`,
+            `palette = 6=#${b.base0C}`,
+            `palette = 7=#${b.base05}`,
+            `palette = 8=#${b.base03}`,
+            `palette = 9=#${b.base08}`,
+            `palette = 10=#${b.base0B}`,
+            `palette = 11=#${b.base0A}`,
+            `palette = 12=#${b.base0D}`,
+            `palette = 13=#${b.base0E}`,
+            `palette = 14=#${b.base0C}`,
+            `palette = 15=#${b.base07}`
+        ].join("\n") + "\n";
+    }
+
+    function syncGhosttyTheme() {
+        const text = root.ghosttyConfText();
+        if (text.length === 0)
+            return;
+        ghosttyFile.setText(text);
+        Quickshell.execDetached(["gdbus", "call", "--session", "--dest", "com.mitchellh.ghostty", "--object-path", "/com/mitchellh/ghostty", "--method", "org.gtk.Actions.Activate", "reload-config", "[]", "{}"]);
+    }
+
+    FileView {
+        id: ghosttyFile
+        path: `${Quickshell.env("HOME")}/.local/state/quickshell-ghostty-theme.conf`
+        watchChanges: false
+        printErrors: false
+    }
+
+    onColorChanged: {
+        root.syncHyprlandBorders();
+        root.syncGhosttyTheme();
+    }
+    Component.onCompleted: {
+        root.syncHyprlandBorders();
+        root.syncGhosttyTheme();
+    }
 }

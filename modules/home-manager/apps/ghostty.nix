@@ -3,34 +3,25 @@
   programs.ghostty = {
     enable = true;
     settings = {
-      theme = "ultraviolet";
-    };
-    themes = {
-      ultraviolet = {
-        background = "050505";
-        cursor-color = "bcbcbc";
-        foreground = "5f5f5f";
-        palette = [
-          "0=#212121" # base03 (black)
-          "1=#cf01ed" # base08 (red)
-          "2=#8701ed" # base0B (green)
-          "3=#9901ed" # base0A (yellow)
-          "4=#5e01ed" # base0D (blue)
-          "5=#4301ed" # base0E (magenta)
-          "6=#7501ed" # base0C (cyan)
-          "7=#bcbcbc" # base07 (white)
-          "8=#373737" # base04 (bright black)
-          "9=#ab01ed" # base09 (bright red)
-          "10=#0f0f0f" # base02 (bright green)
-          "11=#080808" # base01 (bright yellow)
-          "12=#777777" # base06 (bright blue)
-          "13=#1b01ed" # base0F (bright magenta)
-          "14=#080808" # base01 (bright cyan)
-          "15=#777777" # base06 (bright white)
-        ];
-        selection-background = "212121";
-        selection-foreground = "bcbcbc";
-      };
+      # Baseline before Quickshell ever writes a live theme — stylix's own
+      # ghostty target (modules/style/stylix.nix, targets.qt is the only
+      # target it disables) already generates a "stylix" theme file from
+      # the same stylix.base16Scheme themes/ultraviolet/base16.yaml points
+      # at, so this tracks the real palette automatically instead of
+      # duplicating it by hand (the old hand-authored "ultraviolet" theme
+      # here had drifted to a stale, pre-migration set of hex values).
+      theme = "stylix";
+
+      # Live theme sync: quickshell/theme/Theme.qml writes this file on
+      # every theme change (background/foreground/cursor/selection/palette,
+      # base16-to-ANSI-16 mapping) whenever the active Quickshell theme
+      # changes. Per Ghostty's own config-file load-order semantics, an
+      # included file's directives apply *after* the rest of the file that
+      # included it, so this always wins over `theme = stylix` above
+      # regardless of where this line falls in the generated config. The
+      # `?` prefix means "don't error if missing" — true before Quickshell
+      # has ever run once.
+      config-file = "?~/.local/state/quickshell-ghostty-theme.conf";
     };
   };
 }

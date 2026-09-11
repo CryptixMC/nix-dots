@@ -138,6 +138,12 @@ QtObject {
             hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) })
         });
         return {
+            // Raw base16 hex values, passed through unmodified — Theme.color
+            // is a semantic remapping (accentPurple, tooltipMuted, etc.) that
+            // doesn't preserve the full 16-slot palette, but a proper
+            // terminal ANSI palette (Theme.qml's Ghostty sync) needs all 16
+            // slots, not just the ones Quickshell's own UI happens to use.
+            base16: base16,
             color: root.buildColor(base16),
             radius: shape.radius,
             spacing: shape.spacing,
