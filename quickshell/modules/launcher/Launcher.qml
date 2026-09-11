@@ -101,15 +101,26 @@ PanelWindow {
         onClicked: LauncherState.hide()
     }
 
+    // Elevation shadow-mimic: only rendered when the active theme opts in
+    // (effect.popupElevated) — `float` leaves this fully transparent/
+    // zero-offset so it's a no-op there, `slab` activates it.
+    Rectangle {
+        anchors.fill: box
+        anchors.margins: -Theme.effect.popupShadowOffset
+        radius: box.radius
+        color: Theme.effect.popupElevated ? Theme.effect.popupShadowColor : "transparent"
+        z: box.z - 1
+    }
+
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Colors.launcherWidth
-        implicitHeight: content.implicitHeight + 20
-        radius: 8
-        color: Colors.launcherBg
-        border.width: 1
-        border.color: Colors.launcherBorder
+        width: Theme.spacing.launcherWidth
+        implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY
+        radius: Theme.radius.panel
+        color: Theme.color.launcherBg
+        border.width: Theme.spacing.borderHairline
+        border.color: Theme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -124,40 +135,40 @@ PanelWindow {
                 top: parent.top
                 left: parent.left
                 right: parent.right
-                margins: 10
+                margins: Theme.spacing.launcherContentInset
             }
-            spacing: 8
+            spacing: Theme.spacing.launcherContentGap
 
             Rectangle {
                 width: parent.width
-                height: 36
-                radius: 4
-                color: Colors.launcherInputBg
-                border.width: 1
-                border.color: Colors.launcherInputBorder
+                height: Theme.spacing.launcherInputHeight
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.launcherInputBorder
 
                 Text {
                     visible: searchInput.text.length === 0
                     anchors {
                         left: parent.left
-                        leftMargin: 11
+                        leftMargin: Theme.spacing.launcherRowInset
                         verticalCenter: parent.verticalCenter
                     }
                     text: "search applications…"
-                    color: Colors.launcherPlaceholderFg
-                    font.family: Colors.fontFamily
-                    font.pixelSize: Colors.fontSizeBase
+                    color: Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeBase
                 }
 
                 TextInput {
                     id: searchInput
                     anchors {
                         fill: parent
-                        margins: 9
+                        margins: Theme.spacing.launcherInputTextInset
                     }
-                    color: Colors.fg
-                    font.family: Colors.fontFamily
-                    font.pixelSize: Colors.fontSizeBase
+                    color: Theme.color.fg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeBase
 
                     onTextChanged: resultsList.currentIndex = 0
                     onAccepted: root.launch(root.filteredEntries[resultsList.currentIndex])
@@ -171,7 +182,7 @@ PanelWindow {
             ListView {
                 id: resultsList
                 width: parent.width
-                height: Math.min(contentHeight, 360)
+                height: Math.min(contentHeight, Theme.spacing.launcherResultsMaxHeight)
                 clip: true
                 currentIndex: 0
                 model: root.filteredEntries
@@ -182,31 +193,31 @@ PanelWindow {
                     required property int index
 
                     width: resultsList.width
-                    height: 34
-                    radius: 4
-                    color: index === resultsList.currentIndex ? Colors.launcherItemSelectedBg : "transparent"
+                    height: Theme.spacing.launcherRowHeight
+                    radius: Theme.radius.input
+                    color: index === resultsList.currentIndex ? Theme.color.launcherItemSelectedBg : "transparent"
 
                     Behavior on color {
                         ColorAnimation {
-                            duration: 180
-                            easing.type: Easing.OutQuad
+                            duration: Theme.motion.hoverColor.duration
+                            easing.type: Theme.motion.hoverColor.easing
                         }
                     }
 
                     Rectangle {
-                        width: 2
+                        width: Theme.spacing.launcherIndicatorWidth
                         height: parent.height
-                        color: row.index === resultsList.currentIndex ? Colors.accentPurple : "transparent"
+                        color: row.index === resultsList.currentIndex ? Theme.color.accentPurple : "transparent"
                     }
 
                     IconImage {
                         id: icon
                         anchors {
                             left: parent.left
-                            leftMargin: 11
+                            leftMargin: Theme.spacing.launcherRowInset
                             verticalCenter: parent.verticalCenter
                         }
-                        implicitSize: Colors.launcherIconSize
+                        implicitSize: Theme.spacing.launcherIconSize
                         // "application-x-executable" is the standard XDG
                         // fallback icon name — Quickshell.iconPath's third
                         // overload swaps to it automatically when an entry's
@@ -218,13 +229,13 @@ PanelWindow {
                     Text {
                         anchors {
                             left: icon.right
-                            leftMargin: 8
+                            leftMargin: Theme.spacing.launcherIconLabelGap
                             verticalCenter: parent.verticalCenter
                         }
                         text: row.modelData.name
-                        color: Colors.fg
-                        font.family: Colors.fontFamily
-                        font.pixelSize: Colors.fontSizeBase
+                        color: Theme.color.fg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
                     }
 
                     MouseArea {

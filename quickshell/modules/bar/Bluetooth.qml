@@ -15,7 +15,7 @@ BarIcon {
     glyph: "󰂯"
     // No confirmed "bluetooth-off" nerd-font glyph — dim the same glyph
     // instead of guessing one.
-    glyphColorOverride: enabled ? "transparent" : Colors.moduleDisabledFg
+    glyphColorOverride: enabled ? "transparent" : Theme.color.moduleDisabledFg
 
     clickCommand: "blueman-manager"
 

@@ -378,6 +378,9 @@ in
           # out. Walker's rail/grid modes (old SHIFT+R/CTRL+R) have no
           # Quickshell equivalent and were dropped along with Walker itself.
           (mkExecBind "${mainMod} + R" "quickshell ipc -p ~/nix-dots/quickshell call launcher toggle")
+          # Theme registry (quickshell/theme/, see the theme-registry
+          # migration): cycles the active theme live via IPC, no restart.
+          (mkExecBind "${mainMod} + T" "quickshell ipc -p ~/nix-dots/quickshell call theme next")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)

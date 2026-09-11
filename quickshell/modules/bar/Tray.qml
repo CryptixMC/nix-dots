@@ -15,7 +15,7 @@ Row {
     // waybar.nix's tray.spacing = 10 — this is the gap *between tray
     // icons themselves*, distinct from (and not the same value as) the
     // top-level modules-right spacing in RightModules.qml.
-    spacing: 10
+    spacing: Theme.spacing.trayGap
 
     Repeater {
         model: SystemTray.items
@@ -24,8 +24,8 @@ Row {
             id: trayItem
             required property var modelData
 
-            width: Colors.trayIconSize
-            height: Colors.trayIconSize
+            width: Theme.spacing.trayIconSize
+            height: Theme.spacing.trayIconSize
 
             IconImage {
                 anchors.fill: parent
@@ -57,7 +57,7 @@ Row {
 
             Timer {
                 id: hoverTimer
-                interval: Colors.tooltipHoverDelayMs
+                interval: Theme.motion.tooltipHoverDelayMs
                 onTriggered: tooltip.visible = true
             }
 

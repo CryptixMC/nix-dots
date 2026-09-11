@@ -47,19 +47,10 @@ BarIcon {
     }
 
     glyph: isCritical ? "󰸁" : icons[Math.min(icons.length - 1, Math.floor(tempC / (100 / icons.length)))]
-    glyphColorOverride: isCritical ? Colors.accentPink : "transparent"
+    glyphColorOverride: isCritical ? Theme.color.accentPink : "transparent"
 
-    SequentialAnimation on opacity {
+    CriticalBlink on opacity {
         running: root.isCritical
-        loops: Animation.Infinite
-        NumberAnimation {
-            to: 0.2
-            duration: 500
-        }
-        NumberAnimation {
-            to: 1
-            duration: 500
-        }
     }
 
     tooltipTitle: "CPU TEMP"

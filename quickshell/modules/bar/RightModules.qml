@@ -1,5 +1,6 @@
 import QtQuick
 import "../notifications"
+import "../../theme"
 
 // Live right-side modules, in the same order as waybar.nix's modules-right.
 Row {
@@ -12,7 +13,7 @@ Row {
     // waybar's top-level `spacing = 0` applies between modules-right
     // entries too — modules sit flush, differentiated only by their own
     // hover-highlight region, not by a gap.
-    spacing: 0
+    spacing: Theme.spacing.flush
 
     Tray {
         barWindow: root.barWindow

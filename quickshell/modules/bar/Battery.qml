@@ -10,7 +10,11 @@ BarIcon {
     id: root
 
     readonly property var device: UPower.displayDevice
-    readonly property real percentage: device?.percentage ?? 0
+    // UPowerDevice.percentage is a 0.0-1.0 fraction, not 0-100 — reading it
+    // directly showed "1%" for a 97% battery (Math.round(0.97) = 1) and
+    // broke the icon tier the same way (percentage / 10 on a fraction
+    // always floored to the lowest icon). Confirmed against `upower -i`.
+    readonly property real percentage: (device?.percentage ?? 0) * 100
     readonly property bool isCritical: percentage <= 15 && device?.state === UPowerDeviceState.Discharging
     readonly property var dischargeIcons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
 
@@ -39,19 +43,10 @@ BarIcon {
         return dischargeIcons[Math.min(9, Math.floor(percentage / 10))];
     }
 
-    glyphColorOverride: isCritical ? Colors.accentPink : "transparent"
+    glyphColorOverride: isCritical ? Theme.color.accentPink : "transparent"
 
-    SequentialAnimation on opacity {
+    CriticalBlink on opacity {
         running: root.isCritical
-        loops: Animation.Infinite
-        NumberAnimation {
-            to: 0.2
-            duration: 500
-        }
-        NumberAnimation {
-            to: 1
-            duration: 500
-        }
     }
 
     tooltipTitle: "BATTERY"

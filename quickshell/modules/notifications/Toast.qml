@@ -33,18 +33,18 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     color: "transparent"
 
-    implicitWidth: 320
-    implicitHeight: list.implicitHeight + 16
+    implicitWidth: Theme.spacing.toastWidth
+    implicitHeight: list.implicitHeight + Theme.spacing.toastWindowPadY
 
     Column {
         id: list
         anchors {
             top: parent.top
             right: parent.right
-            margins: 8
+            margins: Theme.spacing.toastWindowInset
         }
-        spacing: 8
-        width: 300
+        spacing: Theme.spacing.toastGap
+        width: Theme.spacing.toastListWidth
 
         Repeater {
             id: notifRepeater
@@ -55,11 +55,11 @@ PanelWindow {
                 required property var modelData
 
                 width: list.width
-                implicitHeight: column.implicitHeight + 16
-                radius: 6
-                color: Colors.tooltipBg
-                border.width: 2
-                border.color: card.modelData.urgency === NotificationUrgency.Critical ? Colors.accentPink : Colors.tooltipBorder
+                implicitHeight: column.implicitHeight + Theme.spacing.toastCardPadY
+                radius: Theme.radius.popup
+                color: Theme.color.tooltipBg
+                border.width: Theme.spacing.borderCard
+                border.color: card.modelData.urgency === NotificationUrgency.Critical ? Theme.color.accentPink : Theme.color.tooltipBorder
 
                 Column {
                     id: column
@@ -67,17 +67,17 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         top: parent.top
-                        margins: 8
+                        margins: Theme.spacing.toastCardInset
                     }
-                    spacing: 4
+                    spacing: Theme.spacing.toastLineGap
 
                     Text {
                         width: parent.width
                         text: card.modelData.summary
-                        color: Colors.tooltipFg
-                        font.family: Colors.fontFamily
-                        font.pixelSize: Colors.fontSizeSmall
-                        font.bold: true
+                        color: Theme.color.tooltipFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                        font.bold: Theme.font.weightBold
                         wrapMode: Text.Wrap
                     }
 
@@ -85,9 +85,9 @@ PanelWindow {
                         visible: card.modelData.body.length > 0
                         width: parent.width
                         text: card.modelData.body
-                        color: Colors.tooltipMuted
-                        font.family: Colors.fontFamily
-                        font.pixelSize: Colors.fontSizeSmall
+                        color: Theme.color.tooltipMuted
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
                         wrapMode: Text.Wrap
                     }
                 }

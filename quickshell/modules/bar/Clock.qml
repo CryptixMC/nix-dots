@@ -7,15 +7,15 @@ Item {
     id: root
 
     implicitWidth: label.implicitWidth
-    implicitHeight: 26
+    implicitHeight: Theme.spacing.barHeight
 
     Text {
         id: label
         anchors.centerIn: parent
         text: Qt.formatDateTime(new Date(), "hh:mm AP · ddd dd")
-        font.family: Colors.fontFamily
-        font.pixelSize: Colors.fontSizeSmall
-        color: Colors.clockFg
+        font.family: Theme.font.family
+        font.pixelSize: Theme.font.sizeSmall
+        color: Theme.color.clockFg
     }
 
     Timer {

@@ -20,9 +20,9 @@ PanelWindow {
         right: true
     }
 
-    implicitHeight: Colors.barHeight
-    exclusiveZone: Colors.barHeight
-    color: Colors.barBg
+    implicitHeight: Theme.spacing.barHeight
+    exclusiveZone: Theme.spacing.barHeight
+    color: Theme.color.barBg
     // `layer` left at PanelWindow's default (top) — matches waybar's
     // `layer = "top"`; override explicitly if the default doesn't hold.
 
@@ -32,15 +32,15 @@ PanelWindow {
             right: parent.right
             bottom: parent.bottom
         }
-        height: 1
-        color: Colors.barBorder
+        height: Theme.spacing.borderHairline
+        color: Theme.color.barBorder
     }
 
     Row {
-        spacing: 0
+        spacing: Theme.spacing.flush
         anchors {
             left: parent.left
-            leftMargin: 12
+            leftMargin: Theme.spacing.barLeftInset
             verticalCenter: parent.verticalCenter
         }
 
@@ -60,7 +60,7 @@ PanelWindow {
             right: parent.right
             // waybar's #tray padding-right: 4px is the bar's actual
             // right-edge inset — the rightmost module is always tray.
-            rightMargin: 4
+            rightMargin: Theme.spacing.barRightInset
             verticalCenter: parent.verticalCenter
         }
     }

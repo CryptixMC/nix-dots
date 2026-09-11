@@ -17,7 +17,7 @@ BarIcon {
     property int activeCount: 0
 
     glyph: NotificationState.dnd ? "󰂛" : "󰂚"
-    glyphColorOverride: (activeCount > 0 && !NotificationState.dnd) ? Colors.accentPink : "transparent"
+    glyphColorOverride: (activeCount > 0 && !NotificationState.dnd) ? Theme.color.accentPink : "transparent"
 
     onClickFn: () => NotificationState.toggleDnd()
 

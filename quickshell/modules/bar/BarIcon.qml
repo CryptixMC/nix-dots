@@ -23,26 +23,26 @@ Item {
     property string tooltipBody: ""
     property string tooltipMuted: ""
 
-    implicitWidth: 22
-    implicitHeight: 22
+    implicitWidth: Theme.spacing.barIconHitSize
+    implicitHeight: Theme.spacing.barIconHitSize
 
     Text {
         anchors.centerIn: parent
         text: root.glyph
-        font.family: Colors.fontFamily
-        font.pixelSize: Colors.fontSizeBase
+        font.family: Theme.font.family
+        font.pixelSize: Theme.font.sizeBase
         // Most of these Nerd Font icons (Material Design set) live above
         // U+FFFF, in the supplementary PUA-A plane — Qt's default
         // distance-field text renderer mis-rendered them as blurry color
         // emoji-fallback blobs even with the right font family loaded;
         // NativeRendering (FreeType/fontconfig path) renders them correctly.
         renderType: Text.NativeRendering
-        color: root.glyphColorOverride.a > 0 ? root.glyphColorOverride : (mouseArea.containsMouse ? Colors.purpleHover : Colors.rightModuleFg)
+        color: root.glyphColorOverride.a > 0 ? root.glyphColorOverride : (mouseArea.containsMouse ? Theme.color.purpleHover : Theme.color.rightModuleFg)
 
         Behavior on color {
             ColorAnimation {
-                duration: 180
-                easing.type: Easing.OutQuad
+                duration: Theme.motion.hoverColor.duration
+                easing.type: Theme.motion.hoverColor.easing
             }
         }
     }
@@ -77,7 +77,7 @@ Item {
 
     Timer {
         id: hoverTimer
-        interval: Colors.tooltipHoverDelayMs
+        interval: Theme.motion.tooltipHoverDelayMs
         onTriggered: tooltip.visible = true
     }
 

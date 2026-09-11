@@ -25,8 +25,8 @@ PopupWindow {
     grabFocus: false
     color: "transparent"
 
-    implicitWidth: 220
-    implicitHeight: content.implicitHeight + 20
+    implicitWidth: Theme.spacing.volumePopupWidth
+    implicitHeight: content.implicitHeight + Theme.spacing.volumePopupPadY
 
     // Closes shortly after the pointer leaves the flyout — opening is an
     // explicit click on the icon, but closing shouldn't require one too.
@@ -48,10 +48,10 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
-        color: Colors.tooltipBg
-        border.color: Colors.tooltipBorder
-        border.width: 1
-        radius: 6
+        color: Theme.color.tooltipBg
+        border.color: Theme.color.tooltipBorder
+        border.width: Theme.spacing.borderHairline
+        radius: Theme.radius.popup
 
         Row {
             id: content
@@ -59,17 +59,17 @@ PopupWindow {
                 left: parent.left
                 right: parent.right
                 verticalCenter: parent.verticalCenter
-                leftMargin: 10
-                rightMargin: 10
+                leftMargin: Theme.spacing.volumePopupInsetX
+                rightMargin: Theme.spacing.volumePopupInsetX
             }
-            spacing: 8
+            spacing: Theme.spacing.volumePopupGap
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.muted ? "󰝟" : "󰕾"
-                color: Colors.accentPurple
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeBase
+                color: Theme.color.accentPurple
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeBase
                 renderType: Text.NativeRendering
 
                 MouseArea {
@@ -81,24 +81,24 @@ PopupWindow {
 
             Item {
                 id: sliderTrack
-                width: 110
-                height: 16
+                width: Theme.spacing.volumeSliderWidth
+                height: Theme.spacing.volumeSliderHeight
                 anchors.verticalCenter: parent.verticalCenter
 
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width
                     height: 6
-                    radius: 3
-                    color: Colors.workspaceInactive
+                    radius: Theme.radius.sliderTrack
+                    color: Theme.color.workspaceInactive
                 }
 
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     width: parent.width * Math.min(1, root.volume)
                     height: 6
-                    radius: 3
-                    color: Colors.accentPurple
+                    radius: Theme.radius.sliderTrack
+                    color: Theme.color.accentPurple
                 }
 
                 MouseArea {
@@ -120,19 +120,19 @@ PopupWindow {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                width: 32
+                width: Theme.spacing.volumePercentLabelWidth
                 text: `${Math.round(root.volume * 100)}%`
-                color: Colors.tooltipFg
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeSmall
+                color: Theme.color.tooltipFg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
             }
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "›"
-                color: Colors.rightModuleFg
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeBase
+                color: Theme.color.rightModuleFg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeBase
 
                 MouseArea {
                     anchors.fill: parent

@@ -1,1 +1,2 @@
-singleton Colors 1.0 Colors.qml
+singleton ThemeState 1.0 ThemeState.qml
+singleton Theme 1.0 Theme.qml

@@ -15,7 +15,7 @@ Item {
     id: root
 
     implicitWidth: dotsRow.implicitWidth
-    implicitHeight: Colors.barHeight
+    implicitHeight: Theme.spacing.barHeight
 
     readonly property var workspaceIds: {
         const ids = {};
@@ -32,7 +32,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         // Approximates waybar's per-dot label padding (0 3px each side, no
         // separate inter-button gap in the CSS).
-        spacing: 6
+        spacing: Theme.spacing.workspaceDots
 
         Repeater {
             model: root.workspaceIds
@@ -41,8 +41,8 @@ Item {
                 required property int modelData
 
                 text: "●"
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeWorkspace
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeWorkspace
                 // Without this, Qt substituted a color-emoji "●" fallback
                 // glyph (bigger and colored) instead of the plain dot from
                 // this font — same root cause as the right-side icon blobs.
@@ -60,7 +60,7 @@ Item {
                 // simplify if a direct property exists.
                 readonly property bool isOccupied: (wsData?.lastIpcObject?.windows ?? 0) > 0
 
-                color: isFocused ? Colors.accentPink : (isOccupied ? Colors.workspaceOccupied : Colors.workspaceInactive)
+                color: isFocused ? Theme.color.accentPink : (isOccupied ? Theme.color.workspaceOccupied : Theme.color.workspaceInactive)
 
                 MouseArea {
                     anchors.fill: parent

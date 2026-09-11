@@ -9,8 +9,8 @@ import "../../theme"
 Item {
     id: root
 
-    implicitWidth: label.implicitWidth + 14
-    implicitHeight: 26
+    implicitWidth: label.implicitWidth + Theme.spacing.activeWindowPad
+    implicitHeight: Theme.spacing.barHeight
 
     // Hyprland.activeToplevel stays permanently null in this Quickshell
     // version (empirically confirmed: still null after
@@ -27,14 +27,14 @@ Item {
     readonly property string title: rawTitle.length > 60 ? rawTitle.slice(0, 60) + "…" : rawTitle
 
     Rectangle {
-        width: 1
-        color: Colors.windowSeparator
+        width: Theme.spacing.borderHairline
+        color: Theme.color.windowSeparator
         anchors {
             left: parent.left
             top: parent.top
             bottom: parent.bottom
-            topMargin: 6
-            bottomMargin: 6
+            topMargin: Theme.spacing.separatorInset
+            bottomMargin: Theme.spacing.separatorInset
         }
     }
 
@@ -42,13 +42,13 @@ Item {
         id: label
         anchors {
             left: parent.left
-            leftMargin: 7
+            leftMargin: Theme.spacing.activeWindowLabelInset
             verticalCenter: parent.verticalCenter
         }
         text: root.title
-        font.family: Colors.fontFamily
-        font.pixelSize: Colors.fontSizeSmall
+        font.family: Theme.font.family
+        font.pixelSize: Theme.font.sizeSmall
         renderType: Text.NativeRendering
-        color: Colors.windowTitleFg
+        color: Theme.color.windowTitleFg
     }
 }

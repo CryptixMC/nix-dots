@@ -14,8 +14,8 @@ PopupWindow {
     property string bodyText: ""
     property string mutedText: ""
 
-    implicitWidth: Math.max(138, content.implicitWidth + 22)
-    implicitHeight: content.implicitHeight + 18
+    implicitWidth: Math.max(Theme.spacing.tooltipMinWidth, content.implicitWidth + Theme.spacing.tooltipPadX)
+    implicitHeight: content.implicitHeight + Theme.spacing.tooltipPadY
     color: "transparent"
     visible: false
     grabFocus: false
@@ -28,39 +28,39 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
-        color: Colors.tooltipBg
-        border.color: Colors.tooltipBorder
-        border.width: 1
-        radius: 6
+        color: Theme.color.tooltipBg
+        border.color: Theme.color.tooltipBorder
+        border.width: Theme.spacing.borderHairline
+        radius: Theme.radius.popup
 
         Column {
             id: content
             anchors.centerIn: parent
-            spacing: 2
+            spacing: Theme.spacing.tooltipLineGap
 
             Text {
                 visible: root.titleText.length > 0
                 text: root.titleText
-                color: Colors.accentPurple
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeSmall
-                font.bold: true
+                color: Theme.color.accentPurple
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
+                font.bold: Theme.font.weightBold
             }
 
             Text {
                 visible: root.bodyText.length > 0
                 text: root.bodyText
-                color: Colors.tooltipFg
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeSmall
+                color: Theme.color.tooltipFg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
             }
 
             Text {
                 visible: root.mutedText.length > 0
                 text: root.mutedText
-                color: Colors.tooltipMuted
-                font.family: Colors.fontFamily
-                font.pixelSize: Colors.fontSizeSmall
+                color: Theme.color.tooltipMuted
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
             }
         }
     }
