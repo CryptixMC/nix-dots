@@ -4,6 +4,7 @@ import Quickshell
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"
+import "modules/wallpaper"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -28,6 +29,14 @@ ShellRoot {
 
     Launcher {
         id: launcher
+    }
+
+    Variants {
+        model: Quickshell.screens
+
+        Wallpaper {
+            screen: modelData
+        }
     }
 
     Variants {

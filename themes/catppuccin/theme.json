@@ -1,0 +1,13 @@
+{
+  "radius": { "panel": 10, "popup": 8, "input": 6, "sliderTrack": 4 },
+  "motion": {
+    "hoverColor": { "duration": 150, "easing": "OutCubic" }
+  },
+  "effect": { "popupElevated": true, "popupShadowColor": "#4011111b", "popupShadowOffset": 4 },
+  "wallpaper": {
+    "engine": "shader",
+    "image": "base-static.jpg",
+    "gif": "retro2_live.gif",
+    "shader": "aurora.frag"
+  }
+}

@@ -48,7 +48,9 @@ PanelWindow {
         ActiveWindow {}
     }
 
-    Clock {
+    Themed {
+        componentName: "Clock"
+        defaultSource: Qt.resolvedUrl("Clock.qml")
         anchors.centerIn: parent
     }
 

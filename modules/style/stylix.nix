@@ -3,8 +3,8 @@
   stylix = {
     enable = true;
 
-    image = ../../themes/ultraviolet/alyssa.png;
-    base16Scheme = ../../themes/ultraviolet/ultraviolet.yaml;
+    image = ../../themes/ultraviolet/wallpapers/alyssa.png;
+    base16Scheme = ../../themes/ultraviolet/base16.yaml;
     polarity = "dark";
     targets.qt.enable = false;
     fonts = {

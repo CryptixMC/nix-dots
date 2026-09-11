@@ -13,7 +13,7 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string defaultTheme: "float"
+    readonly property string defaultTheme: "ultraviolet"
     readonly property string activeThemeName: persistence.adapter.activeTheme || root.defaultTheme
 
     // First run: no file on disk yet. Deferred to the first actual
@@ -24,7 +24,7 @@ Item {
     property bool needsSeed: false
 
     function setTheme(name) {
-        if (!Theme.themes[name]) {
+        if (!ThemeLoader.discoveredThemeNames.includes(name)) {
             console.warn(`ThemeState: unknown theme "${name}"`);
             return;
         }
@@ -39,7 +39,7 @@ Item {
     }
 
     function cycleTheme() {
-        const names = Object.keys(Theme.themes);
+        const names = ThemeLoader.discoveredThemeNames;
         root.setTheme(names[(names.indexOf(root.activeThemeName) + 1) % names.length]);
     }
 
@@ -52,7 +52,7 @@ Item {
         onLoadFailed: error => root.needsSeed = true
 
         JsonAdapter {
-            property string activeTheme: "float"
+            property string activeTheme: "ultraviolet"
         }
     }
 

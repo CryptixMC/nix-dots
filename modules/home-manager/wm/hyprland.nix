@@ -478,7 +478,15 @@ in
           -- disabled in waybar.nix / commented out of the walker.nix import
           -- and the walker+elephant package lists — so there's no `waybar`
           -- or `elephant` process to autostart here anymore.
-          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & hyprpaper")
+          --
+          -- hyprpaper dropped: quickshell/modules/wallpaper/Wallpaper.qml
+          -- now renders the Background layer for every theme (including
+          -- static-only ones), sourced from themes/<name>/theme.json's
+          -- wallpaper block — running hyprpaper alongside it would race two
+          -- Background-layer clients for the same output. hyprpaper package
+          -- stays installed (modules/nixos/wm/hyprland.nix) as a manual
+          -- fallback if ever needed.
+          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
       end)
     '';
