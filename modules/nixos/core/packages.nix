@@ -25,7 +25,8 @@
     onlyoffice-desktopeditors
     discord
     qbittorrent
-    elephant
+    # elephant # Walker's backend daemon, hidden alongside Walker itself —
+    # see TODO.md §3; re-add if Walker is ever restored.
     claude-code
     claude-agent-acp
     quickshell # desktop shell toolkit — quickshell/ scaffold, see TODO.md §3

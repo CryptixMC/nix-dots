@@ -8,7 +8,8 @@
     wofi
     xcursor-pro
     kanshi
-    walker
+    # walker # hidden, not removed — Quickshell's launcher (see TODO.md §3)
+    # is the default now (SUPER+R); re-add to roll back.
     pavucontrol
   ];
 }

@@ -51,4 +51,16 @@ QtObject {
     readonly property int barHeight: 26
     readonly property int trayIconSize: 15
     readonly property int tooltipHoverDelayMs: 400
+
+    // Launcher (Walker's "float" theme) — 1:1 copy of the color values from
+    // modules/home-manager/apps/walker.nix's walker/themes/float/style.css.
+    readonly property color launcherBg: Qt.rgba(10 / 255, 10 / 255, 13 / 255, 0.97)
+    readonly property color launcherBorder: "#1c1c1c"
+    readonly property color launcherInputBg: "#0c0c0f"
+    readonly property color launcherInputBorder: "#9150ff"
+    readonly property color launcherPlaceholderFg: "#2e2e2e"
+    readonly property color launcherItemSelectedBg: Qt.rgba(176 / 255, 71 / 255, 255 / 255, 0.12)
+    readonly property int launcherWidth: 564
+    // Matches Walker's `.normal-icons { -gtk-icon-size: 15px; }`.
+    readonly property int launcherIconSize: 16
 }

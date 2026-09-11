@@ -7,9 +7,6 @@ let
   terminal = "ghostty";
   fileManager = "nautilus";
   claudeApp = "claude-desktop";
-  menu = "walker -t float";
-  menuRail = "walker -t rail --maxwidth 272 --minwidth 272";
-  menuGrid = "walker -t grid";
   editor = "zeditor";
   browser = "zen-twilight";
 
@@ -369,9 +366,18 @@ in
           (mkBind "${mainMod} + M" (dsp "hl.dsp.exit()") null)
           (mkExecBind "${mainMod} + E" fileManager)
           (mkBind "${mainMod} + V" (dsp "hl.dsp.window.float()") null)
-          (mkExecBind "${mainMod} + R" menu)
-          (mkExecBind "${mainMod} + SHIFT + R" menuRail)
-          (mkExecBind "${mainMod} + CTRL + R" menuGrid)
+          # Quickshell launcher (quickshell/modules/launcher/, see TODO.md
+          # §3) now owns Walker's old SUPER+R slot — Walker is hidden (see
+          # walker.nix's import in hosts/carbon/home.nix and the `walker`/
+          # `elephant` package removals) rather than deleted, so this can be
+          # pointed back at `walker -t float` easily if ever needed. Runs
+          # inside the already-running Quickshell instance (not a separate
+          # process), so it's shown/hidden via Quickshell's own IPC rather
+          # than exec/pkill: `quickshell ipc -p <path> call <target> <fn>`
+          # is the verified flag order — `ipc call -p <path> ...` errors
+          # out. Walker's rail/grid modes (old SHIFT+R/CTRL+R) have no
+          # Quickshell equivalent and were dropped along with Walker itself.
+          (mkExecBind "${mainMod} + R" "quickshell ipc -p ~/nix-dots/quickshell call launcher toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)
@@ -454,14 +460,6 @@ in
           # picker. Device selection comes from the MESA_VK_DEVICE_SELECT/
           # DRI_PRIME env vars above.
           (mkExecBind "${mainMod} + G" "gamescope --steam -W 1920 -H 1080 -f -- steam")
-
-          # Rollback/comparison toggle now that Quickshell (quickshell/, see
-          # TODO.md §3) is the default bar — swap back to Waybar without a
-          # rebuild if something regresses, or to eyeball them side by side.
-          # Not run together: layer-shell exclusive-zone reservations on the
-          # same edge stack instead of overlapping.
-          (mkExecBind "${mainMod} + SHIFT + up" "pkill waybar; quickshell -p ~/nix-dots/quickshell &")
-          (mkExecBind "${mainMod} + SHIFT + down" "pkill quickshell; waybar &")
         ];
     };
 
@@ -472,10 +470,12 @@ in
     # passed through as-is, so hl.on/hl.exec_cmd are real calls here already.
     extraConfig = ''
       hl.on("hyprland.start", function()
-          -- Quickshell (quickshell/, see TODO.md §3) replaces Waybar as the
-          -- default bar as of this line. SUPER+SHIFT+down still swaps back
-          -- to Waybar live if something regresses (see binds above).
-          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & hyprpaper & elephant")
+          -- Quickshell (quickshell/, see TODO.md §3) is the default bar AND
+          -- launcher now (SUPER+R). Waybar/Walker are hidden, not removed —
+          -- disabled in waybar.nix / commented out of the walker.nix import
+          -- and the walker+elephant package lists — so there's no `waybar`
+          -- or `elephant` process to autostart here anymore.
+          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & hyprpaper")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
       end)
     '';

@@ -1,8 +1,12 @@
 { ... }:
 
 {
+  # Hidden, not removed: Quickshell (quickshell/, see TODO.md §3) is the
+  # default bar now. Config below is left fully intact — flip this back to
+  # true (and re-add the corresponding autostart/bind lines in hyprland.nix)
+  # to roll back instantly if Quickshell ever needs to be abandoned.
   programs.waybar = {
-    enable = true;
+    enable = false;
 
     settings = [
       {

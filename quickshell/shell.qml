@@ -3,6 +3,7 @@ import QtQml
 import Quickshell
 import "modules/bar"
 import "modules/notifications"
+import "modules/launcher"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -23,6 +24,10 @@ ShellRoot {
     Toast {
         id: toast
         server: notifierLoader.item
+    }
+
+    Launcher {
+        id: launcher
     }
 
     Variants {
