@@ -23,14 +23,19 @@ QtObject {
             volumePopupWidth: 220, volumePopupPadY: 20, volumePopupInsetX: 10, volumePopupGap: 8,
             volumeSliderWidth: 110, volumeSliderHeight: 16, volumePercentLabelWidth: 32,
             toastWidth: 320, toastWindowPadY: 16, toastCardPadY: 16, toastWindowInset: 8, toastCardInset: 8,
-            toastGap: 8, toastLineGap: 4, toastListWidth: 300,
+            toastGap: 8, toastLineGap: 4, toastListWidth: 300, toastCloseSize: 16,
             launcherWidth: 564, launcherPanelPadY: 20, launcherContentInset: 10, launcherContentGap: 8,
             launcherInputHeight: 36, launcherRowInset: 11, launcherInputTextInset: 9, launcherResultsMaxHeight: 360,
-            launcherRowHeight: 34, launcherIndicatorWidth: 2, launcherIconSize: 16, launcherIconLabelGap: 8
+            launcherRowHeight: 34, launcherIndicatorWidth: 2, launcherIconSize: 16, launcherIconLabelGap: 8,
+            launcherTabHeight: 30, launcherTabPadX: 10, launcherTabGap: 6, launcherTabIconLabelGap: 6
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {
             tooltipHoverDelayMs: 400,
+            // Fallback for the common case where a client sends
+            // expireTimeout -1 ("server picks") — the freedesktop spec's
+            // actual default-timeout value, not an edge case.
+            toastTimeoutMs: 8000,
             hoverColor: { duration: 180, easing: "OutQuad" },
             criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 }
         },

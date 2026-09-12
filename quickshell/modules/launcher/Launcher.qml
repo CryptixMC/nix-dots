@@ -139,6 +139,80 @@ PanelWindow {
             }
             spacing: Theme.spacing.launcherContentGap
 
+            // Floating pill tabs, icon-only by default — hover or active
+            // expands to icon+label (macOS-Spotlight-style, per the design
+            // brief). Only "apps" drives real content below; the rest are
+            // placeholders until their own passes (see TODO.md).
+            Row {
+                spacing: Theme.spacing.launcherTabGap
+
+                Repeater {
+                    model: LauncherState.tabs
+
+                    delegate: Rectangle {
+                        id: tabPill
+                        required property var modelData
+                        readonly property bool isActive: LauncherState.activeTab === modelData.id
+                        readonly property bool expanded: isActive || tabMouse.containsMouse
+
+                        height: Theme.spacing.launcherTabHeight
+                        radius: height / 2
+                        color: isActive ? Theme.color.launcherItemSelectedBg : "transparent"
+                        border.width: Theme.spacing.borderHairline
+                        border.color: isActive ? Theme.color.accentPurple : "transparent"
+                        width: tabContent.implicitWidth + Theme.spacing.launcherTabPadX * 2
+
+                        Behavior on width {
+                            NumberAnimation {
+                                duration: Theme.motion.hoverColor.duration
+                                easing.type: Theme.motion.hoverColor.easing
+                            }
+                        }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: Theme.motion.hoverColor.duration
+                                easing.type: Theme.motion.hoverColor.easing
+                            }
+                        }
+
+                        Row {
+                            id: tabContent
+                            anchors.centerIn: parent
+                            spacing: tabPill.expanded ? Theme.spacing.launcherTabIconLabelGap : 0
+
+                            Text {
+                                text: tabPill.modelData.glyph
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeBase
+                                renderType: Text.NativeRendering
+                                color: tabPill.isActive ? Theme.color.accentPurple : Theme.color.rightModuleFg
+                            }
+
+                            Text {
+                                text: tabPill.modelData.label
+                                width: tabPill.expanded ? implicitWidth : 0
+                                opacity: tabPill.expanded ? 1 : 0
+                                clip: true
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                                color: tabPill.isActive ? Theme.color.accentPurple : Theme.color.rightModuleFg
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: Theme.motion.hoverColor.duration }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: tabMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: LauncherState.setTab(tabPill.modelData.id)
+                        }
+                    }
+                }
+            }
+
             Rectangle {
                 width: parent.width
                 height: Theme.spacing.launcherInputHeight
@@ -181,6 +255,7 @@ PanelWindow {
 
             ListView {
                 id: resultsList
+                visible: LauncherState.activeTab === "apps"
                 width: parent.width
                 height: Math.min(contentHeight, Theme.spacing.launcherResultsMaxHeight)
                 clip: true
@@ -246,6 +321,20 @@ PanelWindow {
                     }
                 }
             }
+
+            // Games/Files/Themes placeholder — real content designed but
+            // not built this pass, see TODO.md.
+            Text {
+                width: parent.width
+                visible: LauncherState.activeTab !== "apps"
+                horizontalAlignment: Text.AlignHCenter
+                topPadding: Theme.spacing.launcherContentGap
+                bottomPadding: Theme.spacing.launcherContentGap
+                text: "Coming soon"
+                color: Theme.color.launcherPlaceholderFg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeBase
+            }
         }
     }
 
@@ -253,6 +342,7 @@ PanelWindow {
         if (visible) {
             searchInput.text = "";
             resultsList.currentIndex = 0;
+            LauncherState.activeTab = "apps";
             searchInput.forceActiveFocus();
         }
     }

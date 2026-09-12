@@ -12,6 +12,22 @@ import QtQuick
 QtObject {
     property bool visible: false
 
+    // Data-driven so adding a tab later is one more list entry, not a new
+    // code path — Launcher.qml's tab row is a Repeater over this. Only
+    // "apps" has real content this pass; the rest render a placeholder
+    // (see TODO.md for their intended designs).
+    readonly property var tabs: [
+        { id: "apps", label: "Applications", glyph: "󰀻" },
+        { id: "games", label: "Games", glyph: "󰊗" },
+        { id: "files", label: "Files", glyph: "󰉋" },
+        { id: "themes", label: "Themes", glyph: "󰸌" }
+    ]
+    property string activeTab: "apps"
+
+    function setTab(id) {
+        activeTab = id;
+    }
+
     function toggle() {
         visible = !visible;
     }
