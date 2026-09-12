@@ -137,12 +137,133 @@ Item {
         printErrors: false
     }
 
+    // Live-syncs Zed's chrome colors (not syntax highlighting or player
+    // cursor colors — those stay whatever stylix's own build-time "Base16
+    // <theme>" theme last generated, a deliberate scope limit to keep this
+    // tractable) to the active theme. zed.nix's stylix.targets.zed already
+    // produces a full, schema-correct 141-key theme file at
+    // ~/.config/zed/themes/stylix.json on every `nh home switch` — reusing
+    // that as a structural template (read once, since it only changes on a
+    // real rebuild) means this only has to know the ~40 "chrome" keys that
+    // should track the *live* theme rather than reimplementing Zed's whole
+    // theme schema by hand. zed.nix's `theme = "Quickshell Live"` points at
+    // the file this writes.
+    property var zedTemplate: null
+
+    FileView {
+        id: zedTemplateFile
+        path: `${Quickshell.env("HOME")}/.config/zed/themes/stylix.json`
+        watchChanges: false
+        printErrors: false
+        onLoaded: {
+            try {
+                root.zedTemplate = JSON.parse(text());
+            } catch (e) {
+                console.warn(`Theme: failed to parse zed stylix.json template: ${e}`);
+            }
+            root.syncZedTheme();
+        }
+    }
+
+    function zedChromeStyle(b16) {
+        const hex = (base, alpha) => `#${base}${alpha ?? "ff"}`;
+        return {
+            "background": hex(b16.base00),
+            "border": hex(b16.base02),
+            "border.variant": hex(b16.base01),
+            "border.focused": hex(b16.base0D),
+            "border.selected": hex(b16.base02),
+            "border.disabled": hex(b16.base03),
+            "elevated_surface.background": hex(b16.base01),
+            "surface.background": hex(b16.base01),
+            "element.background": hex(b16.base01),
+            "element.hover": hex(b16.base02),
+            "element.active": hex(b16.base02),
+            "element.selected": hex(b16.base02),
+            "element.disabled": hex(b16.base01),
+            "ghost_element.hover": hex(b16.base02),
+            "ghost_element.active": hex(b16.base02),
+            "ghost_element.selected": hex(b16.base02),
+            "ghost_element.disabled": hex(b16.base01),
+            "text": hex(b16.base05),
+            "text.muted": hex(b16.base04),
+            "text.placeholder": hex(b16.base03),
+            "text.disabled": hex(b16.base03),
+            "text.accent": hex(b16.base0D),
+            "status_bar.background": hex(b16.base01),
+            "title_bar.background": hex(b16.base01),
+            "title_bar.inactive_background": hex(b16.base00),
+            "toolbar.background": hex(b16.base00),
+            "tab_bar.background": hex(b16.base01),
+            "tab.inactive_background": hex(b16.base01),
+            "tab.active_background": hex(b16.base00),
+            "panel.background": hex(b16.base01),
+            "editor.background": hex(b16.base00),
+            "editor.foreground": hex(b16.base05),
+            "editor.gutter.background": hex(b16.base00),
+            "editor.subheader.background": hex(b16.base01),
+            "editor.active_line.background": hex(b16.base01, "80"),
+            "editor.highlighted_line.background": hex(b16.base01),
+            "editor.line_number": hex(b16.base03),
+            "editor.active_line_number": hex(b16.base05),
+            "editor.hover_line_number": hex(b16.base04),
+            "editor.invisible": hex(b16.base03),
+            "terminal.background": hex(b16.base00),
+            "terminal.foreground": hex(b16.base05),
+            "terminal.bright_foreground": hex(b16.base07),
+            "terminal.dim_foreground": hex(b16.base03),
+            "terminal.ansi.black": hex(b16.base00),
+            "terminal.ansi.bright_black": hex(b16.base03),
+            "terminal.ansi.dim_black": hex(b16.base00),
+            "terminal.ansi.white": hex(b16.base05),
+            "terminal.ansi.bright_white": hex(b16.base07),
+            "terminal.ansi.dim_white": hex(b16.base04),
+            "terminal.ansi.red": hex(b16.base08),
+            "terminal.ansi.bright_red": hex(b16.base08),
+            "terminal.ansi.dim_red": hex(b16.base08, "bf"),
+            "terminal.ansi.green": hex(b16.base0B),
+            "terminal.ansi.bright_green": hex(b16.base0B),
+            "terminal.ansi.dim_green": hex(b16.base0B, "bf"),
+            "terminal.ansi.yellow": hex(b16.base0A),
+            "terminal.ansi.bright_yellow": hex(b16.base0A),
+            "terminal.ansi.dim_yellow": hex(b16.base0A, "bf"),
+            "terminal.ansi.blue": hex(b16.base0D),
+            "terminal.ansi.bright_blue": hex(b16.base0D),
+            "terminal.ansi.dim_blue": hex(b16.base0D, "bf"),
+            "terminal.ansi.magenta": hex(b16.base0E),
+            "terminal.ansi.bright_magenta": hex(b16.base0E),
+            "terminal.ansi.dim_magenta": hex(b16.base0E, "bf"),
+            "terminal.ansi.cyan": hex(b16.base0C),
+            "terminal.ansi.bright_cyan": hex(b16.base0C),
+            "terminal.ansi.dim_cyan": hex(b16.base0C, "bf")
+        };
+    }
+
+    function syncZedTheme() {
+        if (!root.zedTemplate || !root.base16 || !root.base16.base00)
+            return;
+        const obj = JSON.parse(JSON.stringify(root.zedTemplate));
+        obj.name = "Quickshell Live";
+        obj.themes[0].name = "Quickshell Live";
+        Object.assign(obj.themes[0].style, root.zedChromeStyle(root.base16));
+        zedFile.setText(JSON.stringify(obj, null, 2));
+    }
+
+    FileView {
+        id: zedFile
+        path: `${Quickshell.env("HOME")}/.config/zed/themes/quickshell-live.json`
+        watchChanges: false
+        printErrors: false
+    }
+
     onColorChanged: {
         root.syncHyprlandBorders();
         root.syncGhosttyTheme();
+        root.syncZedTheme();
     }
     Component.onCompleted: {
         root.syncHyprlandBorders();
         root.syncGhosttyTheme();
+        root.syncZedTheme();
     }
 }

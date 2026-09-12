@@ -18,6 +18,15 @@
       "make"
     ];
     userSettings = {
+      # stylix.targets.zed (above) generates a build-time "Base16 <theme>"
+      # theme and points userSettings.theme at it; this overrides that with
+      # quickshell/theme/Theme.qml's live-synced theme instead (written to
+      # ~/.config/zed/themes/quickshell-live.json, using stylix.json's own
+      # 141-key output as its structural template) — same mkForce pattern
+      # already used below for ui_font_size/buffer_font_size to win over
+      # other stylix-set defaults.
+      theme = lib.mkForce "Quickshell Live";
+
       hour_format = "hour24";
       auto_update = false;
       cli_default_open_behavior = "existing_window";
