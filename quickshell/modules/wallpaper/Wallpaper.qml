@@ -85,7 +85,7 @@ PanelWindow {
         property vector3d colorMauve: Qt.vector3d(0xcb / 255, 0xa6 / 255, 0xf7 / 255)
         property vector3d colorLavender: Qt.vector3d(0xb4 / 255, 0xbe / 255, 0xfe / 255)
         property vector3d colorBlue: Qt.vector3d(0x89 / 255, 0xb4 / 255, 0xfa / 255)
-        property real intensity: 0.55
+        property real intensity: 1.3
 
         fragmentShader: root.wp.engine === "shader" ? `file://${root.wp.dir}/${root.wp.shader}.qsb` : ""
 

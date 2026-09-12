@@ -44,13 +44,13 @@ float fbm(vec2 p) {
 void main() {
     vec4 base = texture(baseSource, qt_TexCoord0);
 
-    vec2 p = vec2(qt_TexCoord0.x * 3.0, qt_TexCoord0.y * 6.0) + vec2(time * 0.03, -time * 0.015);
+    vec2 p = vec2(qt_TexCoord0.x * 3.0, qt_TexCoord0.y * 6.0) + vec2(time * 0.12, -time * 0.07);
     float n = fbm(p);
-    float band = smoothstep(0.15, 0.85, n) * smoothstep(1.0, 0.35, qt_TexCoord0.y);
+    float band = smoothstep(0.15, 0.85, n) * smoothstep(1.0, 0.6, qt_TexCoord0.y);
 
     vec3 glow = mix(colorBlue, colorMauve, qt_TexCoord0.x);
     glow = mix(glow, colorLavender, n);
 
-    vec3 result = base.rgb + glow * band * intensity;
+    vec3 result = mix(base.rgb, glow, clamp(band * intensity, 0.0, 1.0));
     fragColor = vec4(result, base.a) * qt_Opacity;
 }
