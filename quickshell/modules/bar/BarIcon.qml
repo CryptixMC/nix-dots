@@ -23,6 +23,26 @@ Item {
     property string tooltipBody: ""
     property string tooltipMuted: ""
 
+    // Swappable popup: defaults to today's ModuleTooltip wiring, but a
+    // module can override with its own Component (e.g. a click-driven
+    // slider popup) to experiment with different popup styles/behaviors
+    // without touching this shared hover/timer plumbing. The default
+    // Component closes over this file's own `root` via lexical scoping,
+    // same as it did as a named child before this became a Loader.
+    property Component popupComponent: Component {
+        ModuleTooltip {
+            anchor.item: root
+            titleText: root.tooltipTitle
+            bodyText: root.tooltipBody
+            mutedText: root.tooltipMuted
+        }
+    }
+    readonly property alias popupItem: popupLoader.item
+    // Escape hatch for modules whose popup is click-driven rather than
+    // hover-driven (e.g. Volume.qml's hand-rolled popup) — set false and
+    // drive popupItem.visible yourself.
+    property bool popupOpensOnHover: true
+
     implicitWidth: Theme.spacing.barIconHitSize
     implicitHeight: Theme.spacing.barIconHitSize
 
@@ -67,25 +87,25 @@ Item {
                 Quickshell.execDetached(["sh", "-c", root.scrollDownCommand]);
         }
 
-        onEntered: if (root.tooltipTitle.length > 0)
+        onEntered: if (root.popupOpensOnHover && root.tooltipTitle.length > 0)
             hoverTimer.restart()
         onExited: {
             hoverTimer.stop();
-            tooltip.visible = false;
+            if (root.popupOpensOnHover && root.popupItem)
+                root.popupItem.visible = false;
         }
     }
 
     Timer {
         id: hoverTimer
         interval: Theme.motion.tooltipHoverDelayMs
-        onTriggered: tooltip.visible = true
+        onTriggered: if (root.popupItem)
+            root.popupItem.visible = true
     }
 
-    ModuleTooltip {
-        id: tooltip
-        anchor.item: root
-        titleText: root.tooltipTitle
-        bodyText: root.tooltipBody
-        mutedText: root.tooltipMuted
+    Loader {
+        id: popupLoader
+        active: true
+        sourceComponent: root.popupComponent
     }
 }
