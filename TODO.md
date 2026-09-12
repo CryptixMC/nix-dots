@@ -10,15 +10,15 @@ Living roadmap for the Quickshell desktop (bar, launcher, greeter, theme system)
   - [x] Live-sync: Hyprland borders, Ghostty colors, Zed chrome
   - [ ] Zen browser theming — real preset found, not wired ([§1](#1-theme-system))
   - [ ] Claude Desktop theming — hard limitation, documented not chased
-  - [~] Runtime theme-switcher UI — becomes the Launcher's Themes tab ([§3](#3-launcher-tabs))
+  - [x] Runtime theme-switcher UI — the Launcher's Themes tab ([§3](#3-launcher-tabs))
 - **Bar**
   - [x] Waybar + Walker fully retired, Quickshell is the only shell
   - [x] Swappable per-icon popup (`BarIcon.popupComponent`)
 - **Launcher** ([§3](#3-launcher-tabs))
   - [x] Tab bar — Applications / Games / Files / Themes
-  - [~] Games tab content
-  - [~] Files tab content
-  - [~] Themes tab content
+  - [x] Games tab — real Steam + Prism Launcher libraries
+  - [x] Files tab — v1 tree/grid browser (flagged for a future redesign pass)
+  - [x] Themes tab — cycle themes + per-theme wallpaper picker
 - **Greeter** ([§4](#4-greeter))
   - [x] Quickshell greeter replacing ReGreet (password-only v1)
   - [x] Status icons — battery / brightness / volume / bluetooth
@@ -60,23 +60,27 @@ Everything pulls from `themes/<name>/{base16.yaml, theme.json?, wallpapers/, com
 
 ## 3. Launcher tabs
 
-`LauncherState.tabs` is a plain data list (`{id, label, glyph}`) — adding a fifth tab later is one entry, not a new code path. The tab row itself (pill-shaped, icon-only, hover/active-expands to icon+label) is built and live; only "Applications" has real content behind it so far.
+`LauncherState.tabs` is a plain data list (`{id, label, glyph}`) — adding a fifth tab later is one entry, not a new code path. The tab row (pill-shaped, icon-only, hover/active-expands to icon+label) is built and live. The launcher box itself widens for Games/Files/Themes (960px vs. Applications' 564px) and each tab loads lazily (`Loader active: ...`) so Games/Files' background filesystem scans never run before that tab is opened.
 
-### Games tab (designed, not built)
-- Horizontally-scrollable "recommended" row up top.
-- Below it, vertically-stacked sections: one multi-row grid of the full library, then one section per launcher (Steam, Prism Launcher, ...).
-- Extensible per-launcher adapter model — adding a new launcher is "add a script," not "modify core logic."
-- Search filters *within* each section (hides non-matches) rather than collapsing the section layout.
+### Games tab — built
+- `GamesLibrary.qml` discovers real Steam (`appmanifest_*.acf`) and Prism Launcher (`instance.cfg`) libraries via a couple of batched `grep`/`find` calls each (not one process per game), cross-referencing cover art (Steam's `library_600x900.jpg`, Prism's per-instance `profileImage/` directory) separately by id.
+- Recommended row (most-recently-played — the only honest signal without a real usage-scoring system), full library grid, and one grid per launcher, all confirmed rendering real games with real cover art.
+- Search (shared with the other tabs) filters *within* each section rather than collapsing the layout.
+- Adapter model is "one more Process block per launcher" in `GamesLibrary.qml`, not a plugin/script-file system — Lutris/Heroic aren't installed on this machine, so a heavier abstraction would be speculative. Adding one later is still a small, contained change.
 
-### Files tab (designed, not built — flagged for further iteration before building)
-- Left: directory tree, defaulting to the home folder.
-- Right: grid preview of the currently-open directory.
-- Fuzzy search filters the tree/grid in place, and additionally surfaces a flat list of matching paths *outside* the current directory, underneath the tree.
+### Files tab — built (v1; flagged for a future redesign pass)
+- `FilesTab.qml`: `Qt.labs.folderlistmodel`'s `FolderListModel` backs both a left-side subfolder list + breadcrumb and a right-side grid of the current directory's full contents, defaulting to `$HOME`.
+- v1 is a single navigable pane (descend/ascend), not a full expand/collapse multi-level tree — a real tree is more UI work than this pass needed, and this tab was explicitly called out for further design discussion before going further.
+- Search filters the tree/grid in place via `nameFilters`, and separately surfaces matches *outside* the current directory as a flat path list via one bounded `find -iname` call (substring matching, not true fuzzy scoring).
 
-### Themes tab (designed, not built)
-- Top row: cycle installed themes (reuses `ThemeState`/`ThemeLoader` as-is).
-- Second row: wallpapers available for the selected theme.
-- Below: settings the *active theme* declares as configurable (e.g. light/dark toggle, font choice) — a theme that declares none shows no settings, same "colors-only theme is valid" principle as `theme.json` itself.
+### Themes tab — built
+- Top row cycles installed themes (reuses `ThemeState`/`ThemeLoader` as-is, no new discovery).
+- Second row shows the *active* theme's available wallpaper files (`ThemeEntryLoader`'s wallpaper-file discovery, `find`-based, excludes shader `.frag`/`.qsb` sources) and lets you pick one — `ThemeState.wallpaperOverrides` persists the choice per-theme, and `Theme.qml`'s `wallpaper` facade resolves it ahead of the theme.json-declared default (engine inferred from the picked file's extension). Confirmed live: picking a wallpaper takes effect immediately and survives switching to the other theme and back.
+- No settings section: no `theme.json` currently declares any configurable options, so a generic toggle/dropdown-schema renderer would be untested speculative plumbing for zero real consumers — deferred until a theme actually wants to declare one, consistent with "colors-only theme has no settings."
+
+### Found and fixed along the way
+- No icon theme package was actually installed system-wide (only cursor themes + empty `hicolor`) — every named-icon lookup across the *whole launcher*, not just the new tabs, was silently falling back to blank/generic icons despite `gsettings` already claiming "Adwaita". Added `adwaita-icon-theme` to `packages.nix` — needs `nh os switch` to take effect.
+- `Image.source` needs a bare filesystem path, not a constructed `file://` URL, to handle names with spaces/brackets correctly (Prism instance "Arcadia [RPG] new" broke outright with the URL form even after percent-encoding).
 
 ---
 
