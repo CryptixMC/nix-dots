@@ -152,12 +152,204 @@ let
       if [ "$BAR0" != "0x0000000000000000" ]; then
         log "Success — triggering driver bind"
         echo "$(basename "$d")" > /sys/bus/pci/drivers/amdgpu/bind 2>/dev/null || true
-        # ollama.service may have started before the eGPU was bound and
-        # come up CPU-only — kick it so it re-probes and picks up ROCm.
-        systemctl try-restart ollama.service 2>/dev/null || true
+        # ollama.service and kanshi may have been stopped by egpu-eject.service
+        # on the last unplug (or ollama simply started CPU-only before the
+        # eGPU was bound) — restart both so they pick the eGPU back up.
+        systemctl restart ollama.service 2>/dev/null || true
+        runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" systemctl --user restart kanshi.service 2>/dev/null || true
       else
         log "BAR 0 still 0x0 — manual intervention needed"
       fi
+    done
+  '';
+
+  # Gracefully detach the AMD eGPU *before* physically unplugging it so
+  # amdgpu's PCI-remove teardown (ring tests, CP halt) completes against
+  # hardware that's still electrically live, instead of timing out against
+  # a link that's already been yanked — which is what wedges the Hyprland
+  # compositor into a black screen that only a reboot clears (see README).
+  # Triggered by the SUPER+SHIFT+U keybind (primary) and by a udev rule on
+  # Thunderbolt device removal (best-effort backstop for a surprise yank).
+  egpuEjectScript = pkgs.writeShellScript "egpu-eject" ''
+    PATH=${
+      lib.makeBinPath [
+        pkgs.coreutils
+        pkgs.gnused
+        pkgs.util-linux
+        pkgs.systemd
+        pkgs.hyprland
+        pkgs.procps
+      ]
+    }:$PATH
+
+    log() { echo "[egpu-eject] $*"; logger -t egpu-eject "$*"; }
+
+    exec 9>/run/lock/egpu-eject.lock
+    flock -n 9 || { log "an eject is already in progress — skipping"; exit 0; }
+
+    RUNTIME_DIR="/run/user/$(id -u cryptix)"
+    HYPR_SIG=$(ls -t "$RUNTIME_DIR/hypr" 2>/dev/null | head -n1)
+
+    as_user() {
+      runuser -u cryptix -- env XDG_RUNTIME_DIR="$RUNTIME_DIR" "$@"
+    }
+    hyprctl_user() {
+      as_user env HYPRLAND_INSTANCE_SIGNATURE="$HYPR_SIG" hyprctl "$@" 2>/dev/null || true
+    }
+
+    # Stage 0: locate the RX 6800 XT; nothing to do if it isn't present.
+    GPU_SYS=""
+    for d in /sys/bus/pci/devices/0000:*; do
+      [ "$(cat "$d/vendor" 2>/dev/null)" = "0x1002" ] || continue
+      [ "$(cat "$d/device" 2>/dev/null)" = "0x73bf" ] || continue
+      GPU_SYS="$d"
+      break
+    done
+
+    if [ -z "$GPU_SYS" ]; then
+      log "eGPU not present — nothing to eject"
+      exit 0
+    fi
+
+    ok=1
+
+    # Stage 1: stop ollama so ROCm releases its DRM handles before unbind.
+    log "stopping ollama.service"
+    systemctl stop ollama.service 2>/dev/null || true
+
+    # Stage 1.5: a running game holds its own independent RADV/Vulkan DRM
+    # context on the eGPU (unrelated to ROCm/ollama above) that can just as
+    # easily hang the amdgpu unbind in Stage 3. Force-killing someone's game
+    # out from under them is worse UX than asking them to quit it first, so
+    # abort here with a clear notification instead of proceeding.
+    if pgrep -x gamescope >/dev/null 2>&1; then
+      log "gamescope is running — refusing to eject until it's closed"
+      hyprctl_user notify -1 8000 "rgb(f9e2af)" "Quit your game first, then retry SUPER+SHIFT+U"
+      exit 1
+    fi
+
+    # Stage 2: stop kanshi (it doesn't know about eGPU state, only EDID —
+    # without this it can immediately re-enable DP-6/HDMI-A-2 while they're
+    # still electrically present), disable the eGPU-attached outputs, and
+    # explicitly re-enable eDP-1. The explicit enable is required: kanshi's
+    # "docked" profile actively disables eDP-1 (`output "AU Optronics
+    # 0xFA9B*" disable` in kanshi's config) whenever the eGPU's monitors are
+    # up, so eDP-1 sits at disabled:true the whole time the eGPU is docked
+    # (confirmed live). Without this line, disabling DP-6/HDMI-A-2 would
+    # leave every output disabled — a self-inflicted black screen, exactly
+    # what this script exists to prevent.
+    log "stopping kanshi, disabling eGPU-attached outputs, enabling eDP-1"
+    as_user systemctl --user stop kanshi.service 2>/dev/null || true
+    hyprctl_user keyword monitor DP-6,disable
+    hyprctl_user keyword monitor HDMI-A-2,disable
+    hyprctl_user keyword monitor eDP-1,preferred,auto,1
+
+    # Stage 3: unbind amdgpu while the PCIe link is still live. With every
+    # userspace consumer gone (stages 1-2), the ring tests and CP-halt that
+    # amdgpu_device_fini_hw() runs during unbind can complete against
+    # responsive hardware instead of hanging — this is the actual fix.
+    GPU_BDF=$(basename "$GPU_SYS")
+    if [ -e "$GPU_SYS/driver" ]; then
+      log "unbinding amdgpu from $GPU_BDF"
+      if ! timeout 5 sh -c "echo '$GPU_BDF' > '$GPU_SYS/driver/unbind'" 2>/dev/null; then
+        log "amdgpu unbind timed out — do NOT unplug, check journalctl -k"
+        ok=0
+      fi
+    else
+      log "amdgpu already unbound from $GPU_BDF"
+    fi
+
+    # Stage 4: deauthorize the Thunderbolt tunnel — the exact manual fix
+    # documented in README.md, now safe since amdgpu is already unbound.
+    if [ "$ok" = "1" ]; then
+      TB_DEV=""
+      for d in /sys/bus/thunderbolt/devices/*; do
+        [ -f "$d/unique_id" ] || continue
+        [ "$(cat "$d/unique_id" 2>/dev/null)" = "b9010000-0062-640e-83f2-8ddd4a93f908" ] || continue
+        TB_DEV="$d"
+        break
+      done
+
+      if [ -n "$TB_DEV" ]; then
+        if [ "$(cat "$TB_DEV/authorized" 2>/dev/null)" = "0" ]; then
+          log "Thunderbolt tunnel already deauthorized"
+        elif timeout 5 sh -c "echo 0 > '$TB_DEV/authorized'" 2>/dev/null; then
+          log "Thunderbolt tunnel deauthorized"
+        else
+          log "failed to deauthorize Thunderbolt tunnel — do NOT unplug"
+          ok=0
+        fi
+      else
+        log "Thunderbolt device node not found — do NOT unplug"
+        ok=0
+      fi
+    fi
+
+    # Stage 5: notify last, gated on success, so the user is never told
+    # it's safe to unplug when it isn't.
+    if [ "$ok" = "1" ]; then
+      hyprctl_user notify -1 5000 "rgb(a6e3a1)" "eGPU deauthorized — safe to unplug"
+    else
+      hyprctl_user notify -1 8000 "rgb(f38ba8)" "eGPU eject failed — do NOT unplug, check journalctl -t egpu-eject"
+    fi
+  '';
+
+  # When the eGPU attaches, force full CPU + GPU performance so neither
+  # opportunistically clocks down mid-session (confirmed live: the GPU sat
+  # at 72% busy but only drew 52W of its 272W cap during ARC Raiders — the
+  # signature of a GPU periodically starved waiting on CPU-submitted work,
+  # not a GPU-bound ceiling). Scoped to only-while-docked via
+  # egpu-bar-fix/egpu-eject below, so undocked/battery use still
+  # power-saves normally.
+  egpuPerfOnScript = pkgs.writeShellScript "egpu-perf-on" ''
+    PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.util-linux ]}:$PATH
+    log() { echo "[egpu-perf-on] $*"; logger -t egpu-perf-on "$*"; }
+
+    for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+      echo performance > "$gov" 2>/dev/null || true
+    done
+    log "CPU governor -> performance"
+
+    # amdgpu's DPM sysfs node only exists once the driver is bound, which
+    # egpu-bar-fix.service does as its last step -- this service runs
+    # after it (see systemd.services.egpu-perf-on below), but poll briefly
+    # anyway as a defensive fallback.
+    DPM=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      for d in /sys/bus/pci/devices/0000:*; do
+        [ "$(cat "$d/vendor" 2>/dev/null)" = "0x1002" ] || continue
+        [ "$(cat "$d/device" 2>/dev/null)" = "0x73bf" ] || continue
+        [ -e "$d/power_dpm_force_performance_level" ] || continue
+        DPM="$d/power_dpm_force_performance_level"
+        break 2
+      done
+      sleep 1
+    done
+
+    if [ -n "$DPM" ]; then
+      echo high > "$DPM" 2>/dev/null || true
+      log "GPU power_dpm_force_performance_level -> high"
+    else
+      log "amdgpu DPM sysfs not found after 10s -- GPU still powering up?"
+    fi
+  '';
+
+  # Revert both when the eGPU detaches -- mirrors egpuPerfOnScript.
+  egpuPerfOffScript = pkgs.writeShellScript "egpu-perf-off" ''
+    PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.util-linux ]}:$PATH
+    log() { echo "[egpu-perf-off] $*"; logger -t egpu-perf-off "$*"; }
+
+    for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+      echo powersave > "$gov" 2>/dev/null || true
+    done
+    log "CPU governor -> powersave"
+
+    for d in /sys/bus/pci/devices/0000:*; do
+      [ "$(cat "$d/vendor" 2>/dev/null)" = "0x1002" ] || continue
+      [ "$(cat "$d/device" 2>/dev/null)" = "0x73bf" ] || continue
+      [ -e "$d/power_dpm_force_performance_level" ] || continue
+      echo auto > "$d/power_dpm_force_performance_level" 2>/dev/null || true
+      log "GPU power_dpm_force_performance_level -> auto"
     done
   '';
 in
@@ -175,10 +367,38 @@ in
   # rule instead and leave the daemon off.
   services.hardware.bolt.enable = false;
 
+  # --- Physical topology note (no code effect — READ THIS) ---
+  # This CPU (Alder Lake-P) has two independent, CPU-integrated TB4
+  # controllers (00:0d.2 / NHI#0 behind root port 00:07.0, and 00:0d.3 /
+  # NHI#1 behind 00:07.2) -- genuinely separate PCIe endpoints, not a
+  # shared upstream switch (confirmed via `lspci -tv`). The eGPU
+  # (Adaptertek Tamales2, Titan Ridge/JHL7440) must be on one of them; the
+  # ThinkPad USB-C Dock Gen 2 MUST be plugged into the laptop's OTHER,
+  # independent TB4 port directly -- NOT into the eGPU enclosure's own
+  # USB-C passthrough port on the back of the Tamales2 box. That
+  # passthrough port daisy-chains through the enclosure's *internal*
+  # Titan Ridge chip, sharing the same physical TB3 cable and internal
+  # PCIe switch as the GPU's own tunnel -- and Titan Ridge (a 2-port
+  # discrete TB3 controller, the same chip that's inside this enclosure)
+  # is well documented to share aggregate PCIe bandwidth across its
+  # ports. The laptop's own two CPU-integrated TB4 ports don't have that
+  # problem, but daisy-chaining the dock through the eGPU enclosure's
+  # internal chip reintroduces exactly that sharing behavior. If you ever
+  # re-cable this dock, plug it into the laptop directly, not through the
+  # eGPU box.
+
   services.udev.extraRules = ''
     ACTION=="add", SUBSYSTEM=="thunderbolt", ATTR{unique_id}=="b9010000-0062-640e-83f2-8ddd4a93f908", ATTR{authorized}="1"
     # When the RX 6800 XT appears on the PCIe bus, start the BAR-fix service.
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x1002", ATTR{device}=="0x73bf", TAG+="systemd", ENV{SYSTEMD_WANTS}="egpu-bar-fix.service"
+    # Best-effort automatic backstop for a surprise physical unplug (the
+    # keybind-triggered egpu-eject.service is the reliable path — see
+    # hyprland.nix). Matched on the *thunderbolt* remove event rather than
+    # the PCI remove event: the PCI-level remove uevent only fires after
+    # amdgpu's own .remove() callback returns, and that callback is exactly
+    # what hangs on surprise removal, so a PCI-remove rule would likely
+    # never fire during the hang this is meant to catch.
+    ACTION=="remove", SUBSYSTEM=="thunderbolt", ATTR{unique_id}=="b9010000-0062-640e-83f2-8ddd4a93f908", TAG+="systemd", ENV{SYSTEMD_WANTS}="egpu-eject.service"
     # Enable USB wakeup chain for ThinkPad USB-C Dock Gen2 power button.
     ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="a38f", RUN+="${dockWakeupScript} $env{DEVPATH}"
     # Force a clean autoneg restart on the dock's r8152 Ethernet controller
@@ -194,6 +414,17 @@ in
   hardware.amdgpu.initrd.enable = false;
   # Pre-load the driver so it binds the moment the PCIe device appears.
   boot.kernelModules = [ "amdgpu" ];
+
+  # Pin the kernel version that the eGPU hotplug checklist (BAR-fix,
+  # AER/ASPM workarounds, DPIA hang workaround below) was validated
+  # against. Resolves to 6.18.50 today — identical to nixos-unstable's
+  # current default — so this is a no-op right now; it exists purely so a
+  # future `nix flake update` can't silently shift the running kernel out
+  # from under these Thunderbolt/amdgpu workarounds. If this attribute is
+  # ever pruned from nixpkgs (EOL'd versioned kernels get removed), re-run
+  # the full eGPU physical-state checklist against the new candidate
+  # kernel before bumping this pin deliberately.
+  boot.kernelPackages = pkgs.linuxPackages_6_18;
 
   # --- Kernel Parameters ---
   boot.kernelParams = [
@@ -279,12 +510,66 @@ in
     # Don't auto-start at boot; only fires when udev raises the GPU add event.
     # We still set wants/after so it runs at the right point if triggered early.
     after = [ "sysinit.target" ];
+    wants = [ "egpu-perf-on.service" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = false;
       ExecStart = egpuBarFixScript;
     };
   };
+
+  # --- Safe Eject Service ---
+  # Triggered by the SUPER+SHIFT+U keybind (hyprland.nix) and, best-effort,
+  # by udev on Thunderbolt device removal. See egpuEjectScript above.
+  systemd.services.egpu-eject = {
+    description = "Gracefully detach the AMD eGPU before Thunderbolt disconnection";
+    wants = [ "egpu-perf-off.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = false;
+      ExecStart = egpuEjectScript;
+    };
+  };
+
+  # --- eGPU-gated performance toggle ---
+  # Forces CPU governor=performance and GPU DPM=high while the eGPU is
+  # docked, reverts to power-saving defaults when it's ejected. Wired via
+  # `wants` above rather than new udev rules, piggybacking on both existing
+  # eject triggers (the SUPER+SHIFT+U keybind and the Thunderbolt-remove
+  # udev backstop). See egpuPerfOnScript/egpuPerfOffScript above.
+  systemd.services.egpu-perf-on = {
+    description = "Force CPU governor=performance and GPU DPM=high while the eGPU is docked";
+    after = [ "egpu-bar-fix.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = egpuPerfOnScript;
+    };
+  };
+
+  systemd.services.egpu-perf-off = {
+    description = "Revert CPU governor and GPU DPM to power-saving defaults when the eGPU detaches";
+    before = [ "egpu-eject.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = egpuPerfOffScript;
+    };
+  };
+
+  # Let the keybind trigger the eject service without a password prompt.
+  # Scoped to exactly this one command — no broader sudo grant.
+  security.sudo.extraRules = [
+    {
+      users = [ "cryptix" ];
+      commands = [
+        {
+          command = "${pkgs.systemd}/bin/systemctl start egpu-eject.service";
+          options = [ "NOPASSWD" ];
+        }
+      ];
+    }
+  ];
 
   # --- Packages ---
   environment.systemPackages = with pkgs; [

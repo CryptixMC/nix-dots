@@ -24,12 +24,23 @@ into a `hung_task` and a full system hang. Fixed by adding `pci=noaer` to
 `boot.kernelParams` in `modules/nixos/hardware/amd.nix` — see the comment
 there for the full root-cause writeup.
 
-**Caution:** don't physically unplug the eGPU while it's live. Surprise
-removal makes amdgpu's teardown path time out (`ring kiq test failed`,
-`failed to halt cp gfx`), which wedges the Hyprland compositor into a full
-black screen (audio keeps working) that only a reboot clears. Deauthorize
-it first via `/sys/bus/thunderbolt/devices/<id>/authorized` (write `0`)
-before disconnecting.
+**Unplugging the eGPU:** surprise removal makes amdgpu's teardown path time
+out (`ring kiq test failed`, `failed to halt cp gfx`), which wedges the
+Hyprland compositor into a full black screen (audio keeps working) that
+only a reboot clears — because amdgpu tries to talk to hardware that just
+electrically vanished mid-teardown. Press **SUPER+SHIFT+U** first: it stops
+ollama/kanshi, tells Hyprland to drop the eGPU-attached outputs, unbinds
+amdgpu while the link is still live (so its teardown completes against
+responsive hardware), then deauthorizes the Thunderbolt tunnel. Wait for
+the "safe to unplug" notification before pulling the cable. There's also a
+best-effort automatic udev rule for when you forget and yank it anyway
+(`egpu-eject.service` in `modules/nixos/hardware/amd.nix`), but it's racing
+the same hang and isn't guaranteed to win.
+
+If it wedges anyway: SSH in over Tailscale, check
+`journalctl -k -b --since "-2 min"` for the failure, then
+`sudo systemctl restart display-manager.service` (gets a fresh Hyprland
+session without a full reboot) or, failing that, a graceful `sudo reboot`.
 
 **Ollama/ROCm: "cudaMalloc failed: out of memory" on a large model after an
 aborted load.** If a model load is interrupted (e.g. the client gives up
@@ -42,6 +53,41 @@ VRAM — confirmed live by loading a 36B model (~16GB) to completion on a
 freshly restarted `ollama.service`, with no BAR/kernel changes needed. If
 you hit this OOM, `sudo systemctl restart ollama.service` and retry before
 assuming a hardware ceiling.
+
+**Dock topology — don't daisy-chain the USB-C dock through the eGPU
+enclosure.** The laptop has two independent, CPU-integrated Thunderbolt 4
+controllers (confirmed via `lspci -tv`: separate root ports, separate
+NHIs) — not bandwidth-shared. But the ThinkPad USB-C Dock Gen 2's upstream
+cable was found plugged into the eGPU enclosure's own USB-C passthrough
+port instead of the laptop's second, idle TB4 port — daisy-chaining it
+through the enclosure's internal Titan Ridge chip, which *does* share
+bandwidth across its two ports (unlike the laptop's own two ports), so the
+dock's USB/Ethernet/audio traffic was contending with the GPU's own PCIe
+tunnel on the same cable. Fix: plug the dock directly into the laptop's
+second TB4 port. Verify empirically after moving it — run `iperf3`/a large
+file transfer over the dock's Ethernet concurrently with a GPU-bound game
+session and compare fps/frametime and throughput against a baseline from
+before the move, since this hasn't been confirmed against an authoritative
+Intel doc.
+
+**CPU package power limit (PROCHOT) throttling under sustained gaming
+load.** This T14 Gen 3's BIOS ships an unmanaged PL1 = 64W with an
+effectively meaningless 127.9s time window — i.e. sustained 64W forever —
+instead of the i7-1260P's stock 28W. Confirmed via
+`thermal_throttle/package_throttle_count` climbing continuously during
+play sessions (thousands of events, tens of seconds of cumulative
+throttling) and package temp still reading 74°C six minutes after a game
+exited. This starves the eGPU of submitted work — it was observed at 72%
+busy but drawing only 52W of its 272W cap, the signature of a GPU waiting
+on the CPU rather than being GPU-bound. Fixed system-wide (AC/battery-
+aware, not eGPU-gated, since it's a firmware bug rather than a
+gaming-specific tradeoff) by `throttled.service` in
+`modules/nixos/hardware/thinkpad-power.nix`, starting at a conservative
+PL1=35W/PL2=54W AC profile — tune via the same throttle-counter method
+used to diagnose this if it needs adjusting. Separately, CPU governor and
+GPU DPM are forced to performance/high only while the eGPU is docked
+(`egpu-perf-on`/`egpu-perf-off` in `modules/nixos/hardware/amd.nix`,
+piggybacking on the existing `egpu-bar-fix`/`egpu-eject` triggers).
 
 ---
 
