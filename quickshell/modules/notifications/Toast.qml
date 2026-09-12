@@ -65,10 +65,12 @@ PanelWindow {
                     id: column
                     anchors {
                         left: parent.left
-                        right: parent.right
                         top: parent.top
-                        margins: Theme.spacing.toastCardInset
+                        leftMargin: Theme.spacing.toastCardInset
+                        topMargin: Theme.spacing.toastCardInset
+                        rightMargin: Theme.spacing.toastCardInset + Theme.spacing.toastCloseSize + Theme.spacing.toastLineGap
                     }
+                    width: parent.width - anchors.leftMargin - anchors.rightMargin
                     spacing: Theme.spacing.toastLineGap
 
                     Text {
@@ -92,14 +94,38 @@ PanelWindow {
                     }
                 }
 
-                // expireTimeout unit (ms vs seconds) unconfirmed this
-                // session — verify against a real notify-send call, this
-                // is the one place a wrong unit would show visibly (toast
-                // lingering or vanishing too fast).
+                Text {
+                    id: closeButton
+                    text: "✕"
+                    anchors {
+                        top: parent.top
+                        right: parent.right
+                        margins: Theme.spacing.toastCardInset
+                    }
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    color: closeArea.containsMouse ? Theme.color.tooltipFg : Theme.color.tooltipMuted
+
+                    MouseArea {
+                        id: closeArea
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: card.modelData.dismiss()
+                    }
+                }
+
+                // expireTimeout follows the freedesktop notification spec:
+                // 0 means "never auto-expire" (dismiss stays manual-only),
+                // -1 means "no timeout specified, daemon picks" — the most
+                // common value in the wild, and the one the old `> 0` check
+                // silently dropped, leaving toasts stuck forever with no
+                // way to close them.
                 Timer {
-                    running: card.modelData.expireTimeout > 0
-                    interval: card.modelData.expireTimeout
-                    onTriggered: card.modelData.dismiss()
+                    running: card.modelData.expireTimeout !== 0
+                    interval: card.modelData.expireTimeout > 0 ? card.modelData.expireTimeout : Theme.motion.toastTimeoutMs
+                    onTriggered: card.modelData.expire()
                 }
             }
         }
