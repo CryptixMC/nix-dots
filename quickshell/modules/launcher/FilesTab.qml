@@ -18,13 +18,15 @@ import "../../theme"
 Item {
     id: root
     width: parent.width
-    // implicitHeight mirrors height explicitly — see GamesTab.qml's
-    // identical comment for why: a plain Item doesn't auto-derive
-    // implicitHeight from children, so leaving it unset would report 0 to
-    // anything (e.g. a Loader) that reads implicitHeight instead of the
-    // real, bounded height.
-    height: Math.min(mainRow.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
-    implicitHeight: root.height
+    // `height` and `implicitHeight` both bound to the same independent
+    // expression, not one deriving from the other — see GamesTab.qml's
+    // identical fix/comment for why `implicitHeight: root.height` is a
+    // real binding loop (Item.height's implicit default binding IS
+    // implicitHeight), confirmed live to silently freeze at the
+    // first-computed value instead of reacting to later content changes.
+    readonly property real computedHeight: Math.min(mainRow.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
+    height: root.computedHeight
+    implicitHeight: root.computedHeight
 
     property string searchQuery: ""
     readonly property string homeDir: Quickshell.env("HOME")

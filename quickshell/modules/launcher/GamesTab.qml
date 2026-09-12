@@ -10,12 +10,19 @@ import "../../theme"
 Item {
     id: root
     width: parent.width
-    // implicitHeight mirrors height explicitly — a plain Item doesn't
-    // auto-derive implicitHeight from children the way Column/Row do, so
-    // leaving it unset here would report 0 to anything (e.g. a Loader)
-    // that reads implicitHeight rather than the real, bounded height.
-    height: Math.min(inner.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
-    implicitHeight: root.height
+    // `height` and `implicitHeight` are both bound to the SAME independent
+    // expression rather than one deriving from the other — binding
+    // `implicitHeight: root.height` (tried first) created a genuine
+    // binding loop and silently froze at the first-computed value instead
+    // of reacting to inner.implicitHeight changing later (confirmed live:
+    // stuck at ~18px — just the "no games found" fallback text's height —
+    // even once 36 real games had loaded and inner.implicitHeight had
+    // correctly grown to 1736). Item.height's *implicit* default binding
+    // is implicitHeight, so anything that makes implicitHeight depend on
+    // height, even indirectly, risks exactly this loop.
+    readonly property real computedHeight: Math.min(inner.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
+    height: root.computedHeight
+    implicitHeight: root.computedHeight
 
     property string searchQuery: ""
 
