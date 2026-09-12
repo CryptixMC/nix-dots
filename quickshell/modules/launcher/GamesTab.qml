@@ -10,7 +10,12 @@ import "../../theme"
 Item {
     id: root
     width: parent.width
+    // implicitHeight mirrors height explicitly — a plain Item doesn't
+    // auto-derive implicitHeight from children the way Column/Row do, so
+    // leaving it unset here would report 0 to anything (e.g. a Loader)
+    // that reads implicitHeight rather than the real, bounded height.
     height: Math.min(inner.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
+    implicitHeight: root.height
 
     property string searchQuery: ""
 
@@ -38,7 +43,10 @@ Item {
                 width: parent.width
                 height: Theme.spacing.gameCardImageHeight
                 radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
+                // Slightly transparent base — only visible for the no-cover-
+                // art fallback below, since real box art fills the rect
+                // completely; kept subtle rather than solid either way.
+                color: ThemeDefaults.alpha(Theme.base16.base02, 0.5)
                 border.width: mouse.containsMouse ? 2 : 0
                 border.color: Theme.color.accentPurple
                 clip: true
@@ -58,11 +66,11 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     visible: card.modelData.iconSource.length === 0
-                    text: "󰊗"
+                    text: "󰺵"
                     renderType: Text.NativeRendering
                     font.family: Theme.font.family
-                    font.pixelSize: 28
-                    color: Theme.color.launcherPlaceholderFg
+                    font.pixelSize: 32
+                    color: Theme.color.accentPurple
                 }
             }
 

@@ -4,3 +4,4 @@ singleton ThemeState 1.0 ThemeState.qml
 singleton Theme 1.0 Theme.qml
 ThemeEntryLoader 1.0 ThemeEntryLoader.qml
 Themed 1.0 Themed.qml
+ThemedIcon 1.0 ThemedIcon.qml

@@ -18,7 +18,13 @@ import "../../theme"
 Item {
     id: root
     width: parent.width
+    // implicitHeight mirrors height explicitly — see GamesTab.qml's
+    // identical comment for why: a plain Item doesn't auto-derive
+    // implicitHeight from children, so leaving it unset would report 0 to
+    // anything (e.g. a Loader) that reads implicitHeight instead of the
+    // real, bounded height.
     height: Math.min(mainRow.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
+    implicitHeight: root.height
 
     property string searchQuery: ""
     readonly property string homeDir: Quickshell.env("HOME")
@@ -246,16 +252,25 @@ Item {
                     height: Theme.spacing.fileGridCellSize - 20
                     anchors.horizontalCenter: parent.horizontalCenter
                     radius: Theme.radius.input
-                    color: cellMouse.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                    // Slightly transparent base rather than solid — folders/
+                    // files render as themed glyphs (below), not real
+                    // system-icon-theme lookups, so there's no external
+                    // icon-theme dependency and no risk of the oversized-
+                    // fallback scaling bug real IconImage lookups hit here
+                    // when a name doesn't resolve.
+                    color: cellMouse.containsMouse ? Theme.color.launcherItemSelectedBg : ThemeDefaults.alpha(Theme.base16.base02, 0.5)
 
                     Behavior on color {
                         ColorAnimation { duration: Theme.motion.hoverColor.duration }
                     }
 
-                    IconImage {
+                    Text {
                         anchors.centerIn: parent
-                        implicitSize: 32
-                        source: Quickshell.iconPath(cell.fileIsDir ? "folder" : "text-x-generic", "application-x-executable")
+                        text: cell.fileIsDir ? "󰉋" : "󰈔"
+                        renderType: Text.NativeRendering
+                        font.family: Theme.font.family
+                        font.pixelSize: 28
+                        color: cell.fileIsDir ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
                     }
                 }
 

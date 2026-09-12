@@ -339,14 +339,14 @@ PanelWindow {
                         color: row.index === resultsList.currentIndex ? Theme.color.accentPurple : "transparent"
                     }
 
-                    IconImage {
+                    ThemedIcon {
                         id: icon
                         anchors {
                             left: parent.left
                             leftMargin: Theme.spacing.launcherRowInset
                             verticalCenter: parent.verticalCenter
                         }
-                        implicitSize: Theme.spacing.launcherIconSize
+                        iconSize: Theme.spacing.launcherIconSize
                         // "application-x-executable" is the standard XDG
                         // fallback icon name — Quickshell.iconPath's third
                         // overload swaps to it automatically when an entry's
@@ -382,14 +382,29 @@ PanelWindow {
             // Process calls (filesystem scans) that shouldn't run before
             // the user ever opens that tab, unlike the always-instantiated
             // Applications list above which has no such cost.
+            //
+            // height/clip are both explicit rather than left to a Loader's
+            // default auto-sizing: each tab's root Item sets `height`
+            // (bounded via Math.min against launcherTabBodyMaxHeight) but
+            // not `implicitHeight`, and a bare `Loader { width: ... }` with
+            // no height override isn't guaranteed to follow the loaded
+            // item's *explicit* height rather than its (here, unset/0)
+            // implicitHeight — reading `item.height` directly sidesteps
+            // that ambiguity, and `clip: true` is a belt-and-suspenders
+            // guard against any tab's content ever visually overflowing
+            // its own bounds regardless of the height binding.
             Loader {
                 width: parent.width
+                height: item ? item.height : 0
+                clip: true
                 active: LauncherState.activeTab === "themes"
                 sourceComponent: ThemesTab {}
             }
 
             Loader {
                 width: parent.width
+                height: item ? item.height : 0
+                clip: true
                 active: LauncherState.activeTab === "games"
                 sourceComponent: GamesTab {
                     searchQuery: searchInput.text
@@ -398,6 +413,8 @@ PanelWindow {
 
             Loader {
                 width: parent.width
+                height: item ? item.height : 0
+                clip: true
                 active: LauncherState.activeTab === "files"
                 sourceComponent: FilesTab {
                     searchQuery: searchInput.text
