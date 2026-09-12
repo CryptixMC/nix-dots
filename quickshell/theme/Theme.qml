@@ -32,7 +32,25 @@ Item {
     readonly property var font: root.current.font
     readonly property var motion: root.current.motion
     readonly property var effect: root.current.effect
-    readonly property var wallpaper: root.current.wallpaper
+    // Resolves a user-picked wallpaper override (Themes tab, via
+    // ThemeState.setWallpaperOverride) ahead of the theme's own theme.json-
+    // declared default. Engine is inferred from the override filename's
+    // extension since only plain image/gif files are ever offered as
+    // pickable overrides (see ThemeEntryLoader.qml's wallpaper-file
+    // discovery) — a shader wallpaper needs a paired uniform set a plain
+    // click can't supply, so it's never a candidate here.
+    function resolveWallpaper(w, themeName) {
+        const overrideFile = ThemeState.wallpaperOverrides[themeName];
+        if (!overrideFile || !w.available || !w.available.includes(overrideFile))
+            return w;
+        const isGif = overrideFile.toLowerCase().endsWith(".gif");
+        return Object.assign({}, w, {
+            engine: isGif ? "gif" : "static",
+            image: isGif ? w.image : overrideFile,
+            gif: isGif ? overrideFile : w.gif
+        });
+    }
+    readonly property var wallpaper: root.resolveWallpaper(root.current.wallpaper, ThemeState.activeThemeName)
     readonly property var componentOverrides: root.current.componentOverrides ?? ({})
 
     // Live-syncs Hyprland's own border colors to the active theme via

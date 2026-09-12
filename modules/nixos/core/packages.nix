@@ -40,5 +40,11 @@
     wl-clipboard
     quickshell # desktop shell toolkit — quickshell/ scaffold, see TODO.md §3
     yq-go # YAML->JSON bridge for quickshell/theme/ThemeLoader.qml (base16.yaml has no native QML parser)
+    # No real icon theme was installed system-wide (only cursor themes +
+    # empty hicolor) — every named-icon lookup (Quickshell.iconPath,
+    # gtk-icon-theme, etc.) was silently falling back to blank/generic
+    # icons. gsettings already claims icon-theme "Adwaita"; this actually
+    # provides it.
+    adwaita-icon-theme
   ];
 }

@@ -24,10 +24,17 @@ QtObject {
             volumeSliderWidth: 110, volumeSliderHeight: 16, volumePercentLabelWidth: 32,
             toastWidth: 320, toastWindowPadY: 16, toastCardPadY: 16, toastWindowInset: 8, toastCardInset: 8,
             toastGap: 8, toastLineGap: 4, toastListWidth: 300, toastCloseSize: 16,
-            launcherWidth: 564, launcherPanelPadY: 20, launcherContentInset: 10, launcherContentGap: 8,
+            launcherWidth: 564, launcherWidthWide: 960, launcherPanelPadY: 20, launcherContentInset: 10, launcherContentGap: 8,
             launcherInputHeight: 36, launcherRowInset: 11, launcherInputTextInset: 9, launcherResultsMaxHeight: 360,
             launcherRowHeight: 34, launcherIndicatorWidth: 2, launcherIconSize: 16, launcherIconLabelGap: 8,
-            launcherTabHeight: 30, launcherTabPadX: 10, launcherTabGap: 6, launcherTabIconLabelGap: 6
+            launcherTabHeight: 30, launcherTabPadX: 10, launcherTabGap: 6, launcherTabIconLabelGap: 6,
+            launcherTabBodyMaxHeight: 520,
+            themePillHeight: 34, themePillPadX: 14, themePillGap: 8, themeRowGap: 14,
+            themeWallpaperThumbWidth: 128, themeWallpaperThumbHeight: 80, themeWallpaperGap: 10,
+            gameCardWidth: 140, gameCardImageHeight: 140, gameCardGap: 12, gameSectionGap: 18,
+            gameRecommendedRowHeight: 210, gameGridRowHeight: 230, gameSectionHeaderGap: 8,
+            fileTreeWidth: 220, fileTreeRowHeight: 28, fileGridCellSize: 92, fileGridGap: 12,
+            fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {
@@ -137,7 +144,7 @@ QtObject {
     // wpDir was still the previous theme's directory). Bundling `dir` into
     // the same atomically-reassigned object as `image`/`gif`/`shader`
     // makes that race structurally impossible.
-    function build(base16, manifest, componentOverrides, themeDir) {
+    function build(base16, manifest, componentOverrides, themeDir, availableWallpapers) {
         const shape = root.deepMerge(root.baseline, manifest ?? ({}));
         shape.motion = Object.assign({}, shape.motion, {
             hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) })
@@ -155,7 +162,13 @@ QtObject {
             font: shape.font,
             motion: shape.motion,
             effect: shape.effect,
-            wallpaper: Object.assign({}, shape.wallpaper, { dir: `${themeDir}/wallpapers` }),
+            // `available` is every plain image/gif file under wallpapers/
+            // (the Themes tab's picker) — distinct from engine/image/gif/
+            // shader below, which is just the one theme.json declares as
+            // the default. See Theme.qml's `wallpaper` facade for how a
+            // user-picked override (ThemeState.wallpaperOverrides) takes
+            // priority over this default when one is set.
+            wallpaper: Object.assign({}, shape.wallpaper, { dir: `${themeDir}/wallpapers`, available: availableWallpapers ?? [] }),
             componentOverrides: componentOverrides ?? ({})
         };
     }

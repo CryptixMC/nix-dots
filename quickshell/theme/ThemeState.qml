@@ -43,6 +43,27 @@ Item {
         root.setTheme(names[(names.indexOf(root.activeThemeName) + 1) % names.length]);
     }
 
+    // Per-theme wallpaper file override, keyed by theme name — set from the
+    // launcher's Themes tab wallpaper picker. Theme.qml's `wallpaper` facade
+    // resolves this first, falling back to the theme's own theme.json-
+    // declared default when no override is set, so themes nobody has
+    // touched behave exactly as before this existed.
+    readonly property var wallpaperOverrides: persistence.adapter.wallpaperOverrides ?? ({})
+
+    function setWallpaperOverride(themeName, filename) {
+        if (root.needsSeed) {
+            persistence.setText(JSON.stringify({
+                activeTheme: root.defaultTheme,
+                wallpaperOverrides: {}
+            }));
+            root.needsSeed = false;
+        }
+        const next = Object.assign({}, persistence.adapter.wallpaperOverrides ?? ({}));
+        next[themeName] = filename;
+        persistence.adapter.wallpaperOverrides = next;
+        persistence.writeAdapter();
+    }
+
     FileView {
         id: persistence
 
@@ -53,6 +74,7 @@ Item {
 
         JsonAdapter {
             property string activeTheme: "ultraviolet"
+            property var wallpaperOverrides: ({})
         }
     }
 

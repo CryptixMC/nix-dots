@@ -41,10 +41,26 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     color: "transparent"
 
+    // Window-wide catch-all so Escape always closes the launcher regardless
+    // of which tab is active — searchInput's own identical handler (below)
+    // covers the common case, but the Themes tab hides that TextInput
+    // entirely (nothing to search there), and an invisible item's focus/
+    // key-handling behavior isn't reliable enough to lean on alone. Shortcut
+    // (not Keys — PanelWindow isn't an Item, so the Keys attached property
+    // can't attach to it directly) works regardless of which child has
+    // active focus.
+    Shortcut {
+        sequence: "Escape"
+        onActivated: LauncherState.hide()
+    }
+
     IpcHandler {
         target: "launcher"
         function toggle(): void {
             LauncherState.toggle();
+        }
+        function setTab(tab: string): void {
+            LauncherState.setTab(tab);
         }
     }
 
@@ -74,6 +90,14 @@ PanelWindow {
         ranked.sort((a, b) => a.tier - b.tier || UsageStore.score(b.entry.id) - UsageStore.score(a.entry.id) || a.entry.name.localeCompare(b.entry.name));
         return ranked.map(r => r.entry);
     }
+
+    readonly property var searchPlaceholders: ({
+        apps: "search applications…",
+        games: "search games…",
+        files: "search files…",
+        themes: ""
+    })
+    readonly property string searchPlaceholder: root.searchPlaceholders[LauncherState.activeTab] ?? ""
 
     // DesktopEntry.execute() currently ignores runInTerminal (Quickshell
     // 0.3.1 docs), so terminal apps are wrapped manually here — ghostty
@@ -115,12 +139,21 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.launcherWidth
+        // Applications stays narrow/centered (Spotlight-style); Games/Files/
+        // Themes need real width for a grid or a two-pane browser.
+        width: LauncherState.activeTab === "apps" ? Theme.spacing.launcherWidth : Theme.spacing.launcherWidthWide
         implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY
         radius: Theme.radius.panel
         color: Theme.color.launcherBg
         border.width: Theme.spacing.borderHairline
         border.color: Theme.color.launcherBorder
+
+        Behavior on width {
+            NumberAnimation {
+                duration: Theme.motion.hoverColor.duration
+                easing.type: Theme.motion.hoverColor.easing
+            }
+        }
 
         MouseArea {
             anchors.fill: parent
@@ -188,17 +221,34 @@ PanelWindow {
                                 color: tabPill.isActive ? Theme.color.accentPurple : Theme.color.rightModuleFg
                             }
 
-                            Text {
-                                text: tabPill.modelData.label
-                                width: tabPill.expanded ? implicitWidth : 0
-                                opacity: tabPill.expanded ? 1 : 0
+                            // Wrapped in a clipping Item rather than binding
+                            // the Text's own `width` to its own
+                            // `implicitWidth` conditionally — that
+                            // self-referential pattern intermittently
+                            // triggered a "binding loop detected" warning
+                            // under real layout churn (observed once other
+                            // Loader-driven content nearby started
+                            // resizing). Binding the *wrapper's* width to
+                            // the inner Text's implicitWidth keeps the
+                            // collapse-to-0 behavior without the loop,
+                            // since the two properties now belong to
+                            // different objects.
+                            Item {
+                                width: tabPill.expanded ? label.implicitWidth : 0
+                                height: label.implicitHeight
                                 clip: true
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
-                                color: tabPill.isActive ? Theme.color.accentPurple : Theme.color.rightModuleFg
 
-                                Behavior on opacity {
-                                    NumberAnimation { duration: Theme.motion.hoverColor.duration }
+                                Text {
+                                    id: label
+                                    text: tabPill.modelData.label
+                                    opacity: tabPill.expanded ? 1 : 0
+                                    font.family: Theme.font.family
+                                    font.pixelSize: Theme.font.sizeSmall
+                                    color: tabPill.isActive ? Theme.color.accentPurple : Theme.color.rightModuleFg
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: Theme.motion.hoverColor.duration }
+                                    }
                                 }
                             }
                         }
@@ -207,6 +257,7 @@ PanelWindow {
                             id: tabMouse
                             anchors.fill: parent
                             hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: LauncherState.setTab(tabPill.modelData.id)
                         }
                     }
@@ -220,15 +271,18 @@ PanelWindow {
                 color: Theme.color.launcherInputBg
                 border.width: Theme.spacing.borderHairline
                 border.color: Theme.color.launcherInputBorder
+                // Themes tab has nothing to search (cycling/wallpaper picks
+                // are click-driven, not text-filtered).
+                visible: LauncherState.activeTab !== "themes"
 
                 Text {
-                    visible: searchInput.text.length === 0
+                    visible: searchInput.text.length === 0 && root.searchPlaceholder.length > 0
                     anchors {
                         left: parent.left
                         leftMargin: Theme.spacing.launcherRowInset
                         verticalCenter: parent.verticalCenter
                     }
-                    text: "search applications…"
+                    text: root.searchPlaceholder
                     color: Theme.color.launcherPlaceholderFg
                     font.family: Theme.font.family
                     font.pixelSize: Theme.font.sizeBase
@@ -316,24 +370,38 @@ PanelWindow {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
                         onEntered: resultsList.currentIndex = row.index
                         onClicked: root.launch(row.modelData)
                     }
                 }
             }
 
-            // Games/Files/Themes placeholder — real content designed but
-            // not built this pass, see TODO.md.
-            Text {
+            // Each tab's own Loader — `active` gating matters here
+            // specifically because Games/Files spawn real background
+            // Process calls (filesystem scans) that shouldn't run before
+            // the user ever opens that tab, unlike the always-instantiated
+            // Applications list above which has no such cost.
+            Loader {
                 width: parent.width
-                visible: LauncherState.activeTab !== "apps"
-                horizontalAlignment: Text.AlignHCenter
-                topPadding: Theme.spacing.launcherContentGap
-                bottomPadding: Theme.spacing.launcherContentGap
-                text: "Coming soon"
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                active: LauncherState.activeTab === "themes"
+                sourceComponent: ThemesTab {}
+            }
+
+            Loader {
+                width: parent.width
+                active: LauncherState.activeTab === "games"
+                sourceComponent: GamesTab {
+                    searchQuery: searchInput.text
+                }
+            }
+
+            Loader {
+                width: parent.width
+                active: LauncherState.activeTab === "files"
+                sourceComponent: FilesTab {
+                    searchQuery: searchInput.text
+                }
             }
         }
     }

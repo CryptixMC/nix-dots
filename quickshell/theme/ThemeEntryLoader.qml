@@ -21,11 +21,12 @@ Item {
     property var base16Data: null
     property var manifestData: ({})
     property var componentOverrides: ({})
+    property var wallpaperFiles: []
 
     function tryEmit() {
         if (root.base16Data === null)
             return;
-        root.loaded(root.themeName, ThemeDefaults.build(root.base16Data, root.manifestData, root.componentOverrides, root.themeDir));
+        root.loaded(root.themeName, ThemeDefaults.build(root.base16Data, root.manifestData, root.componentOverrides, root.themeDir, root.wallpaperFiles));
     }
 
     Process {
@@ -78,6 +79,23 @@ Item {
                 for (const n of names)
                     overrides[n.replace(/\.qml$/, "")] = `file://${root.themeDir}/components/${n}`;
                 root.componentOverrides = overrides;
+                root.tryEmit();
+            }
+        }
+    }
+
+    // Wallpaper *files* available for the Themes tab's picker — deliberately
+    // separate from the theme.json-declared wallpaper.engine/image/gif/
+    // shader (the one actually rendered by default). Shader sources
+    // (.frag/.qsb) are excluded: a shader wallpaper needs a paired uniform
+    // set a plain click can't supply, so only plain image/gif files are
+    // offered as user-pickable overrides (see ThemeState.setWallpaperOverride).
+    Process {
+        running: true
+        command: ["find", `${root.themeDir}/wallpapers`, "-maxdepth", "1", "-type", "f", "(", "-iname", "*.png", "-o", "-iname", "*.jpg", "-o", "-iname", "*.jpeg", "-o", "-iname", "*.gif", ")", "-printf", "%f\n"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.wallpaperFiles = text.split("\n").filter(n => n.length > 0);
                 root.tryEmit();
             }
         }

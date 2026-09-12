@@ -1,3 +1,7 @@
 singleton LauncherState 1.0 LauncherState.qml
 singleton UsageStore 1.0 UsageStore.qml
+singleton GamesLibrary 1.0 GamesLibrary.qml
 Launcher 1.0 Launcher.qml
+ThemesTab 1.0 ThemesTab.qml
+GamesTab 1.0 GamesTab.qml
+FilesTab 1.0 FilesTab.qml
