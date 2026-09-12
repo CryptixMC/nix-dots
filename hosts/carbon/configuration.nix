@@ -16,6 +16,8 @@
     ../../modules/nixos/services/ssh.nix
     ../../modules/nixos/services/tailscale.nix
     ../../modules/nixos/services/xserver.nix
+    ../../modules/nixos/services/greetd.nix
+    ../../modules/nixos/services/fprintd.nix
     ../../modules/nixos/services/ollama.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
@@ -27,15 +29,20 @@
     ../../modules/nixos/core/packages.nix
     ../../modules/nixos/core/programs.nix
     ../../modules/nixos/hardware/amd.nix
+    ../../modules/nixos/hardware/thinkpad-power.nix
   ];
 
   programs.claude-desktop.enable = true;
 
   system.stateVersion = "25.11";
 
-  services.logind = {
-    lidSwitch = "ignore";
-    lidSwitchExternalPower = "ignore";
+  services.logind.settings.Login = {
+    HandleLidSwitch = "ignore";
+    HandleLidSwitchExternalPower = "ignore";
   };
+
+  # Guarantee Magic SysRq (e.g. REISUB) works as a last-resort recovery
+  # path if the eGPU wedges the session and SSH/Tailscale is unreachable.
+  boot.kernel.sysctl."kernel.sysrq" = 1;
 
 }

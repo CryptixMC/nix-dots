@@ -1,0 +1,4 @@
+singleton Config 1.0 Config.qml
+singleton SessionCommand 1.0 SessionCommand.qml
+singleton AuthState 1.0 AuthState.qml
+PasswordField 1.0 PasswordField.qml

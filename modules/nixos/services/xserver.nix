@@ -7,8 +7,10 @@
     variant = "";
   };
 
+  # Off while testing greetd + ReGreet, so the greeter is actually seen on boot.
+  # Flip enable back to true to revert.
   services.displayManager.autoLogin = {
-    enable = true;
+    enable = false;
     user = "cryptix";
   };
 

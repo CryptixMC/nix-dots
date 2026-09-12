@@ -84,10 +84,23 @@ Connections {
     Component.onCompleted: if (Greetd.available)
         start()
 
+    // fprintd's own PAM prompt ("Place your right index finger on the
+    // fingerprint reader" or similar, wording varies by reader/driver) runs
+    // well past PasswordField's width — substituting a short display string
+    // keyed on a case-insensitive "finger" match sidesteps needing to match
+    // fprintd's exact wording. modules/nixos/services/fprintd.nix sets
+    // `security.pam.services.greetd.fprintAuth = false`, so this message
+    // arriving here at all was a little surprising — worth re-checking
+    // during VM verification, but the short-text fix stands regardless of
+    // why the prompt shows up.
+    function shortPromptFor(message) {
+        return message.toLowerCase().includes("finger") ? "Scan fingerprint" : message;
+    }
+
     function onAuthMessage(message, error, responseRequired, echoResponse) {
         if (!root.sessionLive)
             return;
-        root.prompt = message;
+        root.prompt = root.shortPromptFor(message);
         root.maskInput = responseRequired && !echoResponse;
         if (responseRequired && root.pendingResponse.length > 0) {
             const resp = root.pendingResponse;
