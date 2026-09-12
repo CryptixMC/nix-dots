@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, pkgs, ... }:
 let
   inherit (lib.generators) mkLuaInline;
   toLua = lib.generators.toLua { };
@@ -47,6 +47,10 @@ let
   ) (lib.range 1 10);
 in
 {
+  # satty's -o path (see screenshot binds below) doesn't create missing
+  # parent directories itself.
+  home.file."Pictures/Screenshots/.keep".text = "";
+
   wayland.windowManager.hyprland = {
     enable = true;
     # Hyprland >=0.55 configures via Lua instead of the deprecated hyprlang
@@ -450,6 +454,18 @@ in
           (mkBind "XF86AudioPlay" (exec "playerctl play-pause") { locked = true; })
           (mkBind "XF86AudioPrev" (exec "playerctl previous") { locked = true; })
 
+          # Screenshots: hyprshot captures (region/window/output) via
+          # --raw, piping the image straight to satty on stdin ("-f -") for
+          # annotation; satty's own UI/keybinds (Ctrl+S / Ctrl+C / Enter)
+          # handle save-to-file and copy-to-clipboard from there. --raw skips
+          # hyprshot's own save/notify/clipboard path entirely, so there's no
+          # double-write. SHIFT+Print is the no-editor fast path: straight to
+          # clipboard, nothing touches disk.
+          (mkExecBind "Print" "hyprshot -m region --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
+          (mkExecBind "${mainMod} + Print" "hyprshot -m window --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
+          (mkExecBind "${mainMod} + SHIFT + Print" "hyprshot -m output --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
+          (mkExecBind "SHIFT + Print" "hyprshot -m region --clipboard-only")
+
           # Gracefully eject the Thunderbolt eGPU before physically unplugging
           # it — waits for a "safe to unplug" notification. See egpu-eject
           # .service in modules/nixos/hardware/amd.nix for the teardown sequence.
@@ -463,6 +479,7 @@ in
           # picker. Device selection comes from the MESA_VK_DEVICE_SELECT/
           # DRI_PRIME env vars above.
           (mkExecBind "${mainMod} + G" "gamescope --steam -W 1920 -H 1080 -f -- steam")
+
         ];
     };
 
@@ -473,6 +490,10 @@ in
     # passed through as-is, so hl.on/hl.exec_cmd are real calls here already.
     extraConfig = ''
       hl.on("hyprland.start", function()
+          -- polkit_gnome ships no `bin/`, only `libexec/` + an XDG autostart
+          -- .desktop entry (meant for DEs that process XDG autostart, which
+          -- bare Hyprland doesn't) — exec the real path directly instead.
+          --
           -- Quickshell (quickshell/, see TODO.md §3) is the default bar AND
           -- launcher now (SUPER+R). Waybar/Walker are hidden, not removed —
           -- disabled in waybar.nix / commented out of the walker.nix import
@@ -486,7 +507,7 @@ in
           -- Background-layer clients for the same output. hyprpaper package
           -- stays installed (modules/nixos/wm/hyprland.nix) as a manual
           -- fallback if ever needed.
-          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell")
+          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
       end)
     '';
