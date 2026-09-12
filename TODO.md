@@ -19,6 +19,8 @@ Living roadmap for the Quickshell desktop (bar, launcher, greeter, theme system)
   - [x] Games tab — real Steam + Prism Launcher libraries
   - [x] Files tab — v1 tree/grid browser (flagged for a future redesign pass)
   - [x] Themes tab — cycle themes + per-theme wallpaper picker
+  - [x] Icon/visual polish — `ThemedIcon` macOS-style tinting, themed glyph icons for files/folders, translucent card/icon backgrounds, real icon theme installed
+  - [x] Tab-switch sizing bugs — whole-screen-height blowup, then 0-height collapse, then cross-tab height accumulation, all traced to `Loader` sizing semantics and fixed
 - **Greeter** ([§4](#4-greeter))
   - [x] Quickshell greeter replacing ReGreet (password-only v1)
   - [x] Status icons — battery / brightness / volume / bluetooth
@@ -78,9 +80,19 @@ Everything pulls from `themes/<name>/{base16.yaml, theme.json?, wallpapers/, com
 - Second row shows the *active* theme's available wallpaper files (`ThemeEntryLoader`'s wallpaper-file discovery, `find`-based, excludes shader `.frag`/`.qsb` sources) and lets you pick one — `ThemeState.wallpaperOverrides` persists the choice per-theme, and `Theme.qml`'s `wallpaper` facade resolves it ahead of the theme.json-declared default (engine inferred from the picked file's extension). Confirmed live: picking a wallpaper takes effect immediately and survives switching to the other theme and back.
 - No settings section: no `theme.json` currently declares any configurable options, so a generic toggle/dropdown-schema renderer would be untested speculative plumbing for zero real consumers — deferred until a theme actually wants to declare one, consistent with "colors-only theme has no settings."
 
+### Icon/visual polish pass — built
+- `ThemedIcon.qml` — `MultiEffect`-based macOS-style tinting (desaturate + colorize toward the active theme's accent) wraps every app icon in the Applications tab, replacing plain `IconImage`.
+- Files tab folders/files render as themed Nerd Font glyphs (`` / ``) instead of relying on system icon-theme lookups per file type — sidesteps the "no icon theme installed" problem entirely for that tab and gives consistent, always-themed results.
+- Translucent backgrounds (`ThemeDefaults.alpha(base02, 0.5)`) added behind Files-tab grid icons and Games-tab cover-art fallbacks, replacing solid fills.
+- The old default/fallback icon for icon-less entries was replaced with a themed glyph rather than the generic broken-image look.
+
 ### Found and fixed along the way
 - No icon theme package was actually installed system-wide (only cursor themes + empty `hicolor`) — every named-icon lookup across the *whole launcher*, not just the new tabs, was silently falling back to blank/generic icons despite `gsettings` already claiming "Adwaita". Added `adwaita-icon-theme` to `packages.nix` — needs `nh os switch` to take effect.
 - `Image.source` needs a bare filesystem path, not a constructed `file://` URL, to handle names with spaces/brackets correctly (Prism instance "Arcadia [RPG] new" broke outright with the URL form even after percent-encoding).
+- **Three-stage `Loader`/height bug**, all in `Launcher.qml`'s per-tab `Loader`s:
+  1. Explicit `height: item.height` on a `Loader` fights Qt's own default behavior (a sized `Loader` force-resizes its loaded item to match) — created a feedback loop that froze `ThemesTab`'s height at 0 despite `implicitHeight` correctly computing 128.
+  2. First fix attempt (`implicitHeight: root.height` inside `GamesTab`/`FilesTab`) was itself a genuine binding loop — `Item.height`'s own implicit default binding *is* `implicitHeight`, so anything that makes `implicitHeight` depend on `height`, even indirectly, silently freezes. Fixed by computing height once into an independent `readonly property real computedHeight` and binding both `height` and `implicitHeight` to that same property.
+  3. After removing the `Loader`'s explicit height entirely, switching through tabs in sequence showed heights accumulating (Files 1286px, Apps 1654px) rather than resetting — an inactive `Loader`'s reported height wasn't reliably snapping back to 0. Fixed with `visible: active` on each `Loader`, since `Column` excludes invisible children from its layout sum regardless of their reported size. Verified live across a full Themes→Games→Files→Apps→Apps switch cycle with no accumulation.
 
 ---
 
