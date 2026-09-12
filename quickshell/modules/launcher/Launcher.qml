@@ -383,29 +383,43 @@ PanelWindow {
             // the user ever opens that tab, unlike the always-instantiated
             // Applications list above which has no such cost.
             //
-            // height/clip are both explicit rather than left to a Loader's
-            // default auto-sizing: each tab's root Item sets `height`
-            // (bounded via Math.min against launcherTabBodyMaxHeight) but
-            // not `implicitHeight`, and a bare `Loader { width: ... }` with
-            // no height override isn't guaranteed to follow the loaded
-            // item's *explicit* height rather than its (here, unset/0)
-            // implicitHeight — reading `item.height` directly sidesteps
-            // that ambiguity, and `clip: true` is a belt-and-suspenders
-            // guard against any tab's content ever visually overflowing
-            // its own bounds regardless of the height binding.
+            // No explicit height on the Loader itself — that was tried and
+            // reverted after it turned out to actively fight the loaded
+            // item's own sizing: Qt's Loader resizes the loaded item to
+            // match the Loader's own size whenever the Loader has an
+            // explicit size, so `height: item.height` created a real
+            // feedback loop (item.height gets force-set to the Loader's
+            // last value, which was 0 before the item existed, which then
+            // permanently overrides — as a plain value, not a binding —
+            // Column's own default "height follows implicitHeight"
+            // behavior). Confirmed live: ThemesTab's `implicitHeight`
+            // correctly computed 128 while `height` stayed stuck at 0.
+            // Leaving the Loader unsized lets it do what it does by
+            // default — follow the loaded item's real size — with `clip`
+            // as a harmless safety net against overflow either way.
+            //
+            // `visible: active` alongside `active` itself: an inactive
+            // Loader's *reported* height wasn't reliably snapping back to
+            // 0 once its item was torn down (confirmed live — box.height
+            // kept growing with each tab switched away from, as if a
+            // previous tab's height lingered and stacked with the next
+            // one's). Column excludes invisible children from its layout
+            // sum entirely regardless of their reported size, which
+            // sidesteps that question rather than depending on exactly
+            // what an inactive Loader reports.
             Loader {
                 width: parent.width
-                height: item ? item.height : 0
                 clip: true
                 active: LauncherState.activeTab === "themes"
+                visible: active
                 sourceComponent: ThemesTab {}
             }
 
             Loader {
                 width: parent.width
-                height: item ? item.height : 0
                 clip: true
                 active: LauncherState.activeTab === "games"
+                visible: active
                 sourceComponent: GamesTab {
                     searchQuery: searchInput.text
                 }
@@ -413,9 +427,9 @@ PanelWindow {
 
             Loader {
                 width: parent.width
-                height: item ? item.height : 0
                 clip: true
                 active: LauncherState.activeTab === "files"
+                visible: active
                 sourceComponent: FilesTab {
                     searchQuery: searchInput.text
                 }
