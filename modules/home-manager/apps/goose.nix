@@ -1,17 +1,16 @@
 { pkgs, lib, ... }:
 
 let
-  # Rewrites ~/.config/goose/config.yaml's active provider/model in place
-  # from /run/ai-workstation/state.json (written by ai-workstation-{dock,
-  # undock}-sync.service in modules/nixos/apps/ai-workstation.nix, or by
-  # ai-workstation-gaming-start below). Deliberately does nothing if either
-  # file is missing rather than guessing a schema — config.yaml only
-  # exists once `goose configure` has been run interactively at least
-  # once, and its exact on-disk key names weren't fully confirmed against
-  # a live install at authoring time (see the plan doc's Phase 1b section).
-  # Verify at implementation time: does Goose Desktop pick this up on next
-  # launch/new-session, or does it maintain a separate settings store from
-  # the CLI?
+  # Reports dock/undock and gaming-eviction state changes via desktop
+  # notification. Used to write GOOSE_PROVIDER/GOOSE_MODEL/providers.$p.model
+  # into config.yaml via `yq -i` on every dock/undock — that's now neutered:
+  # config.yaml is Nix-generated (see gooseConfig below) and this script's
+  # writes would fight the activation-installed copy on every switch,
+  # reintroducing the `providers.$p.model` dual-write hack and the `yq`
+  # quoted-scalar bug class already paid for once. Live model routing for
+  # dock/undock is Phase C4's job (env-var/profile selection per-invocation,
+  # not a mutated shared config file); for now the chat overlay's model is
+  # fixed by the Nix-generated config until that lands.
   gooseStateSync = pkgs.writeShellScriptBin "goose-state-sync" ''
     set -euo pipefail
     PATH=${
@@ -23,7 +22,6 @@ let
     }:$PATH
 
     STATE_FILE=/run/ai-workstation/state.json
-    CONFIG_FILE="$HOME/.config/goose/config.yaml"
 
     # HYPRLAND_INSTANCE_SIGNATURE isn't in this script's env when invoked
     # via `runuser ... bash -lc` from a root-context systemd oneshot — a
@@ -36,37 +34,18 @@ let
       echo "[goose-state-sync] no state file at $STATE_FILE yet — nothing to sync" >&2
       exit 0
     fi
-    if [ ! -f "$CONFIG_FILE" ]; then
-      echo "[goose-state-sync] $CONFIG_FILE doesn't exist yet — run 'goose configure' first" >&2
-      exit 0
-    fi
 
     # -r unwraps the scalar to its raw form — without it, yq preserves the
     # double-quoted "style" tag from the JSON source and prints literal
-    # quote characters as part of the string (e.g. '"docked"' instead of
-    # docked), which then breaks both the string comparisons below and the
-    # later yq -i writes (embeds stray quotes into the target expression).
+    # quote characters as part of the string.
     state=$(yq -r '.state' "$STATE_FILE")
     provider=$(yq -r '.provider' "$STATE_FILE")
     model=$(yq -r '.model' "$STATE_FILE")
 
     if [ "$state" = "gaming" ] || [ "$provider" = "null" ]; then
-      yq -i '.GOOSE_PROVIDER = "openrouter"' "$CONFIG_FILE"
-      hyprctl notify -1 4000 "rgb(89dceb)" "Gaming: local model evicted, Goose routed to OpenRouter" 2>/dev/null || true
+      hyprctl notify -1 4000 "rgb(89dceb)" "Gaming: local model evicted (config unchanged, routing is Nix-managed)" 2>/dev/null || true
     else
-      yq -i ".GOOSE_PROVIDER = \"$provider\"" "$CONFIG_FILE"
-      yq -i ".GOOSE_MODEL = \"$model\"" "$CONFIG_FILE"
-      # GOOSE_PROVIDER/GOOSE_MODEL alone aren't enough: a `goose acp` session
-      # (the chat overlay's backend, see quickshell/modules/chat/
-      # GooseAcpSession.qml) actually reads the model from
-      # `providers.<provider>.model`, confirmed live — this script wrote
-      # only the top-level keys for months without that ever being
-      # noticed, since `goose run`/CLI sessions apparently don't hit the
-      # same mismatch. Keep both in sync.
-      if [ "$(yq -r ".providers.$provider" "$CONFIG_FILE")" != "null" ]; then
-        yq -i ".providers.$provider.model = \"$model\"" "$CONFIG_FILE"
-      fi
-      hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — new Goose sessions will use it" 2>/dev/null || true
+      hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — dock/undock model routing not yet wired (Phase C4)" 2>/dev/null || true
     fi
   '';
 
@@ -131,6 +110,215 @@ let
     fi
   '';
 
+  # Blocks `nh ... switch` inside a goose-code session. Goose 1.47.0 has no
+  # native per-tool denylist/allowlist config key (checked live: `strings`
+  # on the real binary at bin/.goose-wrapped has zero hits for
+  # never_allow/allowlist/denylist/permission-anything — the only related
+  # vocabulary is the interactive approve-mode decision set
+  # approve/smart_approve/always_allow/allow_once/deny_once/always_deny,
+  # which requires a TTY and doesn't exist as a config-file mechanism).
+  # `nixos-rebuild switch` already can't run non-interactively — it needs
+  # root and this system's only NOPASSWD sudo rules are the two dock/undock
+  # sync services (modules/nixos/apps/ai-workstation.nix), so it would just
+  # hang on a password prompt goose can't answer. `nh home switch` needs no
+  # elevation at all, so it's the one command in the original never_allow
+  # wishlist that was actually reachable — this wrapper closes that gap by
+  # shadowing `nh` only inside goose-code's own PATH (see the `export PATH`
+  # in gooseCode below), never the user's interactive shell.
+  gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
+    set -euo pipefail
+    for arg in "$@"; do
+      if [ "$arg" = "switch" ]; then
+        echo "[goose-guard] 'nh ... switch' is blocked inside a goose-code session — system/home activation stays human-gated. Stop and tell the user what you wanted to run instead." >&2
+        exit 1
+      fi
+    done
+    exec ${pkgs.nh}/bin/nh "$@"
+  '';
+
+  # Trimmed, Nix-generated replacement for the interactively-created
+  # ~/.config/goose/config.yaml. This is what governs `goose acp` (the chat
+  # overlay's backend) and any bare `goose run`/`goose session` — recipes
+  # like codingAgentRecipe below declare their own `extensions:` list, which
+  # *replaces* this set entirely for that invocation, so trimming here does
+  # not affect the coding-agent recipe's summon/orchestrator/todo access.
+  # Measured live: the untrimmed 18-extension config put `task.n_tokens` at
+  # 15477 for a trivial "read this file" request against a 16384 context —
+  # almost no room left for reasoning. Only developer+todo stay enabled;
+  # code_execution stays permanently disabled (closed root-caused bug, see
+  # "Corrections to earlier §7 conclusions" in the plan doc — a pre-execution
+  # TypeScript type-check gate with no repair pass, not a missing runtime).
+  # playwright is dropped entirely rather than disabled: 68 browser_* tools
+  # is a major token cost even description-only, a browser isn't needed for
+  # Nix work, and the live store path had zero GC roots (nix-collect-garbage
+  # would silently kill it) — when browser work is needed later it belongs
+  # in a dedicated recipe, not the global config.
+  gooseConfig = {
+    extensions = {
+      developer = {
+        enabled = true;
+        type = "platform";
+        name = "developer";
+        description = "Write and edit files, and execute shell commands";
+        display_name = "Developer";
+        bundled = true;
+      };
+      todo = {
+        enabled = true;
+        type = "platform";
+        name = "todo";
+        description = "Enable a todo list for goose so it can keep track of what it is doing";
+        display_name = "Todo";
+        bundled = true;
+      };
+      computercontroller = {
+        enabled = false;
+        type = "builtin";
+        name = "computercontroller";
+        description = "General computer control tools that don't require you to be a developer or engineer.";
+        display_name = "Computer Controller";
+        timeout = 300;
+        bundled = true;
+      };
+      extensionmanager = {
+        enabled = false;
+        type = "platform";
+        name = "Extension Manager";
+        description = "Enable extension management tools for discovering, enabling, and disabling extensions";
+        display_name = "Extension Manager";
+        bundled = true;
+      };
+      summarize = {
+        enabled = false;
+        type = "platform";
+        name = "summarize";
+        description = "Load files/directories and get an LLM summary in a single call";
+        display_name = "Summarize";
+        bundled = true;
+      };
+      tom = {
+        enabled = false;
+        type = "platform";
+        name = "tom";
+        description = "Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables";
+        display_name = "Top Of Mind";
+        bundled = true;
+      };
+      analyze = {
+        enabled = false;
+        type = "platform";
+        name = "analyze";
+        description = "Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs";
+        display_name = "Analyze";
+        bundled = true;
+      };
+      chatrecall = {
+        enabled = false;
+        type = "platform";
+        name = "chatrecall";
+        description = "Search past conversations and load session summaries for contextual memory";
+        display_name = "Chat Recall";
+        bundled = true;
+      };
+      scheduler = {
+        enabled = false;
+        type = "platform";
+        name = "scheduler";
+        description = "Create and manage scheduled recipe execution";
+        display_name = "Scheduler";
+        bundled = true;
+      };
+      skills = {
+        enabled = false;
+        type = "platform";
+        name = "skills";
+        description = "Discover and provide skill instructions from filesystem and builtins";
+        display_name = "Skills";
+        bundled = true;
+      };
+      summon = {
+        enabled = false;
+        type = "platform";
+        name = "summon";
+        description = "Load knowledge and delegate tasks to subagents";
+        display_name = "Summon";
+        bundled = true;
+      };
+      apps = {
+        enabled = false;
+        type = "platform";
+        name = "apps";
+        description = "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.";
+        display_name = "Apps";
+        bundled = true;
+      };
+      code_execution = {
+        enabled = false;
+        type = "platform";
+        name = "code_execution";
+        description = "Goose will make extension calls through code execution, saving tokens";
+        display_name = "Code Mode";
+        bundled = true;
+      };
+      orchestrator = {
+        enabled = false;
+        type = "platform";
+        name = "orchestrator";
+        description = "Manage agent sessions: list, view, start, send messages, interrupt, and stop agents";
+        display_name = "Orchestrator";
+        bundled = true;
+      };
+      autovisualiser = {
+        enabled = false;
+        type = "builtin";
+        name = "autovisualiser";
+        description = "Data visualization and UI generation tools";
+        display_name = "Auto Visualiser";
+        timeout = 300;
+        bundled = true;
+      };
+      memory = {
+        enabled = false;
+        type = "builtin";
+        name = "memory";
+        description = "Teach goose your preferences as you go.";
+        display_name = "Memory";
+        timeout = 300;
+        bundled = true;
+      };
+      tutorial = {
+        enabled = false;
+        type = "builtin";
+        name = "tutorial";
+        description = "Access interactive tutorials and guides";
+        display_name = "Tutorial";
+        timeout = 300;
+        bundled = true;
+      };
+    };
+    providers = {
+      ollama = {
+        enabled = true;
+        model = "qwen2.5-coder:14b";
+        configured = true;
+      };
+      "claude-acp" = {
+        enabled = true;
+        model = "";
+        configured = true;
+      };
+    };
+    active_provider = "ollama";
+    GOOSE_TELEMETRY_ENABLED = false;
+    OLLAMA_HOST = "localhost";
+    GOOSE_TOOLSHIM_OLLAMA_MODEL = "qwen2.5-coder:7b";
+    GOOSE_TOOLSHIM = false;
+    GOOSE_PROVIDER = "ollama";
+    GOOSE_MODEL = "qwen2.5-coder:14b";
+  };
+
+  gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
+
   gooseDesktopWrapped = pkgs.symlinkJoin {
     name = "goose-desktop";
     paths = [ pkgs.goose-desktop ];
@@ -188,9 +376,12 @@ let
         installed library/type definitions on disk if relevant, and reason from
         what you actually find — not from a guess. State your confidence and
         what you verified vs. assumed.
-      - For any destructive or hard-to-reverse action (deleting files, force
-        operations, irreversible system changes), stop and describe what you
-        want to do instead of doing it.
+      - Never run `git push`, `git reset --hard`, `rm -rf`, `nixos-rebuild
+        switch`, or `nh ... switch`. These are irreversible or affect shared
+        state beyond this repo. If your task seems to need one, stop and
+        describe what you want to do instead of doing it.
+      - For any other destructive or hard-to-reverse action, stop and
+        describe what you want to do instead of doing it.
       - Keep your final answer concise: state what changed and why, referencing
         real file paths. Do not narrate your internal step-by-step process.
     prompt: "{{ task }}"
@@ -271,6 +462,11 @@ let
     ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance 2>/dev/null || true
     trap '${pkgs.power-profiles-daemon}/bin/powerprofilesctl set "$PREV_PROFILE" 2>/dev/null || true' EXIT
 
+    # Shadows `nh` with gooseNhGuard for every process this session spawns
+    # (the developer extension's shell tool inherits this PATH) — refuses
+    # `nh ... switch` without touching the interactive shell's own PATH.
+    export PATH=${gooseNhGuard}/bin:$PATH
+
     if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
       MODEL=qwen3.6:latest
       export GOOSE_SUBAGENT_PROVIDER=ollama
@@ -300,11 +496,32 @@ in
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
 
-  # Only ensures the config *directory* exists — deliberately does not
-  # seed a config.yaml with guessed provider/model keys. Run `goose
-  # configure` interactively once to create it with a verified real
-  # schema; goose-state-sync above no-ops until that file exists.
+  # Read-only oracle copy used below to detect runtime drift before
+  # overwriting the live config.yaml. Not the live file itself — Goose
+  # writes to config.yaml at runtime (`/model`, `/mode`, extension
+  # enable/disable, `active_provider` — all go through
+  # Config::{set_goose_model, set_goose_provider, set_param}, confirmed in
+  # the goose_cli binary), and Home Manager store files are root-owned
+  # read-only, so `home.file` can't target config.yaml directly.
+  home.file.".config/goose/config.yaml.nix-source".text = gooseConfigYAML;
+
+  # Installs the Nix-generated config.yaml over whatever's on disk on every
+  # `home-manager switch`. If the live file has drifted from the *previous*
+  # nix-source (i.e. Goose's own runtime writes changed it, e.g. a `/mode`
+  # or `/model` switch from an interactive session), it's backed up first
+  # rather than silently discarded — activation only overwrites, it never
+  # merges.
   home.activation.gooseConfigInit = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    run mkdir -p "$HOME/.config/goose"
+    configDir="$HOME/.config/goose"
+    configFile="$configDir/config.yaml"
+    nixSource="$configDir/config.yaml.nix-source"
+
+    run mkdir -p "$configDir"
+
+    if [ -e "$configFile" ] && ! cmp -s "$configFile" "$nixSource" 2>/dev/null; then
+      run cp "$configFile" "$configDir/config.yaml.pre-nix-$(date +%s)"
+    fi
+
+    run install -m 0644 "$nixSource" "$configFile"
   '';
 }
