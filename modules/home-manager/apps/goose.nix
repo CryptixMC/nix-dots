@@ -552,6 +552,23 @@ let
       --max-tool-repetitions 3 \
       -s
   '';
+
+  # Dock-aware planner session. Reuses the same lspci eGPU detection as
+  # gooseCode/docked branch (lspci -d 1002:73bf). Picks qwen3.6:latest
+  # when docked; falls back to qwen2.5-coder:14b for CPU-only invocations.
+  goosePlan = pkgs.writeShellScriptBin "goose-plan" ''
+    set -uo pipefail
+
+    export GOOSE_PLANNER_PROVIDER=ollama
+
+    if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
+      export GOOSE_PLANNER_MODEL=qwen3.6:latest
+    else
+      export GOOSE_PLANNER_MODEL=qwen2.5-coder:14b
+    fi
+
+    exec ${pkgs.goose-cli}/bin/goose session
+  '';
 in
 {
   home.packages = [
@@ -563,6 +580,7 @@ in
     gooseDesktopWrapped
     gooseCode
     gooseClaude
+    goosePlan
   ];
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
