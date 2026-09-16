@@ -51,7 +51,7 @@ let
     if runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" bash -lc "goose-state-sync"; then
       log "goose-state-sync succeeded"
     else
-      log "goose-state-sync failed or not yet installed — state file is still correct, Goose config may be stale"
+      log "goose-state-sync failed or not yet installed — state file is still correct, desktop notification may not have fired"
     fi
   '';
 in
@@ -64,7 +64,7 @@ in
   # (modules/nixos/hardware/amd.nix) — not by its own udev rule, reusing
   # the existing eGPU hotplug detection rather than building a second one.
   systemd.services.ai-workstation-dock-sync = {
-    description = "Write docked AI-workstation hardware state and sync Goose model config";
+    description = "Write docked AI-workstation hardware state and notify Goose";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = mkSyncScript "docked" dockedModel;
@@ -73,7 +73,7 @@ in
 
   # Triggered by an added line in egpu-eject.service's Stage 1 (amd.nix).
   systemd.services.ai-workstation-undock-sync = {
-    description = "Write undocked AI-workstation hardware state and sync Goose model config";
+    description = "Write undocked AI-workstation hardware state and notify Goose";
     serviceConfig = {
       Type = "oneshot";
       ExecStart = mkSyncScript "undocked" undockedModel;
