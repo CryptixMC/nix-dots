@@ -319,6 +319,18 @@ let
 
   gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
 
+  # A direct store path for the activation script to copy from — NOT the
+  # same thing as the home.file entry below. Confirmed live:
+  # `entryAfter [ "writeBoundary" ]` does NOT guarantee home.file's own
+  # symlinks already exist — home-manager's actual activation order is
+  # writeBoundary → gooseConfigInit → linkGeneration, so an activation
+  # script depending on `home.file`'s live on-disk path fails with
+  # "cannot stat ...: No such file or directory" on every switch. A plain
+  # `pkgs.writeText` output is a build-time dependency instead, so it's
+  # guaranteed to exist the moment the activation script runs, regardless
+  # of file-linking order.
+  gooseConfigFile = pkgs.writeText "goose-config.yaml" gooseConfigYAML;
+
   gooseDesktopWrapped = pkgs.symlinkJoin {
     name = "goose-desktop";
     paths = [ pkgs.goose-desktop ];
@@ -554,7 +566,7 @@ in
   home.activation.gooseConfigInit = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     configDir="$HOME/.config/goose"
     configFile="$configDir/config.yaml"
-    nixSource="$configDir/config.yaml.nix-source"
+    nixSource="${gooseConfigFile}"
 
     run mkdir -p "$configDir"
 
