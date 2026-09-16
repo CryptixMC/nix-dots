@@ -52,8 +52,8 @@ let
   # SUPER+G's gaming keybind (modules/home-manager/wm/hyprland.nix) wraps
   # gamescope launch with these two. Evicts the loaded model instantly via
   # `ollama stop` (no service restart needed, GPU stays physically bound)
-  # and forces Goose's config to openrouter so a new session mid-game
-  # doesn't try to hit a model that just got evicted from VRAM.
+  # Sends a desktop notification on entry so the user knows the model evicted,
+  # while leaving config routing entirely untouched.
   aiWorkstationGamingStart = pkgs.writeShellScriptBin "ai-workstation-gaming-start" ''
     set -euo pipefail
     PATH=${
@@ -74,7 +74,7 @@ let
     fi
 
     install -d -m 0755 /run/ai-workstation
-    printf '{"state":"gaming","provider":"openrouter","model":null,"updated":"%s"}\n' \
+    printf '{"state":"gaming","provider":null,"model":null,"updated":"%s"}\n' \
       "$(date -Iseconds)" > "$STATE_FILE"
     goose-state-sync || true
   '';
