@@ -9,6 +9,7 @@
     ../../modules/nixos/apps/games.nix
     ../../modules/nixos/apps/virtualization.nix
     ../../modules/nixos/apps/docker.nix
+    ../../modules/nixos/apps/ai-workstation.nix
     ../../modules/temp.nix
     ../../modules/style/stylix.nix
     ../../modules/nixos/services/pipewire.nix
@@ -18,6 +19,7 @@
     ../../modules/nixos/services/xserver.nix
     ../../modules/nixos/services/greetd.nix
     ../../modules/nixos/services/fprintd.nix
+    ../../modules/nixos/services/quickshell-lock.nix
     ../../modules/nixos/services/ollama.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix

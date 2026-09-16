@@ -34,7 +34,9 @@ QtObject {
             gameCardWidth: 140, gameCardImageHeight: 140, gameCardGap: 12, gameSectionGap: 18,
             gameRecommendedRowHeight: 210, gameGridRowHeight: 230, gameSectionHeaderGap: 8,
             fileTreeWidth: 220, fileTreeRowHeight: 28, fileGridCellSize: 92, fileGridGap: 12,
-            fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120
+            fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120,
+            sessionListWidth: 340, sessionRowHeight: 52, sessionRowPadX: 12, sessionRowGap: 4,
+            sessionMetaGap: 4, sessionPreviewPad: 16
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {

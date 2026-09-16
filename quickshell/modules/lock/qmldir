@@ -1,0 +1,2 @@
+singleton LockService 1.0 LockService.qml
+LockView 1.0 LockView.qml

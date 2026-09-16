@@ -385,6 +385,16 @@ in
           # Theme registry (quickshell/theme/, see the theme-registry
           # migration): cycles the active theme live via IPC, no restart.
           (mkExecBind "${mainMod} + T" "quickshell ipc -p ~/nix-dots/quickshell call theme next")
+          # Chat overlay (quickshell/modules/chat/, see TODO.md's Phase 3
+          # section): talks to the `goose` CLI, same IPC-toggle convention
+          # as the launcher/theme binds above. D is the primary bind per
+          # user request; K kept as an existing-habit alias, both toggle
+          # the same overlay.
+          (mkExecBind "${mainMod} + D" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
+          (mkExecBind "${mainMod} + K" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
+          # Chat session-history picker (quickshell/modules/sessions/) —
+          # browse/resume past goose sessions, same IPC-toggle convention.
+          (mkExecBind "${mainMod} + H" "quickshell ipc -p ~/nix-dots/quickshell call sessions toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)
@@ -469,7 +479,12 @@ in
           # Gracefully eject the Thunderbolt eGPU before physically unplugging
           # it — waits for a "safe to unplug" notification. See egpu-eject
           # .service in modules/nixos/hardware/amd.nix for the teardown sequence.
-          (mkExecBind "${mainMod} + SHIFT + U" "sudo systemctl start egpu-eject.service")
+          # Absolute systemctl path required, not bare `systemctl`: sudo's
+          # NOPASSWD rule matches the exact path string, and a PATH-resolved
+          # bare command falls through to an interactive password/fingerprint
+          # prompt even though it's the identical binary — confirmed live
+          # while debugging the analogous ai-workstation-gaming-stop bug.
+          (mkExecBind "${mainMod} + SHIFT + U" "sudo ${pkgs.systemd}/bin/systemctl start egpu-eject.service")
 
           # Launch the whole Steam client + every game inside one gamescope
           # instance (Valve's own Deck-style session mode, already enabled via
@@ -478,7 +493,11 @@ in
           # to fight the GDM autologin/defaultSession to reach the session
           # picker. Device selection comes from the MESA_VK_DEVICE_SELECT/
           # DRI_PRIME env vars above.
-          (mkExecBind "${mainMod} + G" "gamescope --steam -W 1920 -H 1080 -f -- steam")
+          # ai-workstation-gaming-{start,stop} (modules/home-manager/apps/
+          # goose.nix) evict the loaded Ollama model from VRAM before the
+          # game launches and restore the correct docked/undocked AI tier
+          # once it exits.
+          (mkExecBind "${mainMod} + G" "ai-workstation-gaming-start && gamescope --steam -W 1920 -H 1080 -f -- steam ; ai-workstation-gaming-stop")
 
         ];
     };

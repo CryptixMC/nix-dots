@@ -1,2 +1,6 @@
 result
 .claude/worktrees/
+.goose-handoff-session.log
+.playwright-mcp/
+SECTION_7_SUMMARY.md
+TEMP_TODO.md

@@ -1,9 +1,13 @@
 import QtQuick
 import QtQml
 import Quickshell
+import Quickshell.Io
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"
+import "modules/chat"
+import "modules/sessions"
+import "modules/lock"
 import "modules/wallpaper"
 
 ShellRoot {
@@ -29,6 +33,26 @@ ShellRoot {
 
     Launcher {
         id: launcher
+    }
+
+    ChatOverlay {
+        id: chatOverlay
+    }
+
+    SessionsPicker {
+        id: sessionsPicker
+    }
+
+    // Deliberately no keybind — LockService (modules/lock/) is complete
+    // but untested against a real Wayland session; the only trigger is
+    // this manual IPC call (`quickshell ipc call lock lock`), run by hand
+    // once someone's ready to verify the unlock path actually works
+    // before wiring in a real keybind/idle-timeout. See TODO.md §5.
+    IpcHandler {
+        target: "lock"
+        function lock(): void {
+            LockService.lock();
+        }
     }
 
     Variants {

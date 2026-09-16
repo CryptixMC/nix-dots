@@ -1,10 +1,14 @@
 import QtQuick
+import Quickshell
 import Quickshell.Networking
 
-// Mirrors waybar's "network" module (icons/on-click 1:1 from waybar.nix).
-// Bandwidth (waybar's ↑/↓ tooltip line) is dropped — Quickshell.Networking
-// exposes no rate property, and custom /sys/class/net byte-counter diffing
-// wasn't judged worth it for this pass.
+// Mirrors waybar's "network" module (icons 1:1 from waybar.nix). Click now
+// opens a network switcher flyout (NetworkPopup.qml) instead of launching
+// `nmtui` directly — same upgrade Volume.qml already got over pavucontrol,
+// nmtui is still one click away via the flyout's "›" link. Bandwidth
+// (waybar's ↑/↓ tooltip line) is dropped — Quickshell.Networking exposes
+// no rate property, and custom /sys/class/net byte-counter diffing wasn't
+// judged worth it for this pass.
 BarIcon {
     id: root
 
@@ -29,7 +33,14 @@ BarIcon {
         return "󰤭";
     }
 
-    clickCommand: "ghostty -e nmtui"
+    // No wifi device at all (ethernet-only machine) falls back to the old
+    // direct-nmtui behavior — nothing for the switcher popup to list.
+    onClickFn: () => {
+        if (root.wifiDevices.length > 0)
+            popup.visible = !popup.visible;
+        else
+            Quickshell.execDetached(["ghostty", "-e", "nmtui"]);
+    }
 
     tooltipTitle: "NETWORK"
     tooltipBody: {
@@ -42,4 +53,10 @@ BarIcon {
         return "disconnected";
     }
     tooltipMuted: (connectedWifi ?? connectedWired)?.address ?? ""
+
+    NetworkPopup {
+        id: popup
+        anchorItem: root
+        wifiDevice: root.wifiDevices[0] ?? null
+    }
 }

@@ -1,0 +1,3 @@
+singleton ChatState 1.0 ChatState.qml
+singleton GooseAcpSession 1.0 GooseAcpSession.qml
+ChatOverlay 1.0 ChatOverlay.qml

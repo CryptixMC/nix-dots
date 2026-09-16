@@ -46,7 +46,17 @@ let
   # allocator then sees 482MB of free prefetchable space and gives the inner
   # bridge the 258MB it needs for BAR 0 + overhead.
   egpuBarFixScript = pkgs.writeShellScript "egpu-bar-fix" ''
-    PATH=${lib.makeBinPath [ pkgs.pciutils pkgs.coreutils pkgs.gawk pkgs.gnused pkgs.util-linux pkgs.kmod ]}:$PATH
+    PATH=${
+      lib.makeBinPath [
+        pkgs.pciutils
+        pkgs.coreutils
+        pkgs.gawk
+        pkgs.gnused
+        pkgs.util-linux
+        pkgs.kmod
+        pkgs.systemd
+      ]
+    }:$PATH
 
     log() { echo "[egpu-bar-fix] $*"; logger -t egpu-bar-fix "$*"; }
 
@@ -157,6 +167,10 @@ let
         # eGPU was bound) — restart both so they pick the eGPU back up.
         systemctl restart ollama.service 2>/dev/null || true
         runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" systemctl --user restart kanshi.service 2>/dev/null || true
+        # Fire-and-forget: a bug in the AI-workstation model-routing layer
+        # (modules/nixos/apps/ai-workstation.nix) must never block or fail
+        # this BAR-fix success path.
+        systemctl start ai-workstation-dock-sync.service --no-block 2>/dev/null || true
       else
         log "BAR 0 still 0x0 — manual intervention needed"
       fi
@@ -216,6 +230,7 @@ let
     # Stage 1: stop ollama so ROCm releases its DRM handles before unbind.
     log "stopping ollama.service"
     systemctl stop ollama.service 2>/dev/null || true
+    systemctl start ai-workstation-undock-sync.service --no-block 2>/dev/null || true
 
     # Stage 1.5: a running game holds its own independent RADV/Vulkan DRM
     # context on the eGPU (unrelated to ROCm/ollama above) that can just as
