@@ -302,7 +302,7 @@ let
         model = "qwen2.5-coder:14b";
         configured = true;
       };
-      "claude-acp" = {
+      "claude-code" = {
         enabled = true;
         model = "";
         configured = true;
@@ -394,6 +394,10 @@ let
         describe what you want to do instead of doing it.
       - For any other destructive or hard-to-reverse action, stop and
         describe what you want to do instead of doing it.
+      - If a task exceeds your capability (needs broader reasoning, deep
+        research, or repeated failed attempts), say so plainly and
+        recommend the user run `goose-claude <task>` to escalate to
+        Claude Code. Never switch providers yourself.
       - Keep your final answer concise: state what changed and why, referencing
         real file paths. Do not narrate your internal step-by-step process.
     prompt: "{{ task }}"
@@ -534,6 +538,20 @@ let
       --max-tool-repetitions 3 \
       -s
   '';
+
+  gooseClaude = pkgs.writeShellScriptBin "goose-claude" ''
+    set -uo pipefail
+
+    export GOOSE_MAX_TOKENS=4096
+
+    ${pkgs.goose-cli}/bin/goose run \
+      --recipe "$HOME/.config/goose/recipes/coding-agent.yaml" \
+      --provider claude-code \
+      --params task="$*" \
+      --max-turns 15 \
+      --max-tool-repetitions 3 \
+      -s
+  '';
 in
 {
   home.packages = [
@@ -544,6 +562,7 @@ in
     aiWorkstationGamingStop
     gooseDesktopWrapped
     gooseCode
+    gooseClaude
   ];
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
