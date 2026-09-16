@@ -408,9 +408,37 @@ let
         name: orchestrator
         display_name: Orchestrator
         bundled: true
+      - type: stdio
+        name: mcp-nixos
+        display_name: MCP NixOS
+        cmd: ${pkgs.mcp-nixos}/bin/mcp-nixos
+        args: []
+        bundled: false
+        timeout: 60
     settings:
       goose_provider: ollama
       goose_model: qwen2.5-coder:14b
+      # Passes `goose recipe validate` but that validator doesn't enforce a
+      # settings sub-schema (confirmed live: arbitrary unknown keys also
+      # pass), so runtime effect is unconfirmed. Kept as a cheap, harmless
+      # belt-and-suspenders alongside the confirmed-real GOOSE_MAX_TOKENS
+      # env var goose-code sets below — targets the truncation bug ("Tool
+      # arguments for shell ... were truncated because the model reached
+      # its output token limit").
+      max_tokens: 4096
+    # Confirmed valid live: `goose recipe validate` accepts this exact
+    # shape (max_retries/checks/on_failure/timeout_seconds). On failure,
+    # goose logs "Reset message history to initial state for retry" and
+    # tries again — correct behaviour for a small model that talked itself
+    # into a corner. Assumes CWD is the repo root being edited, same
+    # assumption goose-code's own doc comment already makes.
+    retry:
+      max_retries: 3
+      checks:
+        - type: shell
+          command: "nix flake check"
+      on_failure: "git checkout -- ."
+      timeout_seconds: 900
   '';
 
   # One-shot task, then drops into an interactive follow-up session (`-s`,
@@ -467,6 +495,13 @@ let
     # `nh ... switch` without touching the interactive shell's own PATH.
     export PATH=${gooseNhGuard}/bin:$PATH
 
+    # GOOSE_MAX_TOKENS: the confirmed-real fix for "Tool arguments for
+    # shell ... were truncated because the model reached its output token
+    # limit" (that log line's own sibling string names this exact fix).
+    # Kept alongside the recipe's settings.max_tokens above since neither
+    # was independently confirmed as the one goose actually reads.
+    export GOOSE_MAX_TOKENS=4096
+
     if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
       MODEL=qwen3.6:latest
       export GOOSE_SUBAGENT_PROVIDER=ollama
@@ -475,11 +510,16 @@ let
       MODEL=qwen2.5-coder:14b
     fi
 
+    # --max-turns/--max-tool-repetitions confirmed real flags via
+    # `goose run --help` (unlike GOOSE_MAX_TURNS, which was never
+    # confirmed as an actual env var name) — small models loop.
     ${pkgs.goose-cli}/bin/goose run \
       --recipe "$HOME/.config/goose/recipes/coding-agent.yaml" \
       --provider ollama \
       --model "$MODEL" \
       --params task="$*" \
+      --max-turns 15 \
+      --max-tool-repetitions 3 \
       -s
   '';
 in
