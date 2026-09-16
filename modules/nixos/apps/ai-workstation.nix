@@ -11,7 +11,7 @@ let
   # ~11.6 tok/s estimated) over the already-installed llama3.2:3b (faster
   # but lower quality) and qwen2.5-coder:14b (better quality, noticeably
   # slower on pure CPU inference).
-  undockedModel = "qwen2.5-coder:7b";
+  undockedModel = "qwen2.5-coder:14b";
 
   # Docked: after a clean reboot restored ROCm/KFD visibility, a live
   # `llmfit recommend --use-case coding --min-fit good -n 40` with the
