@@ -431,6 +431,17 @@ let
         args: []
         bundled: false
         timeout: 60
+      - type: stdio
+        name: mcp-language-server
+        display_name: MCP Language Server (nixd)
+        cmd: ${pkgs.mcp-language-server}/bin/mcp-language-server
+        args:
+          - -lsp
+          - ${pkgs.nixd}/bin/nixd
+          - -workspace
+          - /home/cryptix/nix-dots
+        bundled: false
+        timeout: 60
     settings:
       goose_provider: ollama
       goose_model: qwen2.5-coder:14b
