@@ -23,5 +23,22 @@
     # every pulled model under ~28GB total while still quadrupling the
     # previous silent default.
     environmentVariables.OLLAMA_CONTEXT_LENGTH = "16384";
+
+    # flash attention and q8_0 KV cache were verified safe on this gfx1030
+    # AMD RX 6800 XT eGPU via ROCm through a real live test (clean startup,
+    # flash_attn enabled, correct coherent inference output, zero errors) --
+    # roughly halves KV cache memory at this context length.
+    # keep-alive is set explicitly to 30 minutes since the previous undeclared
+    # default was 5 minutes, too short for comfortably back-to-back
+    # invocations without re-loading the model between turns.
+    # max_loaded_models is set to 2 to allow a primary model and a second
+    # model (such as a toolshim or subagent model) to stay resident together,
+    # at some memory risk on this 38GB no-swap laptop if two large models
+    # are both requested at once while undocked with no eGPU VRAM to offload
+    # into -- this is an accepted tradeoff, not an oversight.
+    environmentVariables.OLLAMA_FLASH_ATTENTION = "1";
+    environmentVariables.OLLAMA_KV_CACHE_TYPE = "q8_0";
+    environmentVariables.OLLAMA_KEEP_ALIVE = "30m";
+    environmentVariables.OLLAMA_MAX_LOADED_MODELS = "2";
   };
 }
