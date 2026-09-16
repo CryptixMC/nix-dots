@@ -2,15 +2,13 @@
 
 let
   # Reports dock/undock and gaming-eviction state changes via desktop
-  # notification. Used to write GOOSE_PROVIDER/GOOSE_MODEL/providers.$p.model
-  # into config.yaml via `yq -i` on every dock/undock — that's now neutered:
-  # config.yaml is Nix-generated (see gooseConfig below) and this script's
-  # writes would fight the activation-installed copy on every switch,
-  # reintroducing the `providers.$p.model` dual-write hack and the `yq`
-  # quoted-scalar bug class already paid for once. Live model routing for
-  # dock/undock is Phase C4's job (env-var/profile selection per-invocation,
-  # not a mutated shared config file); for now the chat overlay's model is
-  # fixed by the Nix-generated config until that lands.
+  # notification, and live-switches the chat overlay's goose acp session to
+  # match via its "goose-model" IPC target (GooseAcpSession.qml) — env-based
+  # process restart + session/load resume, never touching config.yaml.
+  # Config.yaml itself stays Nix-generated and static (see gooseConfig
+  # below); this only affects the long-lived chat-overlay backend process,
+  # which previously had no way to notice a dock-state change short of a
+  # full Quickshell restart.
   gooseStateSync = pkgs.writeShellScriptBin "goose-state-sync" ''
     set -euo pipefail
     PATH=${
@@ -18,6 +16,7 @@ let
         pkgs.coreutils
         pkgs.yq-go
         pkgs.hyprland
+        pkgs.quickshell
       ]
     }:$PATH
 
@@ -43,9 +42,12 @@ let
     model=$(yq -r '.model' "$STATE_FILE")
 
     if [ "$state" = "gaming" ] || [ "$provider" = "null" ]; then
-      hyprctl notify -1 4000 "rgb(89dceb)" "Gaming: local model evicted (config unchanged, routing is Nix-managed)" 2>/dev/null || true
+      hyprctl notify -1 4000 "rgb(89dceb)" "Gaming: local model evicted (chat overlay routing unchanged)" 2>/dev/null || true
     else
-      hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — dock/undock model routing not yet wired (Phase C4)" 2>/dev/null || true
+      # Best-effort: no live Quickshell instance (e.g. undocked headless
+      # testing) just means this no-ops, same as hyprctl notify above.
+      quickshell ipc -p ~/nix-dots/quickshell call goose-model switchModel "$provider" "$model" 2>/dev/null || true
+      hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — chat overlay switched" 2>/dev/null || true
     fi
   '';
 
