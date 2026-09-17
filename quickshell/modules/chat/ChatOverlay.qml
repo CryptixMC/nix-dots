@@ -7,17 +7,50 @@ import "../../theme"
 // Chat overlay talking to Goose over a persistent `goose acp` JSON-RPC
 // session (GooseAcpSession.qml) — shown/hidden via IPC from a Hyprland
 // keybind (same convention as Launcher.qml/ThemeState.qml — see
-// hyprland.nix), not a resident always-visible surface. Structure/template
-// is Launcher.qml (centered box, Overlay layer, click-outside-to-close,
-// Escape-to-close); backend is genuinely new territory in this repo (see
-// GooseAcpSession.qml's own header comment for what was confirmed live
-// before this was written).
+// hyprland.nix). Backend is GooseAcpSession.qml (see its own header
+// comment for what was confirmed live before this was written).
+//
+// Right-docked sliding panel (not a centered, full-screen-blocking
+// overlay like Launcher.qml/SessionsPicker.qml) — the surface itself is
+// only Theme.spacing.chatPanelWidth wide, anchored top+bottom+right, so
+// the rest of the desktop stays fully interactive while it's open. Closes
+// via Escape, the header's own close button, or pressing the toggle
+// keybind again — no click-outside-to-close, since there's no full-screen
+// backdrop to click through.
+//
+// The slide-in/out is genuinely animated, not just visible-toggled: the
+// PanelWindow itself stays mapped (root.panelMapped) for the duration of
+// the close animation (closeTimer), unmapping only once it's had time to
+// finish — otherwise a layer-shell surface just vanishes instantly with
+// no transition to animate. panel.x is a plain live binding to
+// ChatState.visible with a Behavior — this animates correctly on every
+// open/close including the first, since Behavior only skips animating a
+// property's very first-ever assignment (component construction, while
+// still closed), not subsequent binding re-evaluations.
 PanelWindow {
     id: root
 
     screen: Quickshell.screens[0] ?? null
-    visible: ChatState.visible
+    visible: root.panelMapped
     focusable: true
+
+    property bool panelMapped: false
+
+    Connections {
+        target: ChatState
+        function onVisibleChanged() {
+            if (ChatState.visible)
+                root.panelMapped = true;
+            else
+                closeTimer.restart();
+        }
+    }
+
+    Timer {
+        id: closeTimer
+        interval: Theme.motion.chatSlide.duration
+        onTriggered: root.panelMapped = false
+    }
 
     anchors {
         top: true
@@ -162,27 +195,38 @@ PanelWindow {
         });
     }
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: ChatState.hide()
+    function sendFromInput() {
+        root.send(chatInput.text);
+        chatInput.text = "";
     }
 
     Rectangle {
-        id: box
-        anchors.centerIn: parent
-        width: Theme.spacing.launcherWidthWide
-        height: Math.min(parent.height * 0.75, 720)
-        radius: Theme.radius.panel
+        id: panel
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        width: Theme.spacing.chatPanelWidth
+        x: ChatState.visible ? 0 : width
         color: Theme.color.launcherBg
         border.width: Theme.spacing.borderHairline
         border.color: Theme.color.launcherBorder
 
+        Behavior on x {
+            NumberAnimation {
+                duration: Theme.motion.chatSlide.duration
+                easing.type: Theme.motion.chatSlide.easing
+            }
+        }
+
         MouseArea {
             anchors.fill: parent
-            // Swallow clicks so the backdrop behind doesn't close the chat.
+            // Swallow clicks — same defensive precedent as the old
+            // centered-box overlay, harmless here since there's no
+            // backdrop behind this panel to accidentally click through to.
         }
 
         Column {
+            id: content
             anchors {
                 fill: parent
                 margins: Theme.spacing.launcherContentInset
@@ -192,12 +236,55 @@ PanelWindow {
             Row {
                 id: headerRow
                 width: parent.width
-                height: Theme.spacing.themePillHeight
+                height: Theme.spacing.chatHeaderHeight
+
+                Text {
+                    id: titleLabel
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Goose"
+                    color: Theme.color.fg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeBase
+                    font.bold: true
+                }
+
+                Item {
+                    width: parent.width - titleLabel.width - closeButton.width
+                    height: 1
+                }
+
+                Rectangle {
+                    id: closeButton
+                    width: Theme.spacing.chatCloseSize
+                    height: Theme.spacing.chatCloseSize
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: height / 2
+                    color: closeArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                    }
+
+                    MouseArea {
+                        id: closeArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: ChatState.hide()
+                    }
+                }
+            }
+
+            Flow {
+                width: parent.width
                 spacing: Theme.spacing.themePillGap
 
                 Rectangle {
                     width: modeLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: parent.height
+                    height: Theme.spacing.themePillHeight
                     radius: height / 2
                     color: Theme.color.launcherInputBg
                     border.width: Theme.spacing.borderHairline
@@ -220,7 +307,7 @@ PanelWindow {
 
                 Rectangle {
                     width: modelLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: parent.height
+                    height: Theme.spacing.themePillHeight
                     radius: height / 2
                     color: Theme.color.launcherInputBg
                     border.width: Theme.spacing.borderHairline
@@ -243,7 +330,7 @@ PanelWindow {
 
                 Rectangle {
                     width: subagentLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: parent.height
+                    height: Theme.spacing.themePillHeight
                     radius: height / 2
                     color: Theme.color.launcherInputBg
                     border.width: Theme.spacing.borderHairline
@@ -347,8 +434,13 @@ PanelWindow {
 
                 onCountChanged: positionViewAtEnd()
 
-                delegate: Rectangle {
-                    id: bubble
+                // Standard modern-chat layout: user turns right-aligned
+                // in an accent bubble, assistant turns left-aligned in a
+                // neutral one, both capped at chatBubbleMaxWidth rather
+                // than spanning the panel's full width — role is conveyed
+                // by side+color, not a "you:"/"goose:" text prefix.
+                delegate: Item {
+                    id: row
                     required property var modelData
                     readonly property bool isUser: modelData.role === "user"
                     readonly property bool isTool: modelData.role === "tool"
@@ -356,57 +448,67 @@ PanelWindow {
                     readonly property bool isMuted: isTool || isThought
 
                     width: messageList.width
-                    height: text.implicitHeight + (bubble.isMuted ? 0 : meta.height) + Theme.spacing.launcherContentGap
-                    radius: Theme.radius.input
-                    color: isMuted ? "transparent" : (isUser ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg)
+                    height: bubble.height
 
-                    Text {
-                        id: text
+                    Rectangle {
+                        id: bubble
+                        width: Math.min(text.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
+                        height: text.implicitHeight + (row.isMuted ? Theme.spacing.launcherRowInset : meta.height + Theme.spacing.launcherRowInset)
                         anchors {
-                            left: parent.left
-                            right: parent.right
-                            top: parent.top
-                            margins: Theme.spacing.launcherRowInset
+                            right: row.isUser ? parent.right : undefined
+                            left: row.isUser ? undefined : parent.left
                         }
-                        text: bubble.isTool ? bubble.modelData.text : bubble.isThought ? `thinking: ${bubble.modelData.text}` : (bubble.isUser ? "you: " : "goose: ") + bubble.modelData.text
-                        wrapMode: Text.Wrap
-                        color: bubble.isMuted ? Theme.color.launcherPlaceholderFg : Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: bubble.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
-                        font.italic: bubble.isMuted
-                        textFormat: bubble.isMuted ? Text.PlainText : Text.MarkdownText
-                    }
-
-                    Row {
-                        id: meta
-                        visible: !bubble.isMuted
-                        anchors {
-                            left: parent.left
-                            top: text.bottom
-                            margins: Theme.spacing.launcherRowInset
-                        }
-                        height: visible ? implicitHeight : 0
-                        spacing: Theme.spacing.launcherContentGap
+                        radius: Theme.radius.input
+                        color: row.isMuted ? "transparent" : (row.isUser ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg)
 
                         Text {
-                            text: bubble.modelData.time ? new Date(bubble.modelData.time).toLocaleTimeString(Qt.locale(), "hh:mm") : ""
-                            color: Theme.color.launcherPlaceholderFg
+                            id: text
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                top: parent.top
+                                margins: Theme.spacing.launcherRowInset
+                            }
+                            text: row.isTool ? row.modelData.text : row.isThought ? `thinking: ${row.modelData.text}` : row.modelData.text
+                            wrapMode: Text.Wrap
+                            color: row.isMuted ? Theme.color.launcherPlaceholderFg : Theme.color.fg
                             font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            font.pixelSize: row.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
+                            font.italic: row.isMuted
+                            textFormat: row.isMuted ? Text.PlainText : Text.MarkdownText
                         }
 
-                        Text {
-                            text: "copy"
-                            color: Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                            font.underline: copyArea.containsMouse
+                        Row {
+                            id: meta
+                            visible: !row.isMuted
+                            anchors {
+                                left: parent.left
+                                top: text.bottom
+                                margins: Theme.spacing.launcherRowInset
+                            }
+                            height: visible ? implicitHeight : 0
+                            spacing: Theme.spacing.launcherContentGap
 
-                            MouseArea {
-                                id: copyArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.copyToClipboard(bubble.modelData.text)
+                            Text {
+                                text: row.modelData.time ? new Date(row.modelData.time).toLocaleTimeString(Qt.locale(), "hh:mm") : ""
+                                color: Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            Text {
+                                text: "copy"
+                                color: Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                                font.underline: copyArea.containsMouse
+
+                                MouseArea {
+                                    id: copyArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: root.copyToClipboard(row.modelData.text)
+                                }
                             }
                         }
                     }
@@ -481,85 +583,115 @@ PanelWindow {
                 }
             }
 
-            Rectangle {
+            Row {
                 id: inputBox
                 width: parent.width
-                height: Theme.spacing.launcherInputHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: GooseAcpSession.busy ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+                height: Theme.spacing.chatComposerHeight
+                spacing: Theme.spacing.themePillGap
 
-                Text {
-                    visible: chatInput.text.length === 0
-                    anchors {
-                        left: parent.left
-                        leftMargin: Theme.spacing.launcherRowInset
-                        verticalCenter: parent.verticalCenter
+                Rectangle {
+                    id: textFieldBg
+                    width: parent.width - sendButton.width - parent.spacing
+                    height: parent.height
+                    radius: Theme.radius.input
+                    color: Theme.color.launcherInputBg
+                    border.width: Theme.spacing.borderHairline
+                    border.color: GooseAcpSession.busy ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+
+                    Text {
+                        visible: chatInput.text.length === 0
+                        anchors {
+                            left: parent.left
+                            leftMargin: Theme.spacing.launcherRowInset
+                            verticalCenter: parent.verticalCenter
+                        }
+                        text: !GooseAcpSession.sessionReady ? "starting goose…" : GooseAcpSession.busy ? "goose is thinking…" : "message goose…"
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
                     }
-                    text: !GooseAcpSession.sessionReady ? "starting goose…" : GooseAcpSession.busy ? "goose is thinking… (you can keep typing)" : "message goose…"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+
+                    Row {
+                        anchors {
+                            right: parent.right
+                            rightMargin: Theme.spacing.launcherRowInset
+                            verticalCenter: parent.verticalCenter
+                        }
+                        spacing: Theme.spacing.launcherContentGap
+
+                        Text {
+                            visible: !GooseAcpSession.busy && ChatState.messages.length > 0
+                            text: "regenerate"
+                            color: Theme.color.launcherPlaceholderFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                            font.underline: regenArea.containsMouse
+
+                            MouseArea {
+                                id: regenArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: root.regenerate()
+                            }
+                        }
+
+                        Text {
+                            id: stopButton
+                            visible: GooseAcpSession.busy
+                            text: "stop"
+                            color: Theme.color.launcherPlaceholderFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                            font.underline: stopArea.containsMouse
+
+                            MouseArea {
+                                id: stopArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: GooseAcpSession.cancel()
+                            }
+                        }
+                    }
+
+                    TextInput {
+                        id: chatInput
+                        anchors {
+                            fill: parent
+                            leftMargin: Theme.spacing.launcherInputTextInset
+                            rightMargin: Theme.spacing.launcherInputTextInset + (stopButton.visible || regenArea.containsMouse ? 60 : 0)
+                        }
+                        clip: true
+                        color: Theme.color.fg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+
+                        Keys.onEscapePressed: ChatState.hide()
+                        onAccepted: root.sendFromInput()
+                    }
                 }
 
-                Text {
-                    visible: !GooseAcpSession.busy && ChatState.messages.length > 0
-                    text: "regenerate"
-                    anchors {
-                        right: stopButton.left
-                        rightMargin: Theme.spacing.launcherRowInset
-                        verticalCenter: parent.verticalCenter
+                Rectangle {
+                    id: sendButton
+                    width: Theme.spacing.chatSendSize
+                    height: Theme.spacing.chatSendSize
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: height / 2
+                    color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBg
+                    border.width: Theme.spacing.borderHairline
+                    border.color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "↑"
+                        color: chatInput.text.length > 0 ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+                        font.bold: true
                     }
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
-                    font.underline: regenArea.containsMouse
 
                     MouseArea {
-                        id: regenArea
                         anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.regenerate()
-                    }
-                }
-
-                Text {
-                    id: stopButton
-                    visible: GooseAcpSession.busy
-                    text: "stop"
-                    anchors {
-                        right: parent.right
-                        rightMargin: Theme.spacing.launcherRowInset
-                        verticalCenter: parent.verticalCenter
-                    }
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
-                    font.underline: stopArea.containsMouse
-
-                    MouseArea {
-                        id: stopArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: GooseAcpSession.cancel()
-                    }
-                }
-
-                TextInput {
-                    id: chatInput
-                    anchors {
-                        fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
-                    }
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
-
-                    Keys.onEscapePressed: ChatState.hide()
-                    onAccepted: {
-                        root.send(text);
-                        text = "";
+                        onClicked: root.sendFromInput()
                     }
                 }
             }

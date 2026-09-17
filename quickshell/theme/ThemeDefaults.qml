@@ -38,7 +38,9 @@ QtObject {
             sessionListWidth: 340, sessionRowHeight: 52, sessionRowPadX: 12, sessionRowGap: 4,
             sessionMetaGap: 4, sessionPreviewPad: 16,
             modelbrowserCardWidth: 200, modelbrowserCardHeight: 120, modelbrowserCardGap: 12,
-            modelbrowserGridPad: 4, modelbrowserProgressHeight: 6
+            modelbrowserGridPad: 4, modelbrowserProgressHeight: 6,
+            chatPanelWidth: 440, chatHeaderHeight: 44, chatCloseSize: 24,
+            chatBubbleMaxWidth: 340, chatComposerHeight: 44, chatSendSize: 32
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {
@@ -48,7 +50,8 @@ QtObject {
             // actual default-timeout value, not an edge case.
             toastTimeoutMs: 8000,
             hoverColor: { duration: 180, easing: "OutQuad" },
-            criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 }
+            criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 },
+            chatSlide: { duration: 220, easing: "OutCubic" }
         },
         effect: { popupElevated: false, popupShadowColor: "transparent", popupShadowOffset: 0 },
         wallpaper: { engine: "static", image: "alyssa.png" }
@@ -151,7 +154,8 @@ QtObject {
     function build(base16, manifest, componentOverrides, themeDir, availableWallpapers) {
         const shape = root.deepMerge(root.baseline, manifest ?? ({}));
         shape.motion = Object.assign({}, shape.motion, {
-            hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) })
+            hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) }),
+            chatSlide: Object.assign({}, shape.motion.chatSlide, { easing: root.resolveEasing(shape.motion.chatSlide.easing) })
         });
         return {
             // Raw base16 hex values, passed through unmodified — Theme.color
