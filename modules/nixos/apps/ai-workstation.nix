@@ -5,23 +5,35 @@ let
   # bring-up, not looked up live) — see the "Local-First AI Workstation"
   # plan doc for the full candidate lists these were chosen from.
   #
-  # Undocked: chosen 2026-09-11 from `llmfit recommend --use-case coding
-  # --min-fit good -n 40` on live CPU+iGPU hardware (no eGPU attached).
-  # qwen2.5-coder:7b was picked as the CPU-viable middle ground (score 81,
-  # ~11.6 tok/s estimated) over the already-installed llama3.2:3b (faster
-  # but lower quality) and qwen2.5-coder:14b (better quality, noticeably
-  # slower on pure CPU inference).
-  undockedModel = "qwen2.5-coder:14b";
+  # Undocked: superseded 2026-09-16 by Part II's Stage 2 roster benchmark.
+  # qwen2.5-coder (7b/14b) reliably printed tool-call JSON as prose instead
+  # of invoking it — 0% real tool-calling success across every test this
+  # repo ever ran against it. qwen3-coder:latest (30.5B MoE, ~3B active) was
+  # excluded from all earlier CPU testing purely for its 18GB total size;
+  # once actually measured CPU-only it passed 5/6 real tasks (append/read/
+  # edit-verify, with and without thinking) — slow (71-928s) but correct
+  # and tool-calling-reliable, which qwen2.5-coder never was at any speed.
+  # This drives the chat overlay/general-assistant role when undocked — CPU
+  # inference has no "fits in VRAM" speedup to chase, so there's no reason
+  # to split from goose-code's own undocked coding pick (same model, see
+  # modules/home-manager/apps/goose.nix's gooseCode).
+  undockedModel = "qwen3-coder:latest";
 
-  # Docked: after a clean reboot restored ROCm/KFD visibility, a live
-  # `llmfit recommend --use-case coding --min-fit good -n 40` with the
-  # eGPU's real 16GB VRAM detected only surfaced small (≤7B) Ollama-tagged
-  # options — a database-coverage gap in llmfit (it hasn't mapped larger
-  # models to Ollama tags), not a real fitness verdict on this hardware.
-  # Deliberately kept as the already-installed, already-verified-loadable
-  # qwen3.6:latest (23GB, see README's documented 36B-model load test)
-  # instead, since real-world proof outweighs llmfit's sparse database here.
-  dockedModel = "qwen3.6:latest";
+  # Docked: superseded again 2026-09-17 by the /goal speed target (general
+  # chat + light coding should hit ~50 tok/s where achievable). Native
+  # measurement on this exact hardware: qwen3.6:latest generates at only
+  # 31.25 tok/s despite being the reasoning-strongest model available —
+  # dense-enough and large enough (23GB) that it doesn't fully fit this
+  # card's 16GB VRAM. qwen3:4b, dense and small enough to load 100% GPU
+  # (4.0GB resident), measured at 81.0 tok/s native generation and passed
+  # 3/3 real goose-bench tasks (append/read/edit-verify, thinking off) —
+  # a genuine reversal of qwen3:4b's original-session rejection, which was
+  # measured against the since-fixed 15K-token bloated config, not a real
+  # model limitation. This value drives the chat overlay's default docked
+  # model (general chat/assistant role) — NOT goose-code's docked planner,
+  # which keeps qwen3.6:latest deliberately (planning benefits from more
+  # reasoning depth more than chat needs raw speed; see goose.nix).
+  dockedModel = "qwen3:4b";
 
   # PATH explicitly set (not inherited) since these run as root-context
   # systemd oneshots, matching the convention in

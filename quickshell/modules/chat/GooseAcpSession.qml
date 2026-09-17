@@ -227,7 +227,8 @@ Item {
         root._restarting = true;
         acpProcess.environment = {
             "GOOSE_PROVIDER": provider,
-            "GOOSE_MODEL": model
+            "GOOSE_MODEL": model,
+            "GOOSE_LOCAL_ENABLE_THINKING": "false"
         };
         root.sessionReady = false;
         acpProcess.running = false;
@@ -274,6 +275,15 @@ Item {
         id: acpProcess
         command: ["goose", "acp"]
         stdinEnabled: true
+        // Part II Stage 3: measured faster in every directly comparable
+        // benchmark cell with no accuracy loss (e.g. 928s -> 71s on one
+        // qwen3-coder task) — the chat overlay is interactive, so
+        // responsiveness wins by default. switchModel below re-asserts this
+        // on every relaunch since Process.environment is replaced wholesale,
+        // not merged key-by-key, on each assignment.
+        environment: ({
+            "GOOSE_LOCAL_ENABLE_THINKING": "false"
+        })
 
         stdout: SplitParser {
             onRead: line => {

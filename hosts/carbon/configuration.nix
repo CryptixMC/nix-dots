@@ -21,6 +21,7 @@
     ../../modules/nixos/services/fprintd.nix
     ../../modules/nixos/services/quickshell-lock.nix
     ../../modules/nixos/services/ollama.nix
+    ../../modules/nixos/services/searxng.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
     ../../modules/nixos/core/bootloader.nix

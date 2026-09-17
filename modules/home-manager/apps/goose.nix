@@ -112,6 +112,25 @@ let
     fi
   '';
 
+  # Wraps github-mcp-server with an auth token pulled from the
+  # already-authenticated `gh` CLI session at invocation time (Part I's C6
+  # already confirmed `gh auth token` succeeds non-interactively) rather
+  # than a new secret. Only ever invoked if the model calls
+  # manage_extensions to enable it — starts disabled in gooseConfig below.
+  githubMcpServerWrapped = pkgs.writeShellScriptBin "github-mcp-server-wrapped" ''
+    set -euo pipefail
+    exec env GITHUB_PERSONAL_ACCESS_TOKEN="$(${pkgs.gh}/bin/gh auth token)" \
+      ${pkgs.github-mcp-server}/bin/github-mcp-server stdio
+  '';
+
+  # Wraps mcp-searxng with SEARXNG_URL pointed at the local instance
+  # (modules/nixos/services/searxng.nix) — self-hosted per explicit choice
+  # over a public instance, so search queries never leave this machine.
+  mcpSearxngWrapped = pkgs.writeShellScriptBin "mcp-searxng-wrapped" ''
+    set -euo pipefail
+    exec env SEARXNG_URL="http://127.0.0.1:8888" ${pkgs.mcp-searxng}/bin/mcp-searxng
+  '';
+
   # Blocks `nh ... switch` inside a goose-code session. Goose 1.47.0 has no
   # native per-tool denylist/allowlist config key (checked live: `strings`
   # on the real binary at bin/.goose-wrapped has zero hits for
@@ -183,7 +202,13 @@ let
         bundled = true;
       };
       extensionmanager = {
-        enabled = false;
+        # Part II Stage 4: re-enabled. Goose's native progressive-disclosure
+        # mechanism (search_available_extensions + manage_extensions,
+        # confirmed live in the binary) — the heavy MCPs below stay
+        # registered but disabled, costing only a name+description in
+        # discovery until the model actually asks for one, instead of
+        # paying their full tool-schema cost on every turn.
+        enabled = true;
         type = "platform";
         name = "Extension Manager";
         description = "Enable extension management tools for discovering, enabling, and disabling extensions";
@@ -297,11 +322,84 @@ let
         timeout = 300;
         bundled = true;
       };
+
+      # Part II Stage 4: registered but disabled — discoverable via
+      # search_available_extensions/manage_extensions (extensionmanager
+      # above) at only a name+description cost until actually enabled.
+      # Fixes the old playwright entry's real GC-root time bomb too (it
+      # previously lived outside any .nix file with zero GC roots).
+      playwright = {
+        enabled = false;
+        type = "stdio";
+        name = "playwright";
+        display_name = "Playwright";
+        description = "Browser automation for web testing, scraping, and interaction";
+        cmd = "${pkgs.playwright-mcp}/bin/playwright-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
+      context7 = {
+        enabled = false;
+        type = "stdio";
+        name = "context7";
+        display_name = "Context7";
+        description = "Up-to-date library and framework documentation lookup";
+        cmd = "${pkgs.context7-mcp}/bin/context7-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
+      mcp-searxng = {
+        enabled = false;
+        type = "stdio";
+        name = "mcp-searxng";
+        display_name = "Web Search";
+        description = "Private web search via a local, self-hosted SearXNG instance — needed for non-code chat questions requiring current information";
+        cmd = "${mcpSearxngWrapped}/bin/mcp-searxng-wrapped";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
+      mcp-server-fetch = {
+        enabled = false;
+        type = "stdio";
+        name = "mcp-server-fetch";
+        display_name = "Fetch";
+        description = "Fetch a URL and convert its content to readable text";
+        cmd = "${pkgs.mcp-server-fetch}/bin/mcp-server-fetch";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
+      github-mcp-server = {
+        enabled = false;
+        type = "stdio";
+        name = "github-mcp-server";
+        display_name = "GitHub";
+        description = "GitHub repository, issue, and pull request operations, authenticated via the existing gh CLI session";
+        cmd = "${githubMcpServerWrapped}/bin/github-mcp-server-wrapped";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
     };
     providers = {
       ollama = {
         enabled = true;
-        model = "qwen2.5-coder:14b";
+        # Static fallback for any bare `goose run`/`goose acp` invocation
+        # that doesn't go through goose-code's dock-aware routing (cold
+        # start, before ai-workstation-boot-sync's switchModel IPC call
+        # lands). Matches ai-workstation.nix's dockedModel (general-chat
+        # role, not coding) — updated 2026-09-17 per the /goal speed target:
+        # qwen3:4b measured 81.0 tok/s native generation (100% GPU, dense,
+        # fully resident) vs qwen3.6:latest's 31.25 tok/s, and passed 3/3
+        # real goose-bench tasks including the append-vs-overwrite check.
+        # Coding still explicitly overrides this in codingAgentRecipe below
+        # (qwen3-coder:latest) — this default only matters for genuinely
+        # ad-hoc invocations outside goose-code/goose-chat/goose-plan, which
+        # all set --model explicitly regardless of this value.
+        model = "qwen3:4b";
         configured = true;
       };
       "claude-code" = {
@@ -316,7 +414,7 @@ let
     GOOSE_TOOLSHIM_OLLAMA_MODEL = "qwen2.5-coder:7b";
     GOOSE_TOOLSHIM = false;
     GOOSE_PROVIDER = "ollama";
-    GOOSE_MODEL = "qwen2.5-coder:14b";
+    GOOSE_MODEL = "qwen3:4b";
   };
 
   gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
@@ -446,7 +544,7 @@ let
         timeout: 60
     settings:
       goose_provider: ollama
-      goose_model: qwen2.5-coder:14b
+      goose_model: qwen3-coder:latest
       # Passes `goose recipe validate` but that validator doesn't enforce a
       # settings sub-schema (confirmed live: arbitrary unknown keys also
       # pass), so runtime effect is unconfirmed. Kept as a cheap, harmless
@@ -508,11 +606,19 @@ let
   # `qwen2.5-coder:14b`'s fully-GPU-offloaded ~37 tok/s — because MoE only
   # activates a fraction of its parameters per token.
   #
-  # Undocked: no planner/coder split — CPU-only inference is slow enough
-  # that juggling two different models (with their own separate load/evict
-  # cycles) would cost more in reload latency than a split buys in
-  # quality. `qwen2.5-coder:14b` alone remains the pick (the only one
-  # proven reliable on CPU-only, see the driver-comparison finding above).
+  # Undocked: same `qwen3-coder:latest` as the docked subagent, not the
+  # retired `qwen2.5-coder:14b` — Part II's Stage 2 matrix (2026-09-16)
+  # measured qwen2.5-coder at 0% real tool-calling success at any speed,
+  # while qwen3-coder passed 5/6 tasks genuinely CPU-only (isolated
+  # HIP_VISIBLE_DEVICES="" scratch instance), just slow (71-928s). No
+  # planner/coder split undocked — CPU-only inference is slow enough that
+  # juggling two models' separate load/evict cycles would cost more in
+  # reload latency than a split buys in quality.
+  #
+  # GOOSE_LOCAL_ENABLE_THINKING=false: measured faster in every directly
+  # comparable Stage 2 cell with no accuracy loss (e.g. 472s vs 679s
+  # CPU-only on edit-verify) — goose-code is the execution wrapper, thinking
+  # stays reserved for goose-plan below.
   gooseCode = pkgs.writeShellScriptBin "goose-code" ''
     set -uo pipefail
     PREV_PROFILE=$(${pkgs.power-profiles-daemon}/bin/powerprofilesctl get 2>/dev/null || echo balanced)
@@ -530,13 +636,14 @@ let
     # Kept alongside the recipe's settings.max_tokens above since neither
     # was independently confirmed as the one goose actually reads.
     export GOOSE_MAX_TOKENS=4096
+    export GOOSE_LOCAL_ENABLE_THINKING=false
 
     if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
       MODEL=qwen3.6:latest
       export GOOSE_SUBAGENT_PROVIDER=ollama
       export GOOSE_SUBAGENT_MODEL=qwen3-coder:latest
     else
-      MODEL=qwen2.5-coder:14b
+      MODEL=qwen3-coder:latest
     fi
 
     # --max-turns/--max-tool-repetitions confirmed real flags via
@@ -568,7 +675,11 @@ let
 
   # Dock-aware planner session. Reuses the same lspci eGPU detection as
   # gooseCode/docked branch (lspci -d 1002:73bf). Picks qwen3.6:latest
-  # when docked; falls back to qwen2.5-coder:14b for CPU-only invocations.
+  # when docked; falls back to qwen3-coder:latest (not the retired
+  # qwen2.5-coder:14b) for CPU-only invocations — same Stage 2 rationale as
+  # gooseCode above. Thinking left at its default (on) here deliberately:
+  # planning is exactly the role Part II's roster keeps thinking enabled
+  # for, unlike goose-code's execution wrapper.
   goosePlan = pkgs.writeShellScriptBin "goose-plan" ''
     set -uo pipefail
 
@@ -577,10 +688,34 @@ let
     if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
       export GOOSE_PLANNER_MODEL=qwen3.6:latest
     else
-      export GOOSE_PLANNER_MODEL=qwen2.5-coder:14b
+      export GOOSE_PLANNER_MODEL=qwen3-coder:latest
     fi
 
     exec ${pkgs.goose-cli}/bin/goose session
+  '';
+
+  # Explicit, on-demand light chat wrapper for the gaming/quick-chat role —
+  # deliberately separate from ai-workstation.nix's automatic dock/undock
+  # routing, since "gaming" state there means "no model loaded" (VRAM
+  # eviction, see aiWorkstationGamingStart above), not "a different model
+  # auto-loaded". This is invoked by hand when the user actually wants to
+  # ask something.
+  #
+  # Switched 2026-09-17 from gemma4:12b to qwen3:4b per the /goal speed
+  # target. gemma4:12b was Stage 2's fastest pick (18-47s wall-clock) but
+  # measured only 34.9 tok/s native generation despite 100% GPU residency —
+  # traced to needing flash-attention for its quantized KV cache (confirmed
+  # live: disabling FA to test an RDNA2-kernel-inefficiency theory instead
+  # collapsed offload to 93% CPU and 2.77 tok/s — FA was never the problem).
+  # qwen3:4b hits 81.0 tok/s at a smaller 4.0GB VRAM footprint (less game
+  # impact) and passed 3/3 goose-bench tasks including the one gemma4:12b
+  # failed (append-vs-overwrite) — a strict upgrade on every measured axis
+  # for this role, at the cost of gemma4:12b's vision/audio capability,
+  # which this chat/lookup role never used anyway.
+  gooseChat = pkgs.writeShellScriptBin "goose-chat" ''
+    set -uo pipefail
+    export GOOSE_LOCAL_ENABLE_THINKING=false
+    exec ${pkgs.goose-cli}/bin/goose session --provider ollama --model qwen3:4b
   '';
 in
 {
@@ -594,6 +729,7 @@ in
     gooseCode
     gooseClaude
     goosePlan
+    gooseChat
   ];
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
