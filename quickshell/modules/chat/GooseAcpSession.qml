@@ -42,6 +42,11 @@ Item {
     property var availableModes: []
     property var configOptions: []
     property bool busy: false
+    property string subagentProvider: ""
+    property string subagentModel: ""
+    // Tracks the live primary provider/model so subagent restarts can preserve them.
+    property string _currentProvider: ""
+    property string _currentModel: ""
 
     signal messageChunk(string text)
     signal thoughtChunk(string text)
@@ -128,6 +133,12 @@ Item {
             root.currentModeId = result.modes.currentModeId;
             root.availableModes = result.modes.availableModes;
             root.configOptions = result.configOptions ?? [];
+            const _provider0 = root.configOptions.find(o => o.id === "provider");
+            const _model0 = root.configOptions.find(o => o.id === "model");
+            if (_provider0)
+                root._currentProvider = _provider0.currentValue;
+            if (_model0)
+                root._currentModel = _model0.currentValue;
             root.sessionReady = true;
         });
     }
@@ -194,6 +205,12 @@ Item {
             root.currentModeId = result.modes.currentModeId;
             root.availableModes = result.modes.availableModes;
             root.configOptions = result.configOptions ?? [];
+            const _provider0 = root.configOptions.find(o => o.id === "provider");
+            const _model0 = root.configOptions.find(o => o.id === "model");
+            if (_provider0)
+                root._currentProvider = _provider0.currentValue;
+            if (_model0)
+                root._currentModel = _model0.currentValue;
             root.sessionReady = true;
             if (callback)
                 callback(null);
@@ -222,19 +239,44 @@ Item {
     function switchModel(provider, model, callback) {
         if (!root.sessionReady)
             return;
+        root._currentProvider = provider;
+        root._currentModel = model;
         root._resumeAfterRestart = root.sessionId;
         root._switchCallback = callback ?? null;
         root._restarting = true;
-        acpProcess.environment = {
+        const env = {
             "GOOSE_PROVIDER": provider,
             "GOOSE_MODEL": model,
             "GOOSE_LOCAL_ENABLE_THINKING": "false"
         };
+        if (root.subagentProvider !== "") {
+            env["GOOSE_SUBAGENT_PROVIDER"] = root.subagentProvider;
+            env["GOOSE_SUBAGENT_MODEL"] = root.subagentModel;
+        }
+        acpProcess.environment = env;
         root.sessionReady = false;
         acpProcess.running = false;
     }
 
-    // Lets goose-state-sync (a root-context systemd oneshot on dock/undock)
+    function switchSubagentModel(provider, model, callback) {
+        root.subagentProvider = provider;
+        root.subagentModel = model;
+        root._resumeAfterRestart = root.sessionId;
+        root._switchCallback = callback ?? null;
+        root._restarting = true;
+        const env = {
+            "GOOSE_PROVIDER": root._currentProvider,
+            "GOOSE_MODEL": root._currentModel,
+            "GOOSE_SUBAGENT_PROVIDER": provider,
+            "GOOSE_SUBAGENT_MODEL": model,
+            "GOOSE_LOCAL_ENABLE_THINKING": "false"
+        };
+        acpProcess.environment = env;
+        root.sessionReady = false;
+        acpProcess.running = false;
+    }
+
+    // Lets goose-state-sync (a root-context systemd oneshot on dock-undock)
     // trigger a live model switch without touching config.yaml, via
     // `quickshell ipc -p ~/nix-dots/quickshell call goose-model switchModel
     // <provider> <model>` — same IpcHandler convention ChatOverlay.qml
@@ -243,6 +285,9 @@ Item {
         target: "goose-model"
         function switchModel(provider: string, model: string): void {
             root.switchModel(provider, model);
+        }
+        function switchSubagentModel(provider: string, model: string): void {
+            root.switchSubagentModel(provider, model);
         }
     }
 

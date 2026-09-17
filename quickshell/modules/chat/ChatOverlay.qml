@@ -34,6 +34,7 @@ PanelWindow {
     readonly property var modelConfigOption: (GooseAcpSession.configOptions ?? []).find(c => c.id === "model") ?? null
     readonly property var providerConfigOption: (GooseAcpSession.configOptions ?? []).find(c => c.id === "provider") ?? null
     property bool modelPickerOpen: false
+    property bool subagentPickerOpen: false
 
     function cycleMode() {
         const modes = GooseAcpSession.availableModes;
@@ -48,6 +49,12 @@ PanelWindow {
         const provider = root.providerConfigOption?.currentValue ?? "ollama";
         root.modelPickerOpen = false;
         GooseAcpSession.switchModel(provider, modelValue, () => {});
+    }
+
+    function switchSubagentModel(modelValue) {
+        const provider = root.providerConfigOption?.currentValue ?? "ollama";
+        root.subagentPickerOpen = false;
+        GooseAcpSession.switchSubagentModel(provider, modelValue, () => {});
     }
 
     Shortcut {
@@ -129,6 +136,19 @@ PanelWindow {
     function _startTurn(text) {
         ChatState.streamingIndex = ChatState.appendMessage("assistant", "");
         GooseAcpSession.prompt(text);
+    }
+
+    function regenerate() {
+        var lastIdx = 0;
+        for (var i = ChatState.messages.length - 1; i >= 0; --i)
+            if (ChatState.messages[i].role === "user") {
+                lastIdx = i;
+                break;
+            }
+        if (ChatState.messages[lastIdx].role !== "user")
+            return;
+        ChatState.messages = ChatState.messages.slice(0, lastIdx + 1);
+        root._startTurn(ChatState.messages[lastIdx].text);
     }
 
     // Same `wl-copy` the screenshot keybinds in hyprland.nix already use —
@@ -220,6 +240,29 @@ PanelWindow {
                         onClicked: root.modelPickerOpen = !root.modelPickerOpen
                     }
                 }
+
+                Rectangle {
+                    width: subagentLabel.implicitWidth + Theme.spacing.themePillPadX * 2
+                    height: parent.height
+                    radius: height / 2
+                    color: Theme.color.launcherInputBg
+                    border.width: Theme.spacing.borderHairline
+                    border.color: Theme.color.launcherInputBorder
+
+                    Text {
+                        id: subagentLabel
+                        anchors.centerIn: parent
+                        text: `subagent: ${GooseAcpSession.subagentModel || "none"}`
+                        color: Theme.color.fg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.subagentPickerOpen = !root.subagentPickerOpen
+                    }
+                }
             }
 
             Column {
@@ -258,10 +301,46 @@ PanelWindow {
                 }
             }
 
+            Column {
+                id: subagentPickerColumn
+                visible: root.subagentPickerOpen
+                width: parent.width
+                spacing: Theme.spacing.themePillGap / 2
+
+                Repeater {
+                    model: root.modelConfigOption?.options ?? []
+
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: parent.width
+                        height: Theme.spacing.launcherRowHeight
+                        radius: Theme.radius.input
+                        color: modelData.value === GooseAcpSession.subagentModel ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                        Text {
+                            anchors {
+                                left: parent.left
+                                verticalCenter: parent.verticalCenter
+                                margins: Theme.spacing.launcherRowInset
+                            }
+                            text: modelData.name
+                            color: Theme.color.fg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.switchSubagentModel(modelData.value)
+                        }
+                    }
+                }
+            }
+
             ListView {
                 id: messageList
                 width: parent.width
-                height: parent.height - headerRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
+                height: parent.height - headerRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
                 clip: true
                 model: ChatState.messages
                 spacing: Theme.spacing.launcherContentGap / 2
@@ -295,6 +374,7 @@ PanelWindow {
                         font.family: Theme.font.family
                         font.pixelSize: bubble.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
                         font.italic: bubble.isMuted
+                        textFormat: bubble.isMuted ? Text.PlainText : Text.MarkdownText
                     }
 
                     Row {
@@ -421,6 +501,49 @@ PanelWindow {
                     color: Theme.color.launcherPlaceholderFg
                     font.family: Theme.font.family
                     font.pixelSize: Theme.font.sizeBase
+                }
+
+                Text {
+                    visible: !GooseAcpSession.busy && ChatState.messages.length > 0
+                    text: "regenerate"
+                    anchors {
+                        right: stopButton.left
+                        rightMargin: Theme.spacing.launcherRowInset
+                        verticalCenter: parent.verticalCenter
+                    }
+                    color: Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    font.underline: regenArea.containsMouse
+
+                    MouseArea {
+                        id: regenArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.regenerate()
+                    }
+                }
+
+                Text {
+                    id: stopButton
+                    visible: GooseAcpSession.busy
+                    text: "stop"
+                    anchors {
+                        right: parent.right
+                        rightMargin: Theme.spacing.launcherRowInset
+                        verticalCenter: parent.verticalCenter
+                    }
+                    color: Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    font.underline: stopArea.containsMouse
+
+                    MouseArea {
+                        id: stopArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: GooseAcpSession.cancel()
+                    }
                 }
 
                 TextInput {

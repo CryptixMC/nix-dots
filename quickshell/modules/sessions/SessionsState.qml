@@ -12,6 +12,7 @@ QtObject {
     property bool visible: false
     property var sessions: []
     property bool loading: false
+    property string loadError: ""
 
     function toggle() {
         visible = !visible;

@@ -41,6 +41,7 @@ PanelWindow {
 
     function refresh() {
         SessionsState.loading = true;
+        SessionsState.loadError = "";
         root.selectedIndex = -1;
         GooseAcpSession.listSessions((sessions, error) => {
             SessionsState.loading = false;
@@ -54,7 +55,9 @@ PanelWindow {
             return;
         ChatState.clear();
         GooseAcpSession.loadSession(root.selectedSession.sessionId, error => {
-            if (!error) {
+            if (error) {
+                SessionsState.loadError = "This session cannot be resumed (it was created by goose-code and Goose has a known limitation loading recipe-based sessions).";
+            } else {
                 SessionsState.hide();
                 ChatState.visible = true;
             }
@@ -135,7 +138,10 @@ PanelWindow {
 
                         MouseArea {
                             anchors.fill: parent
-                            onClicked: root.selectedIndex = row.index
+                            onClicked: {
+                                root.selectedIndex = row.index;
+                                SessionsState.loadError = "";
+                            }
                             onDoubleClicked: {
                                 root.selectedIndex = row.index;
                                 root.resumeSelected();
@@ -222,6 +228,16 @@ PanelWindow {
                         color: Theme.color.launcherPlaceholderFg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase
+                    }
+
+                    Text {
+                        visible: SessionsState.loadError !== ""
+                        width: parent.width
+                        text: SessionsState.loadError
+                        wrapMode: Text.Wrap
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                        color: Theme.color.accentPurple
                     }
 
                     Rectangle {
