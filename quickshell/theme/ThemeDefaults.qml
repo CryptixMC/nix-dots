@@ -36,7 +36,9 @@ QtObject {
             fileTreeWidth: 220, fileTreeRowHeight: 28, fileGridCellSize: 92, fileGridGap: 12,
             fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120,
             sessionListWidth: 340, sessionRowHeight: 52, sessionRowPadX: 12, sessionRowGap: 4,
-            sessionMetaGap: 4, sessionPreviewPad: 16
+            sessionMetaGap: 4, sessionPreviewPad: 16,
+            modelbrowserCardWidth: 200, modelbrowserCardHeight: 120, modelbrowserCardGap: 12,
+            modelbrowserGridPad: 4, modelbrowserProgressHeight: 6
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {

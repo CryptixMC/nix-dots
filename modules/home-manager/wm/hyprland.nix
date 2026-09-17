@@ -395,6 +395,10 @@ in
           # Chat session-history picker (quickshell/modules/sessions/) —
           # browse/resume past goose sessions, same IPC-toggle convention.
           (mkExecBind "${mainMod} + H" "quickshell ipc -p ~/nix-dots/quickshell call sessions toggle")
+          # Model browser / "Cookbook" (quickshell/modules/modelbrowser/) —
+          # browse llmfit-ranked Ollama models, pull one with a progress
+          # bar. Same IPC-toggle convention.
+          (mkExecBind "${mainMod} + B" "quickshell ipc -p ~/nix-dots/quickshell call modelbrowser toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)

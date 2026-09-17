@@ -7,6 +7,7 @@ import "modules/notifications"
 import "modules/launcher"
 import "modules/chat"
 import "modules/sessions"
+import "modules/modelbrowser"
 import "modules/lock"
 import "modules/wallpaper"
 
@@ -41,6 +42,10 @@ ShellRoot {
 
     SessionsPicker {
         id: sessionsPicker
+    }
+
+    ModelBrowser {
+        id: modelBrowser
     }
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
