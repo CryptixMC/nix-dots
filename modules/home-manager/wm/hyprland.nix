@@ -399,6 +399,10 @@ in
           # browse llmfit-ranked Ollama models, pull one with a progress
           # bar. Same IPC-toggle convention.
           (mkExecBind "${mainMod} + B" "quickshell ipc -p ~/nix-dots/quickshell call modelbrowser toggle")
+          # Extensions/MCP manager (quickshell/modules/extensions/) — list
+          # and toggle config.yaml's registered extensions. Same
+          # IPC-toggle convention.
+          (mkExecBind "${mainMod} + X" "quickshell ipc -p ~/nix-dots/quickshell call extensions toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)

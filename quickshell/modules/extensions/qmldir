@@ -1,0 +1,2 @@
+singleton ExtensionsState 1.0 ExtensionsState.qml
+ExtensionsManager 1.0 ExtensionsManager.qml

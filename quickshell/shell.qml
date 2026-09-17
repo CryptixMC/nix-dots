@@ -8,6 +8,7 @@ import "modules/launcher"
 import "modules/chat"
 import "modules/sessions"
 import "modules/modelbrowser"
+import "modules/extensions"
 import "modules/lock"
 import "modules/wallpaper"
 
@@ -46,6 +47,10 @@ ShellRoot {
 
     ModelBrowser {
         id: modelBrowser
+    }
+
+    ExtensionsManager {
+        id: extensionsManager
     }
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
