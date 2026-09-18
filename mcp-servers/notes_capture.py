@@ -6,11 +6,13 @@ structured Markdown entry to the capture target. Also driven directly by
 the SUPER+N Quickshell overlay (same file-append, not a second code path)
 for the manual "jot this down right now" case, not just research-recipe use.
 
-Target: .agents/inbox.md, not the user's real Obsidian vault
-(~/Documents/Vault, confirmed real -- see DECISIONS.md for why this default
-was picked and how to redirect it). Flagged low-confidence there
-deliberately -- change VAULT_PATH below once Liam says where captures
-should actually land.
+Target: ~/Documents/Vault/Inbox/Qubi.md, the user's real Obsidian vault
+(confirmed real: ~/Documents/Vault has a live .obsidian/ config dir with
+real plugin state). Phase 8e (qubi-engine night 2): previously wrote to
+.agents/inbox.md as a deliberately low-confidence placeholder pending
+Liam saying where captures should really land -- that file was never
+actually created (confirmed: no matches in git history or on disk), so
+there was nothing to migrate when moving the target here.
 """
 import argparse
 import json
@@ -18,7 +20,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-VAULT_PATH = os.path.expanduser("~/nix-dots/.agents/inbox.md")
+VAULT_PATH = os.path.expanduser("~/Documents/Vault/Inbox/Qubi.md")
 
 PROTOCOL_VERSION = "2024-11-05"
 
