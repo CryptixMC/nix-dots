@@ -100,6 +100,13 @@ PanelWindow {
         function toggle(): void {
             ChatState.toggle();
         }
+        // SUPER+SHIFT+D (already reserved in hyprland.nix, calls
+        // `chat compare`) -- ChatCompare.qml is its own file/overlay with
+        // two independent GooseAcpPane processes, not part of this
+        // singleton's own session.
+        function compare(): void {
+            ChatCompareState.toggle();
+        }
     }
 
     Connections {
@@ -446,6 +453,13 @@ PanelWindow {
                     readonly property bool isTool: modelData.role === "tool"
                     readonly property bool isThought: modelData.role === "thought"
                     readonly property bool isMuted: isTool || isThought
+                    // Thought bubbles default collapsed -- reasoning traces
+                    // are often long and are context for "what is it doing",
+                    // not something to read by default. Local to this
+                    // delegate instance (not persisted in ChatState) since
+                    // it's pure UI-display state, same as every other
+                    // ephemeral hover/expand flag in this file.
+                    property bool thoughtExpanded: false
 
                     width: messageList.width
                     height: bubble.height
@@ -469,13 +483,29 @@ PanelWindow {
                                 top: parent.top
                                 margins: Theme.spacing.launcherRowInset
                             }
-                            text: row.isTool ? row.modelData.text : row.isThought ? `thinking: ${row.modelData.text}` : row.modelData.text
+                            text: {
+                                if (row.isTool)
+                                    return row.modelData.text;
+                                if (row.isThought) {
+                                    const collapsedPreview = row.modelData.text.length > 60 ? row.modelData.text.slice(0, 60) + "…" : row.modelData.text;
+                                    const glyph = row.thoughtExpanded ? "▾" : "▸";
+                                    return `${glyph} thinking: ${row.thoughtExpanded ? row.modelData.text : collapsedPreview}`;
+                                }
+                                return row.modelData.text;
+                            }
                             wrapMode: Text.Wrap
                             color: row.isMuted ? Theme.color.launcherPlaceholderFg : Theme.color.fg
                             font.family: Theme.font.family
                             font.pixelSize: row.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
                             font.italic: row.isMuted
                             textFormat: row.isMuted ? Text.PlainText : Text.MarkdownText
+
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: row.isThought
+                                cursorShape: row.isThought ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: row.thoughtExpanded = !row.thoughtExpanded
+                            }
                         }
 
                         Row {
