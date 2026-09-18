@@ -12,6 +12,7 @@ QtObject {
     // section within system and not its own tab" (real quote from the
     // sessions.db transcript this fix is based on). SystemTab.qml renders
     // it as a section instead; see that file's own header comment.
+    property bool visible: false
     property string activeTab: "apps"
     readonly property var tabs: [
         {
