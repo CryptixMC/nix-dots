@@ -61,9 +61,10 @@ ShellRoot {
         id: extensionsManager
     }
 
-    // Placeholders reserved for parallel agent branches — SUPER+U/I/O/N
-    // (hyprland.nix) already IPC-call these targets and confirm-fail
-    // gracefully today. Uncomment each block once its branch lands.
+    // Qubi overnight build (2026-09-18) — SUPER+U/I/O/N (hyprland.nix), each
+    // authored in an isolated staging Quickshell instance and confirmed to
+    // load cleanly there before being registered here, per this repo's own
+    // safety protocol (see .agents/skills/quickshell-qml-patterns).
     ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
     AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
     ScreenContext { id: screenContext } // built + staging-validated 2026-09-18
