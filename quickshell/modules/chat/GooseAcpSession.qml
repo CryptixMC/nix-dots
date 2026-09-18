@@ -3,13 +3,21 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Persistent `goose acp` JSON-RPC-over-stdio session — replaces the old
-// one-`goose run`-process-per-message model with a single long-lived
-// process, following the real Agent Client Protocol (Zed's ACP spec) Goose
-// implements. Every method/type name and framing detail here was confirmed
-// live this session via a hand-written JSON-RPC probe against the real
-// installed `goose` binary before writing any of this QML (see TODO.md §7
-// and the chat-expansion plan doc) — not guessed from the public spec:
+// Talks the real Agent Client Protocol (Zed's ACP spec, as Goose
+// implements it) over a Unix socket to qubi-engine instead of spawning
+// `goose acp` directly -- Phase 8a of the qubi-engine night. EVERY
+// protocol detail below (framing, method names, notification shapes) is
+// UNCHANGED from the original stdio-Process version; only the transport
+// (Socket instead of Process) is different, confirmed correct live via a
+// staging round-trip (~/qubi-staging/engine's socket test, before this
+// file was touched): a real Socket connected to $XDG_RUNTIME_DIR/qubi/
+// engine.sock, sent a real qubi/status request, and got the real engine's
+// JSON response back through a SplitParser exactly like Process.stdout
+// already used. The engine itself is a transparent ACP proxy (see
+// engine/qubi_engine.py's own header comment) -- from this file's
+// perspective, nothing about session/new, session/prompt, session/update
+// notifications, or permission requests differs from talking to `goose
+// acp` directly.
 //
 // - Framing is bare newline-delimited JSON (no LSP-style Content-Length
 //   headers) — confirmed by reading real responses back.
@@ -27,13 +35,15 @@ import Quickshell.Io
 //   `agent_thought_chunk` is model-dependent — a non-reasoning model (e.g.
 //   qwen2.5-coder) simply never emits one; don't treat its absence as a
 //   protocol failure.
-//
-// Process.write()/stdinEnabled are real, confirmed against the installed
-// Quickshell qmltypes (quickshell-io.qmltypes) rather than assumed.
+// - New in this engine-backed version: `qubi/session_status` and
+//   `qubi/escalation_offer` are engine-originated notifications (never
+//   sent by a bare `goose acp` process) — surfaced as their own signals
+//   below, additive to the unchanged ACP signal set.
 Item {
     id: root
 
     readonly property string defaultCwd: "/home/cryptix/nix-dots"
+    readonly property string _engineSocketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/run/user/1000") + "/qubi/engine.sock"
 
     property bool initialized: false
     property string sessionId: ""
@@ -47,6 +57,14 @@ Item {
     // Tracks the live primary provider/model so subagent restarts can preserve them.
     property string _currentProvider: ""
     property string _currentModel: ""
+    // True once the engine socket has genuinely refused/dropped a
+    // connection -- lets the UI show a real "engine not running" state
+    // with a retry action instead of hanging silently forever (Phase 8a's
+    // explicit requirement).
+    property bool engineUnavailable: false
+
+    signal qubiSessionStatus(var status)
+    signal qubiEscalationOffer(var offer)
 
     signal messageChunk(string text)
     signal thoughtChunk(string text)
@@ -66,15 +84,22 @@ Item {
     property var _pending: ({})
     property bool _loadingHistory: false
     property bool _emitHistoryReplay: true
-    // Set just before an intentional stop+relaunch (model switch) so
-    // onExited restarts the process and resumes the same session instead
-    // of treating it as a crash.
-    property bool _restarting: false
+    // Set on a real (unrequested) socket disconnect when a session was
+    // active, so the next successful reconnect resumes it via
+    // session/load instead of starting a brand new session — the engine
+    // restarting (Restart=on-failure) doesn't necessarily lose Goose's own
+    // sqlite-persisted session history even though it does lose the
+    // engine's in-memory session/tier bookkeeping.
     property string _resumeAfterRestart: ""
-    property var _switchCallback: null
+    // modelName -> tierName, built from a real qubi/status reply right
+    // after connecting -- lets switchModel (below) route a model pick to
+    // the one real engine capability that exists for it (qubi/set_tier)
+    // instead of guessing tier names from config.json's shape.
+    property var _tierModels: ({})
 
     function _send(obj) {
-        acpProcess.write(JSON.stringify(obj) + "\n");
+        acpSocket.write(JSON.stringify(obj) + "\n");
+        acpSocket.flush();
     }
 
     function _call(method, params, callback) {
@@ -89,9 +114,32 @@ Item {
     }
 
     function start() {
-        if (acpProcess.running)
+        if (acpSocket.connected)
             return;
-        acpProcess.running = true;
+        root.engineUnavailable = false;
+        acpSocket.connected = true;
+    }
+
+    // Real retry path for the "engine not running" UI state -- toggling
+    // `connected` false->true asks Quickshell.Io.Socket to attempt a fresh
+    // connection (confirmed live: the identical pattern reconnected to
+    // qubi-engine.service after a manual `systemctl --user restart` during
+    // this session's own staging tests).
+    function retryConnect() {
+        root.engineUnavailable = false;
+        acpSocket.connected = false;
+        acpSocket.connected = true;
+    }
+
+    function _fetchTierModels() {
+        _call("qubi/status", {}, (result, error) => {
+            if (error || !result)
+                return;
+            const map = {};
+            for (const tierName in result.tiers ?? {})
+                map[result.tiers[tierName].model] = tierName;
+            root._tierModels = map;
+        });
     }
 
     function _initialize() {
@@ -103,17 +151,16 @@ Item {
                 return;
             }
             root.initialized = true;
+            root._fetchTierModels();
             if (root._resumeAfterRestart.length > 0) {
                 const id = root._resumeAfterRestart;
-                const cb = root._switchCallback;
                 root._resumeAfterRestart = "";
-                root._switchCallback = null;
                 // The UI already shows this conversation's history from
-                // before the switch — replaying it again would duplicate
-                // every message, so emitHistory is false here specifically
-                // (contrast SessionsPicker's resume, which starts from a
-                // cleared chat and wants the replay).
-                root.loadSession(id, cb, false);
+                // before the disconnect — replaying it again would
+                // duplicate every message, so emitHistory is false here
+                // specifically (contrast SessionsPicker's resume, which
+                // starts from a cleared chat and wants the replay).
+                root.loadSession(id, null, false);
             } else {
                 root._newSession();
             }
@@ -226,54 +273,83 @@ Item {
         }, () => {});
     }
 
-    // Live model switching mid-conversation: `session/set_config` exists as
-    // a literal string in the compiled binary but returns a real
-    // `-32601 Method not found` when actually called — confirmed live, not
-    // assumed — so there's no live-set path. Instead: stop the process,
-    // relaunch with GOOSE_PROVIDER/GOOSE_MODEL overridden via the child's
-    // own environment (not touching config.yaml at all), then
-    // session/load the same sessionId to resume with history intact.
-    // `Process.environment` merges over the inherited environment rather
-    // than replacing it (clearEnvironment defaults false), so PATH etc.
-    // survive.
+    // Pre-engine, this restarted our own `goose acp` process with
+    // GOOSE_PROVIDER/GOOSE_MODEL overridden in its environment -- that
+    // process no longer exists on this side of the socket, qubi-engine
+    // owns it per-tier now, and the engine exposes no per-request
+    // provider/model override (only whole-tier switching via
+    // qubi/set_tier, confirmed by reading qubi_engine.py's own
+    // _handle_qubi_method — status/theme/session_list/subscribe/set_tier
+    // is the complete method list, nothing else). Since each tier in
+    // ~/.config/qubi/config.json is exactly one fixed model, a model pick
+    // maps onto a real tier switch whenever that model IS a tier's model
+    // (root._tierModels, populated from a live qubi/status reply); a pick
+    // that isn't any tier's model (e.g. goose.nix's docked qwen3.6 pick,
+    // which predates the engine and isn't one of the 3 tier models) has no
+    // engine equivalent today and fails honestly via sessionFailed rather
+    // than silently doing nothing.
     function switchModel(provider, model, callback) {
         if (!root.sessionReady)
             return;
-        root._currentProvider = provider;
-        root._currentModel = model;
-        root._resumeAfterRestart = root.sessionId;
-        root._switchCallback = callback ?? null;
-        root._restarting = true;
-        const env = {
-            "GOOSE_PROVIDER": provider,
-            "GOOSE_MODEL": model,
-            "GOOSE_LOCAL_ENABLE_THINKING": "false"
-        };
-        if (root.subagentProvider !== "") {
-            env["GOOSE_SUBAGENT_PROVIDER"] = root.subagentProvider;
-            env["GOOSE_SUBAGENT_MODEL"] = root.subagentModel;
+        const tier = root._tierModels[model];
+        if (tier === undefined) {
+            const msg = `no engine tier runs model "${model}" — only whole-tier switching is available now (see GooseAcpSession.qml's switchModel comment)`;
+            root.sessionFailed(msg);
+            if (callback)
+                callback({
+                    code: -32601,
+                    message: msg
+                });
+            return;
         }
-        acpProcess.environment = env;
-        root.sessionReady = false;
-        acpProcess.running = false;
+        root.setTier(root.sessionId, tier, callback);
     }
 
+    // Subagent provider/model overrides had no ACP-level representation
+    // even before the engine (they were a Goose-process env var); the
+    // engine's tiers carry no subagent notion at all, so there is no
+    // equivalent to route this to. Surfaced honestly instead of pretending
+    // to switch.
     function switchSubagentModel(provider, model, callback) {
-        root.subagentProvider = provider;
-        root.subagentModel = model;
-        root._resumeAfterRestart = root.sessionId;
-        root._switchCallback = callback ?? null;
-        root._restarting = true;
-        const env = {
-            "GOOSE_PROVIDER": root._currentProvider,
-            "GOOSE_MODEL": root._currentModel,
-            "GOOSE_SUBAGENT_PROVIDER": provider,
-            "GOOSE_SUBAGENT_MODEL": model,
-            "GOOSE_LOCAL_ENABLE_THINKING": "false"
-        };
-        acpProcess.environment = env;
-        root.sessionReady = false;
-        acpProcess.running = false;
+        const msg = "subagent model switching is not available on the engine-backed session (no per-tier subagent concept — see GooseAcpSession.qml's switchSubagentModel comment)";
+        root.sessionFailed(msg);
+        if (callback)
+            callback({
+                code: -32601,
+                message: msg
+            });
+    }
+
+    // The one real live-switch capability the engine exposes: rebinds a
+    // session to a different tier's already-running process via
+    // session/load (resuming history), confirmed by reading qubi_engine.py's
+    // _set_tier. Also the target of the escalation-offer chip's
+    // escalate_claude/escalate_heavy_local buttons (see respondToEscalation).
+    function setTier(sessionId, tier, callback) {
+        _call("qubi/set_tier", {
+            session: sessionId,
+            tier: tier
+        }, (result, error) => {
+            if (error) {
+                root.sessionFailed(`qubi/set_tier failed: ${JSON.stringify(error)}`);
+                if (callback)
+                    callback(error);
+                return;
+            }
+            if (callback)
+                callback(null);
+        });
+    }
+
+    // options offered by a real qubi/escalation_offer notification are
+    // exactly ["escalate_claude", "escalate_heavy_local", "decline"]
+    // (qubi_engine.py's _on_tier_notification) -- decline needs no engine
+    // call, the offer simply isn't acted on.
+    function respondToEscalation(sessionId, optionId) {
+        if (optionId === "escalate_claude")
+            root.setTier(sessionId, "claude");
+        else if (optionId === "escalate_heavy_local")
+            root.setTier(sessionId, "heavy");
     }
 
     // Lets qubi-state-sync (a root-context systemd oneshot on dock-undock)
@@ -316,21 +392,11 @@ Item {
         });
     }
 
-    Process {
-        id: acpProcess
-        command: ["goose", "acp"]
-        stdinEnabled: true
-        // Part II Stage 3: measured faster in every directly comparable
-        // benchmark cell with no accuracy loss (e.g. 928s -> 71s on one
-        // qwen3-coder task) — the chat overlay is interactive, so
-        // responsiveness wins by default. switchModel below re-asserts this
-        // on every relaunch since Process.environment is replaced wholesale,
-        // not merged key-by-key, on each assignment.
-        environment: ({
-            "GOOSE_LOCAL_ENABLE_THINKING": "false"
-        })
+    Socket {
+        id: acpSocket
+        path: root._engineSocketPath
 
-        stdout: SplitParser {
+        parser: SplitParser {
             onRead: line => {
                 const trimmed = line.trim();
                 if (trimmed.length === 0)
@@ -354,6 +420,18 @@ Item {
                 // Agent-initiated request needing a response from us.
                 if (obj.method === "session/request_permission") {
                     root.permissionRequested(obj);
+                    return;
+                }
+
+                // Engine-originated notifications — never sent by a bare
+                // `goose acp` process, only by qubi-engine itself
+                // (qubi_engine.py's _push_status / escalation-offer path).
+                if (obj.method === "qubi/session_status") {
+                    root.qubiSessionStatus(obj.params);
+                    return;
+                }
+                if (obj.method === "qubi/escalation_offer") {
+                    root.qubiEscalationOffer(obj.params);
                     return;
                 }
 
@@ -393,22 +471,30 @@ Item {
             }
         }
 
-        onRunningChanged: {
-            if (running)
+        onConnectionStateChanged: {
+            if (acpSocket.connected) {
+                root.engineUnavailable = false;
                 root._initialize();
-        }
-
-        onExited: (exitCode, exitStatus) => {
-            root._pending = ({});
-            if (root._restarting) {
-                root._restarting = false;
-                acpProcess.running = true;
                 return;
             }
+            // Real disconnect (engine restarted, engine.service down, or a
+            // manual retryConnect mid-flight) — never silently hang: drop
+            // in-flight callbacks, mark state not-ready, and surface a
+            // real user-visible error via the same sessionFailed path
+            // ChatOverlay.qml already renders as an assistant-bubble
+            // message (confirmed by reading its onSessionFailed handler).
+            root._pending = ({});
+            if (root.sessionId.length > 0)
+                root._resumeAfterRestart = root.sessionId;
             root.initialized = false;
             root.sessionReady = false;
-            root.sessionId = "";
-            root.sessionFailed(`goose acp exited (code ${exitCode})`);
+            root.engineUnavailable = true;
+            root.sessionFailed("qubi engine connection lost (is qubi-engine.service running?) — retry to reconnect");
+        }
+
+        onError: error => {
+            root.engineUnavailable = true;
+            root.sessionFailed(`qubi engine socket error: ${error} (is qubi-engine.service running?)`);
         }
     }
 }
