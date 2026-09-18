@@ -163,8 +163,23 @@ physical-interaction gap) and the qwen3-vl:4b/Ollama path specifically (blocked 
 tesseract confirmed installed with real `eng` language data via a full build + `--list-langs`
 check.
 
-## Phase 7-9
-Not started yet. See TaskList (TaskCreate #7-#9) for the live checklist — kept in sync with this
+## Phase 7 — Voice conversation mode (SUPER+O) — DONE
+Built `quickshell/modules/voice/{VoiceState.qml, VoiceOverlay.qml}`. Push-to-talk (hold Space),
+Canvas-based reactive blob (deliberate fallback from the qsb shader path — see DECISIONS.md) bound
+to a real `PwNodePeakMonitor` on the default audio source (confirmed real API against the
+installed qmltypes, same pattern `Volume.qml` already uses for the bar). Reuses `GooseAcpSession`
+rather than a third ACP implementation. Per-stage latency (record/transcribe/think/speak) measured
+and shown after every turn. Kept `voice.nix`'s existing one-shot STT/TTS design rather than
+building systemd services — a one-shot design already has zero idle memory footprint, which was
+the actual goal behind the task's "idle timeout" ask; logged as a real trade-off in DECISIONS.md.
+
+Verified: staging load (clean, real `chat/` module symlinked in for the `GooseAcpSession`
+dependency), IPC toggle, no crash. NOT live-tested: the actual push-to-talk flow (needs a real mic
++ real Space keypress) and the whisper/piper model downloads (deliberately not triggered — would
+be an uncontrolled multi-hundred-MB download mid-session).
+
+## Phase 8-9
+Not started yet. See TaskList (TaskCreate #8-#9) for the live checklist — kept in sync with this
 file's section headers.
 
 ## Environment notes for future-me
