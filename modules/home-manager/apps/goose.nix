@@ -63,6 +63,7 @@ let
         pkgs.coreutils
         pkgs.yq-go
         pkgs.ollama
+        pkgs.systemd
       ]
     }:$PATH
 
@@ -79,6 +80,24 @@ let
     printf '{"state":"gaming","provider":null,"model":null,"updated":"%s"}\n' \
       "$(date -Iseconds)" > "$STATE_FILE"
     qubi-state-sync || true
+
+    # Runtime cgroup cap on ollama.service while gaming (Phase 5c) --
+    # `set-property` edits the live cgroup, not the unit file, so this
+    # never needs a switch and self-heals to nothing if this script is
+    # never run again. AllowedCPUs=8-15 confines it to this i7-1260P's
+    # 8 E-cores (confirmed via /sys/devices/system/cpu/cpu*/cpufreq/
+    # cpuinfo_max_freq: cpu0-7 max at 4700MHz = the 4 P-cores/8 threads,
+    # cpu8-15 max at 3400MHz = the 8 E-cores, no hyperthreading on E-cores)
+    # -- the game's own threads keep the full P-core budget untouched.
+    # CPUQuota=700% leaves one E-core-thread's worth of headroom for the
+    # game/OS rather than saturating all 8. This is a SYSTEM unit, so it
+    # needs the same scoped-NOPASSWD-for-one-exact-command pattern as
+    # egpu-eject.service (modules/nixos/apps/ai-workstation.nix's own
+    # sudo.extraRules) -- until Liam switches with that rule in place,
+    # this line will prompt for a password (or fail non-interactively)
+    # rather than silently no-op, which is the correct fail mode.
+    sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15 || \
+      echo "[ai-workstation-gaming-start] cgroup cap failed (needs the ai-workstation.nix sudo rule + a switch) -- gaming proceeds without CPU/core isolation this time" >&2
   '';
 
   # Does NOT restore a cached "previous" state — that's a stale-state trap
@@ -110,6 +129,15 @@ let
     else
       sudo ${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service
     fi
+
+    # Restores ollama.service's cgroup to its unit-file defaults (Phase
+    # 5c) -- empty property values are systemd's documented way to reset
+    # a runtime `set-property` override back to whatever the unit file
+    # itself specifies, re-deriving rather than caching a "previous"
+    # value, same rationale as the dock/undock state re-derivation just
+    # above (don't trust a stale cached number either).
+    sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota= AllowedCPUs= || \
+      echo "[ai-workstation-gaming-stop] cgroup restore failed (needs the ai-workstation.nix sudo rule + a switch)" >&2
   '';
 
   # Wraps github-mcp-server with an auth token pulled from the

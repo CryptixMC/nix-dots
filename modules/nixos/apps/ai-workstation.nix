@@ -166,6 +166,23 @@ in
           command = "${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service";
           options = [ "NOPASSWD" ];
         }
+        # Phase 5c (qubi-engine night): runtime cgroup cap on ollama.service
+        # while gaming -- CPUQuota/AllowedCPUs confine local-model CPU
+        # inference to this i7-1260P's 8 E-cores (see the comment above
+        # aiWorkstationGamingStart in goose.nix for the /sys/devices
+        # frequency evidence behind the 8-15 range), so the game's own
+        # threads keep the P-cores untouched. sudoers command matching is
+        # against the exact argument string, so the gaming-value and the
+        # empty-value (restore) invocations need their own separate exact
+        # rules -- no wildcard, matching this file's existing convention.
+        {
+          command = "${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15";
+          options = [ "NOPASSWD" ];
+        }
+        {
+          command = "${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota= AllowedCPUs=";
+          options = [ "NOPASSWD" ];
+        }
       ];
     }
   ];

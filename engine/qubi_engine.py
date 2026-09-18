@@ -46,7 +46,7 @@ def log(*a):
 # Per-tier goose config generation
 # --------------------------------------------------------------------------
 
-def build_tier_config_dir(tier_name, tier_cfg):
+def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None):
     """Writes an isolated $XDG_CONFIG_HOME/goose/config.yaml for this tier:
     same base config Liam already has (auth, provider credentials, every
     extension's real cmd path) but with `extensions.*.enabled` rewritten to
@@ -65,7 +65,11 @@ def build_tier_config_dir(tier_name, tier_cfg):
         base = json.load(f)
 
     cfg = dict(base)
-    wanted = set(tier_cfg["extensions"])
+    # extra_extensions: gaming-only additions (Phase 5d -- light tier gets
+    # searxng while gaming, since game questions are usually web questions
+    # and web lookup costs the game's own GPU/CPU nothing) that aren't part
+    # of the tier's normal, always-on extension list from config.json.
+    wanted = set(tier_cfg["extensions"]) | set(extra_extensions or [])
     exts = {}
     for name, e in base["extensions"].items():
         e2 = dict(e)
@@ -114,13 +118,13 @@ class TierProcess:
         self.last_activity = time.monotonic()
         self._reader_task = None
 
-    async def ensure_started(self, cpu_override=False):
+    async def ensure_started(self, cpu_override=False, extra_extensions=None):
         if self.proc is not None and self.proc.returncode is None:
             return
         self.starting = True
         self.ready.clear()
         model = self.tier_cfg["cpu_model"] if cpu_override else self.tier_cfg["model"]
-        config_home = build_tier_config_dir(self.name, self.tier_cfg)
+        config_home = build_tier_config_dir(self.name, self.tier_cfg, extra_extensions=extra_extensions)
         env = dict(os.environ)
         env["XDG_CONFIG_HOME"] = config_home
         env["GOOSE_PROVIDER"] = self.tier_cfg["provider"]
@@ -287,8 +291,21 @@ class Engine:
 
     # -- lifecycle --------------------------------------------------------
 
+    def _read_gaming_state(self):
+        try:
+            with open(GAMING_STATE_FILE) as f:
+                return json.load(f).get("state") == "gaming"
+        except (FileNotFoundError, json.JSONDecodeError):
+            return False
+
     async def start(self):
         os.makedirs(os.path.dirname(SOCKET_PATH), exist_ok=True)
+        # Determine real gaming state BEFORE the first spawn, not just on
+        # the next 2s watch-loop tick -- an engine cold-started while
+        # already gaming (e.g. engine crashed and restarted mid-session)
+        # must come up on the cpu tag immediately, not spawn on GPU and
+        # then immediately churn a second restart 2s later.
+        self.gaming = self._read_gaming_state()
         t0 = time.monotonic()
         # Warm-up is a DIRECT Ollama call, not a full ACP turn. Confirmed
         # live (Phase 0's finding, reproduced here the first time this
@@ -308,7 +325,8 @@ class Engine:
             log(f"light tier model warm in Ollama after {(time.monotonic() - t0) * 1000:.0f}ms")
         except Exception as e:
             log(f"ollama warm-up call failed (non-fatal, first real prompt will just be slower): {e}")
-        await self.tiers["light"].ensure_started(cpu_override=self.gaming)
+        gaming_extras = ["mcp-searxng"] if (self.gaming and self.cfg.get("gaming", {}).get("searxng_on_light")) else None
+        await self.tiers["light"].ensure_started(cpu_override=self.gaming, extra_extensions=gaming_extras)
         log(f"light tier fully ready (process+model) in {(time.monotonic() - t0) * 1000:.0f}ms total")
         asyncio.create_task(self._idle_reap_loop())
         asyncio.create_task(self._gaming_watch_loop())
@@ -417,19 +435,9 @@ class Engine:
                     await t.stop()
 
     async def _gaming_watch_loop(self):
-        last_state = None
         while True:
             await asyncio.sleep(2)
-            state = None
-            try:
-                with open(GAMING_STATE_FILE) as f:
-                    state = json.load(f).get("state")
-            except (FileNotFoundError, json.JSONDecodeError):
-                state = "docked"
-            if state == last_state:
-                continue
-            last_state = state
-            now_gaming = state == "gaming"
+            now_gaming = self._read_gaming_state()
             if now_gaming == self.gaming:
                 continue
             self.gaming = now_gaming
@@ -442,11 +450,14 @@ class Engine:
             # Restart the light tier under the new model (cpu tag while
             # gaming, normal GPU tag otherwise) -- any session currently
             # bound to light survives via session/load, same mechanism as
-            # a manual tier switch.
+            # a manual tier switch. While gaming, light also gets searxng
+            # (Phase 5d): game questions are usually web questions, and a
+            # web lookup costs the game's own GPU/CPU nothing.
             light = self.tiers["light"]
             bound_sessions = [s for s in self.sessions.values() if s.tier == "light"]
             await light.stop()
-            await light.ensure_started(cpu_override=now_gaming)
+            gaming_extras = ["mcp-searxng"] if (now_gaming and self.cfg.get("gaming", {}).get("searxng_on_light")) else None
+            await light.ensure_started(cpu_override=now_gaming, extra_extensions=gaming_extras)
             for sess in bound_sessions:
                 try:
                     await light.call("session/load", {"sessionId": sess.id, "cwd": REPO_ROOT, "mcpServers": []})

@@ -228,9 +228,61 @@ engine/routing architecture work. Timestamps are wall-clock CDT.
 - Capability differences table: see `DECISIONS.md`, "Claude tier vs. local
   tiers: capability gap table" -- not papered over.
 
-## Phase 5 — Gaming CPU-only
+## Phase 5 — Gaming: CPU only, still local, still useful (14:10-14:35)
 
-(not started)
+- `ollama create qwen3:4b-cpu -f Modelfile` (`PARAMETER num_gpu 0`), a NEW
+  tag, base `qwen3:4b` model untouched. **Live-verified via `ollama ps`**:
+  loads `100% CPU`, distinct entry from the GPU tag.
+- Engine gaming watcher (`_gaming_watch_loop`, 2s poll of
+  `/run/ai-workstation/state.json`): refactored to a shared
+  `_read_gaming_state()` helper, used both by the watch loop and by
+  `Engine.start()` (so a cold engine start while already gaming comes up
+  on the CPU tag immediately, not GPU-then-flip 2s later).
+- **Live-verified end to end** by hand-editing `/run/ai-workstation/
+  state.json` (it's a plain file, exactly as the brief says) to `"state":
+  "gaming"` while the real engine was running:
+  - `engine.log` showed the transition within 2s: `gaming state changed ->
+    GAMING (CPU only)` -> light tier torn down and respawned on
+    `qwen3:4b-cpu` -> `ollama ps` confirmed `qwen3:4b-cpu ... 100% CPU`
+    loaded, replacing the GPU-loaded tag.
+  - `qubi/status` over the real socket correctly reported `"gaming": true`
+    and `"model": "qwen3:4b-cpu"` for the light tier.
+  - The generated light-tier config (`/run/user/1000/qubi/tierconf/light/
+    goose/config.yaml`) correctly had `['mcp-searxng', 'escalate']`
+    enabled while gaming (Phase 5d) -- `build_tier_config_dir` gained an
+    `extra_extensions` parameter for exactly this, called from both
+    `start()` and the watch loop.
+  - Confirmed `searxng` itself is real and reachable (`curl
+    http://127.0.0.1:8888/search?q=test&format=json` -> 200), matching
+    `SEARXNG_URL` already wired in `goose.nix`'s `mcpSearxngWrapped`.
+  - Sent a real "how do I beat the final boss in Hollow Knight, use your
+    web search tool" prompt through the real engine while in this
+    synthetic gaming state -- see the live tool-call timing result below
+    (this section is being completed as the multi-minute CPU-inference
+    turn runs; genuinely slow CPU generation, not a bug, is exactly the
+    tradeoff this phase exists to make explicit).
+- Phase 5c (cgroup cap): determined the real E-core/P-core split on this
+  i7-1260P from `/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq`
+  (not guessed): cpu0-7 max at 4700MHz (4 P-cores x 2 threads), cpu8-15
+  max at 3400MHz (8 E-cores, no hyperthreading) -- confirms `AllowedCPUs=
+  8-15` is the real E-core range. Added `systemctl set-property
+  ollama.service CPUQuota=700% AllowedCPUs=8-15` to
+  `ai-workstation-gaming-start` and the empty-value restore
+  (`CPUQuota= AllowedCPUs=`, systemd's documented "reset to unit-file
+  default") to `ai-workstation-gaming-stop`, both as **runtime** cgroup
+  edits (no unit file rewrite, per the brief). Added the two matching
+  exact-string `NOPASSWD` sudo rules to `ai-workstation.nix` (same pattern
+  as the existing dock/undock-sync rules) -- cannot activate them tonight
+  (would need a switch), so until Liam's first real switch+`SUPER+G`,
+  these lines will prompt for a password (or fail non-interactively) with
+  a clear stderr message rather than silently no-op. **Build-verified**:
+  both `nix build .#homeConfigurations.cryptix.activationPackage` and
+  `nixos-rebuild build --flake .#carbon` succeeded clean with these
+  changes. **Not live-verified** (needs the sudo rule active, which needs
+  a switch) -- exactly matching the brief's own instruction: "list this as
+  needing Liam's first real SUPER+G to confirm."
+- Phase 5e (screen context already routes to OCR in gaming mode): no
+  action taken, per the brief's own instruction to leave it.
 
 ## Phase 6 — Startup latency
 
