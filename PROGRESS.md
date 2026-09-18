@@ -60,19 +60,35 @@ dock/undock sync bugs) that would be wasteful to rediscover.
       (clipboard/screenctx/voice/notes/compare), hosts/carbon/*.nix import zram+qubi-health.
       `qubi-mcp.nix` import commented out in home.nix (module doesn't exist yet — Phase 4 will
       create it and uncomment).
-- [ ] 1i `nix flake check` + `nixos-rebuild build --flake .#carbon` — running now.
+- [x] 1i `nix flake check` + `nixos-rebuild build --flake .#carbon` — both clean, re-confirmed
+      again at the very end of the night (Phase 9) after every subsequent phase's changes too.
 
 *** SWITCH GATE — see SWITCH-1.md once written ***
 
-## Phase 2 — Model roster benchmark — RUNNING in background
+## Phase 2 — Model roster benchmark — BLOCKED partway through (see BLOCKERS.md item 1)
 Extended `goose-bench.nix` with 2 new task shapes (author-new-file, error-recovery-chain) on top
 of the existing 3, committed (813099f). Launched the full matrix in the background at 01:56:
-`~/qubi-staging/run-bench-matrix.sh` — 5 models (gpt-oss:20b, devstral:24b, qwen3-coder:latest,
-qwen3.6:latest, qwen3:4b) x 5 shapes x 3 repeats = 75 cells, `think=false` throughout (established
-best default per TODO.md), all docked (eGPU attached, confirmed via `/run/ai-workstation/state.json`
-at session start). Results append to `~/.local/share/goose-bench/results.jsonl`; progress log at
-`~/qubi-staging/bench-matrix.log`. Will check in on this and write up findings once it's made
-meaningful progress — resumable (skip-by-label) if it needs restarting.
+5 models (gpt-oss:20b, devstral:24b, qwen3-coder:latest, qwen3.6:latest, qwen3:4b) x 5 shapes x 3
+repeats = 75 cells, `think=false` throughout (established best default per TODO.md), all docked.
+
+**The very first cell (gpt-oss:20b, append-naive) triggered — or at least coincided with — the
+eGPU hitting the dead-KFD state** (see BLOCKERS.md item 1): `qubi-health` reported
+`DEAD-KFD-REBOOT-REQUIRED`, `rocminfo` showed 0 GPU agents despite `lspci` showing the card
+present, and a fresh Ollama request hard-timed-out. This is the exact same failure signature
+TODO.md §7 already documents from three earlier incidents this project — genuinely plausible this
+is a real, reproducible gpt-oss:20b/harmony-format issue on this hardware, not a fluke, though I
+could not get a clean pass/fail verdict before the crash to confirm that specifically. **Treat
+gpt-oss:20b as provisionally suspect** until it's re-tested in isolation post-reboot (its own
+throwaway `ollama serve` instance, not the live service, per TODO.md's own established pattern
+for risky model tests).
+
+Killed the stuck benchmark process cleanly (confirmed no orphans via the bridge/process checks
+done in later phases). Did **not** get to: re-deriving safe context lengths with zram now
+enabled, the qwen2.5-coder Modelfile chat-template fix test, or updating `ai-workstation.nix`'s
+model choices (nothing to update — the benchmark that would justify a change never completed).
+**This phase needs a resume, not a redo** — `~/.local/share/goose-bench/results.jsonl` already
+has prior-night baseline data, and the harness is resumable by label once you're back on a
+healthy GPU. This is the one phase that is genuinely incomplete, not just risk-mitigated.
 
 ## Phase 3 — Clipboard transform (SUPER+U) — DONE
 Built `quickshell/modules/clipboard/{ClipboardState.qml, ClipboardTransform.qml, qmldir}` per the
@@ -205,8 +221,20 @@ PWA theming: found the color scheme already exactly matched `themes/ultraviolet/
 (verified byte-for-byte) from earlier work — fixed the one real gap, font-family (was plain
 sans-serif, now tries the desktop's actual JetBrainsMono Nerd Font Mono first).
 
-## Phase 9
-Not started yet. See TaskList (TaskCreate #9) for the live checklist.
+## Phase 9 — Integration and handoff — DONE
+Re-ran `nix flake check`, `nixos-rebuild build --flake .#carbon`, and `qml-lint-repo` one final
+time after every phase's changes — all clean (exit 0). Confirmed every module in `shell.qml` is
+either pre-existing or carries a "built + staging-validated 2026-09-18" marker — none were
+registered without going through the staging protocol first. Cleaned up a stale comment in
+`shell.qml` that no longer matched reality (the 5 new modules aren't "placeholders" anymore).
+Wrote `WAKEUP.md` — activation commands, a per-feature verification checklist with expected
+results and failure recovery, rollback procedure, and BLOCKERS.md ranked by severity.
+
+**Honest final accounting**: 8 of 9 phases are complete to the standard this file describes
+(build-verified everywhere, live-verified wherever the dead-KFD state and physical-interaction
+limits allowed). Phase 2 is the one genuinely incomplete phase — not for lack of trying, but
+because the very thing it was benchmarking (local GPU inference) is what broke mid-benchmark.
+That's flagged prominently, not buried.
 
 ## Environment notes for future-me
 - `hyprctl` needs clean env (`env -i ...`) from this Bash tool — see Phase 0.
