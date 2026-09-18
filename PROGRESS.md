@@ -64,17 +64,47 @@ dock/undock sync bugs) that would be wasteful to rediscover.
 
 *** SWITCH GATE — see SWITCH-1.md once written ***
 
-## Phase 2 — Model roster benchmark
-Not started. `modules/home-manager/apps/goose-bench.nix` (lean v1) already exists from 2026-09-16.
-Models to test are already pulled (saves significant time). Plan: extend the harness in place,
-run in background while later phases proceed (each cell is a real LLM invocation, this is slow).
+## Phase 2 — Model roster benchmark — RUNNING in background
+Extended `goose-bench.nix` with 2 new task shapes (author-new-file, error-recovery-chain) on top
+of the existing 3, committed (813099f). Launched the full matrix in the background at 01:56:
+`~/qubi-staging/run-bench-matrix.sh` — 5 models (gpt-oss:20b, devstral:24b, qwen3-coder:latest,
+qwen3.6:latest, qwen3:4b) x 5 shapes x 3 repeats = 75 cells, `think=false` throughout (established
+best default per TODO.md), all docked (eGPU attached, confirmed via `/run/ai-workstation/state.json`
+at session start). Results append to `~/.local/share/goose-bench/results.jsonl`; progress log at
+`~/qubi-staging/bench-matrix.log`. Will check in on this and write up findings once it's made
+meaningful progress — resumable (skip-by-label) if it needs restarting.
 
-## Phase 3-9
-Not started yet. See TaskList (TaskCreate #3-#9) for the live checklist — kept in sync with this
+## Phase 3 — Clipboard transform (SUPER+U) — DONE
+Built `quickshell/modules/clipboard/{ClipboardState.qml, ClipboardTransform.qml, qmldir}` per the
+staging protocol: authored in `~/qubi-staging/quickshell/` (mirrors real repo structure, theme/
+symlinked in), launched a second Quickshell instance against a staging-only shell.qml that
+imports *only* this module, confirmed clean load + repeated IPC toggle with no crash, *then*
+copied into the repo and uncommented the shell.qml registration. Confirmed the live shell picked
+it up via hot-reload (log: "Reloading configuration... Configuration Loaded", no new warnings)
+and did a real end-to-end round trip against the live instance (real wl-copy, real IPC call).
+Direct Ollama `/api/generate` (not goose acp) — matches `ModelBrowser.qml`'s `/api/pull` pattern.
+Decisions logged in DECISIONS.md: gaming fully disables the feature (no fallback model, never
+contend with the game's GPU), model comes from `ai-workstation.nix`'s live routing (falls back to
+qwen3:4b), 8000-char cap.
+
+**Gotcha for future-me**: `find /nix/store -maxdepth 1 -iname "*qml-lint-repo*"` can return a
+*stale* build from before a source edit (Nix never GCs automatically) — I burned real time
+chasing a false "exit 255" regression that was actually an old cached binary with
+`--unresolved-type error` instead of the current source's `--unresolved-type disable`. Always
+`nix build .#homeConfigurations.cryptix.activationPackage --no-link --print-out-paths` fresh and
+resolve the tool's path *from that build's closure*, don't grab an ambient store path by glob.
+Also: capturing `$?` after a `| tail` pipe captures `tail`'s exit code, not the piped command's —
+redirect to a file instead of piping when the exit code matters.
+
+## Phase 4-9
+Not started yet. See TaskList (TaskCreate #4-#9) for the live checklist — kept in sync with this
 file's section headers.
 
 ## Environment notes for future-me
 - `hyprctl` needs clean env (`env -i ...`) from this Bash tool — see Phase 0.
+- `grim` is not installed standalone on this system — only `hyprshot` (wraps grim+slurp+hyprpicker,
+  already used for the Print-key bindings in hyprland.nix). Phase 6 (screen context) should use
+  `hyprshot -m output/window/region --raw`, not assume bare `grim`/`slurp` are on PATH.
 - Quickshell live PID: check `pgrep -af quickshell` before any QML work; never edit
   `quickshell/modules/**` files that are actually imported by `shell.qml` without staging first.
 - Disk: 69GB free at session start on `/`. Recheck before any further `ollama pull`.
