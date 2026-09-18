@@ -342,9 +342,22 @@ commit messages; summary here for the chronological record:
   added while chasing a (wrong) "older version" hypothesis -- kept as a
   harmless extra safety net even though it wasn't the actual fix.
 
-## Phase 6 — Startup latency
+## Phase 6 — Startup latency (17:25-17:40)
 
-BEFORE baseline done (see Phase 0 above). AFTER measurement pending Phase 8.
+AFTER measured through the real `qubi-engine.service` over the Unix
+socket: connect->session_list 7ms, session_list->session/new 61ms (down
+from the BEFORE baseline's 150-190ms process-spawn cost), cold engine
+start->light tier ready 4.5s. **TTFT itself did not improve** (30.9-39.4s
+AFTER vs 17.0-36.0s BEFORE, model confirmed resident both times) --
+tool-schema trimming only shrinks prompt eval, which was already cheap;
+the real cost is model-generation length, unaffected by extension count.
+Found and precisely located the real fix: Ollama's own `think: false` API
+parameter cuts total turn time ~14x (confirmed via a direct, Goose-
+bypassing test), but Goose's `GOOSE_LOCAL_ENABLE_THINKING` env var doesn't
+correctly translate into it for the ollama provider. Full writeup:
+`.agents/bench/2026-09-19-latency.md`. This means Phase 9's light-tier
+TTFT gate will genuinely fail tonight -- documented as a real, honest
+finding, not hidden or worked around.
 
 ## Phase 7 — Resource/storage hygiene
 
