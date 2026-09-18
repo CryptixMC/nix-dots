@@ -1086,6 +1086,9 @@ in
     # Goose stdio extension, which resolves cmd by its own absolute store
     # path regardless of PATH).
     notesCaptureMcp
+    # SUPER+I screen-context capture's undocked/gaming OCR path
+    # (ScreenContext.qml) -- not installed anywhere else in this flake.
+    pkgs.tesseract
   ] ++ qubiAliases;
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;

@@ -13,7 +13,7 @@ import "modules/lock"
 import "modules/wallpaper"
 import "modules/clipboard"
 import "modules/askuser"
-// import "modules/screenctx"
+import "modules/screenctx"
 // import "modules/voice"
 import "modules/notes"
 
@@ -45,6 +45,9 @@ ShellRoot {
     ChatOverlay {
         id: chatOverlay
     }
+    ChatCompare {
+        id: chatCompare
+    } // built + staging-validated 2026-09-18 (SUPER+SHIFT+D)
 
     SessionsPicker {
         id: sessionsPicker
@@ -63,7 +66,7 @@ ShellRoot {
     // gracefully today. Uncomment each block once its branch lands.
     ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
     AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
-    // ScreenContext { id: screenContext } // qubi/screenctx
+    ScreenContext { id: screenContext } // built + staging-validated 2026-09-18
     // VoiceOverlay { id: voiceOverlay } // qubi/voice
     NotesCapture { id: notesCapture } // built + staging-validated 2026-09-18
 
