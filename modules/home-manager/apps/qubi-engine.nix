@@ -35,6 +35,15 @@ let
     exec ${pythonEnv}/bin/python3 ${../../../engine/qubi_models.py} "$@"
   '';
 
+  # Phase 9 -- talks JSON-RPC straight to the real engine socket (same
+  # protocol GooseAcpSession.qml speaks), so needs no extra packages
+  # beyond pythonEnv already has; PYTHONPATH gets it qubi_config.py's
+  # `import qubi_config` (same reason qubiModelsCli needs it).
+  qubiBenchCli = pkgs.writeShellScriptBin "qubi-bench" ''
+    export PYTHONPATH=${../../../engine}:$PYTHONPATH
+    exec ${pythonEnv}/bin/python3 ${../../../engine/qubi_bench.py} "$@"
+  '';
+
   # QUBI_PY: engine/qubi_engine.py's build_tier_config_dir shells out to
   # this same interpreter (via the escalate extension's `cmd`) when
   # synthesizing the light tier's config -- see that function's own
@@ -53,6 +62,7 @@ in
     qubiConfigCli
     qubiEngineCli
     qubiModelsCli
+    qubiBenchCli
   ];
 
   # Writes ~/.config/qubi/config.json ONLY if it doesn't already exist --
