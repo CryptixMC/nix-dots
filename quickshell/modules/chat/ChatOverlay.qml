@@ -294,6 +294,7 @@ PanelWindow {
             }
 
             Flow {
+                id: statusPillsRow
                 width: parent.width
                 spacing: Theme.spacing.themePillGap
 
@@ -442,7 +443,14 @@ PanelWindow {
             ListView {
                 id: messageList
                 width: parent.width
-                height: parent.height - headerRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
+                // statusPillsRow (mode/model/subagent) was missing from this
+                // subtraction entirely -- a real, reported bug: the whole
+                // column silently overflowed the panel's bottom edge by
+                // exactly that row's height, cropping the input bar and
+                // send button off-screen. Every other sibling in `content`
+                // was already accounted for here; this one just didn't
+                // have an id to reference until now.
+                height: parent.height - headerRow.height - parent.spacing - statusPillsRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
                 clip: true
                 model: ChatState.messages
                 spacing: Theme.spacing.launcherContentGap / 2
