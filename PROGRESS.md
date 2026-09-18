@@ -121,8 +121,23 @@ All of Phase 4 is build-verified and protocol-level-verified; the parts that nee
 call in the loop (e.g. Goose actually deciding to call `ask_user` or `capture_note` mid-session)
 could not be live-verified tonight — blocked by the dead-KFD state (BLOCKERS.md item 1).
 
-## Phase 5-9
-Not started yet. See TaskList (TaskCreate #5-#9) for the live checklist — kept in sync with this
+## Phase 5 — Chat overlay completion — DONE
+Found most of this already built pre-tonight (markdown via `Text.MarkdownText`, mode toggle pill,
+permission UI rendering the request's own `options[]` dynamically — already exactly right, never
+hardcoded — primary + subagent model selectors, per-message copy, timestamps, regenerate, stop).
+Built what was actually missing:
+- Side-by-side compare (SUPER+SHIFT+D): new `GooseAcpPane.qml` (separate, smaller reimplementation
+  of the proven ACP protocol subset, GooseAcpSession.qml itself untouched) + `ChatCompare.qml`,
+  two independent `goose acp` processes. Structurally validated in staging; could NOT live-verify
+  an actual two-model response — blocked by the dead-KFD state.
+- Thought bubbles were already rendered but always fully expanded — now default-collapsed with
+  click-to-expand, closer to "collapsible thinking panel."
+- Scope cut, logged in DECISIONS.md: per-fenced-code-block copy buttons not built (whole-message
+  copy already existed and covers the practical need; real per-block copy needs a full Markdown
+  segment parser, judged not worth the time against Phases 6-9 still being fully unbuilt).
+
+## Phase 6-9
+Not started yet. See TaskList (TaskCreate #6-#9) for the live checklist — kept in sync with this
 file's section headers.
 
 ## Environment notes for future-me
