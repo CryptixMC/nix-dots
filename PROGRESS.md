@@ -135,7 +135,22 @@ redirect to a file instead of piping when the exit code matters.
 
 All of Phase 4 is build-verified and protocol-level-verified; the parts that need a real LLM tool
 call in the loop (e.g. Goose actually deciding to call `ask_user` or `capture_note` mid-session)
-could not be live-verified tonight — blocked by the dead-KFD state (BLOCKERS.md item 1).
+could not be fully live-verified tonight — blocked by the dead-KFD state (BLOCKERS.md item 1).
+
+**Attempted a partial workaround, got a real but nuanced result**: ran a live `goose acp` session
+via the `claude-code` provider (bypasses the dead GPU) and asked it to call `ask_user` directly.
+It correctly refused — reported it has no such tool, only its own native Claude Code tools
+(Bash/Read/Write/Edit/Agent/etc.), no MCP tools at all, not even ones registered in
+`config.yaml`. **This is very likely specific to the `claude-code` provider, not evidence against
+Phase 4a/4b working under the intended `ollama` provider**: TODO.md §7 already documents (from
+before tonight) that `claude-code`/`claude-acp` hand the *entire* tool loop to Claude Code's own
+tooling, bypassing Goose's own extension system — plain providers like `ollama` read
+`config.yaml`'s `extensions` block directly through Goose's own tool loop, a structurally
+different path this test didn't exercise. Flagging this clearly rather than either hiding a
+negative result or letting it be misread as disproving Phase 4a/4b — the actual target
+configuration (ollama + config.yaml stdio extensions) remains genuinely untested, blocked by
+BLOCKERS.md item 1. **First thing worth checking once the GPU is back**: a plain `qubi-chat`
+session asking a question that should trigger `ask_user`.
 
 ## Phase 5 — Chat overlay completion — DONE
 Found most of this already built pre-tonight (markdown via `Text.MarkdownText`, mode toggle pill,
