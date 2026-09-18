@@ -136,8 +136,35 @@ Built what was actually missing:
   copy already existed and covers the practical need; real per-block copy needs a full Markdown
   segment parser, judged not worth the time against Phases 6-9 still being fully unbuilt).
 
-## Phase 6-9
-Not started yet. See TaskList (TaskCreate #6-#9) for the live checklist — kept in sync with this
+## Phase 6 — Screen context (SUPER+I) — DONE (image-support question answered empirically)
+Built `quickshell/modules/screenctx/{ScreenState.qml, ScreenContext.qml}` — region-select via
+`hyprshot -m region --raw` (grim/slurp aren't standalone-installed, only bundled inside hyprshot,
+already the established convention for Print-key screenshots in this repo), routed by
+`ai-workstation` state: gaming → tesseract OCR, silent (clipboard + notify, overlay never shows,
+never steals game focus); docked → `qwen3-vl:4b` via direct Ollama `/api/generate`; undocked →
+tesseract OCR shown in the overlay.
+
+**Major finding**: empirically confirmed the pinned Goose 1.47.0 genuinely supports images —
+`promptCapabilities.image: true` advertised, and a real base64 image block sent through
+`session/prompt` was correctly processed (tested via the `claude-code` provider, which bypasses
+the dead-KFD-blocked local GPU entirely — see below). This directly answers the task's own
+"determine empirically" instruction and rules out "no image support" as a failure mode for the
+docked path.
+
+**Discovered a second escape hatch from tonight's GPU blocker**: `initialize`/`session/new` in
+`goose acp` don't touch Ollama at all (pure protocol setup) — only `session/prompt` against the
+`ollama` provider actually hits the dead GPU. The `claude-code` provider (already authenticated
+on this machine) works completely normally right now, since it never touches local Ollama/ROCm.
+Used this to live-verify the image-prompt pipeline above; did not have time to extend this to
+re-verify chat overlay end-to-end tonight, but it's a real, available path if needed.
+
+Not live-tested: the interactive region-select itself (needs a real mouse drag — genuinely a
+physical-interaction gap) and the qwen3-vl:4b/Ollama path specifically (blocked by dead-KFD).
+tesseract confirmed installed with real `eng` language data via a full build + `--list-langs`
+check.
+
+## Phase 7-9
+Not started yet. See TaskList (TaskCreate #7-#9) for the live checklist — kept in sync with this
 file's section headers.
 
 ## Environment notes for future-me
