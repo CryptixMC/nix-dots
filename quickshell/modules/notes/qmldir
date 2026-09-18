@@ -1,1 +1,2 @@
-# Reserved for the qubi/notes branch — NotesCapture.qml not authored yet.
+singleton NotesState 1.0 NotesState.qml
+NotesCapture 1.0 NotesCapture.qml

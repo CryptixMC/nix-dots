@@ -15,7 +15,7 @@ import "modules/clipboard"
 import "modules/askuser"
 // import "modules/screenctx"
 // import "modules/voice"
-// import "modules/notes"
+import "modules/notes"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -65,7 +65,7 @@ ShellRoot {
     AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
     // ScreenContext { id: screenContext } // qubi/screenctx
     // VoiceOverlay { id: voiceOverlay } // qubi/voice
-    // NotesCapture { id: notesCapture } // qubi/notes
+    NotesCapture { id: notesCapture } // built + staging-validated 2026-09-18
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
     // but untested against a real Wayland session; the only trigger is

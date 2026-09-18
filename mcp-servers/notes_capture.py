@@ -12,6 +12,7 @@ was picked and how to redirect it). Flagged low-confidence there
 deliberately -- change VAULT_PATH below once Liam says where captures
 should actually land.
 """
+import argparse
 import json
 import os
 import sys
@@ -126,5 +127,22 @@ def main():
             send({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Unknown method: {method}"}})
 
 
+def main_cli():
+    # Direct-invocation mode for the SUPER+N Quickshell overlay -- same
+    # capture_note() function the MCP tool call path uses, just reached
+    # without spinning up a JSON-RPC round trip for a single one-shot call.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--title", required=True)
+    parser.add_argument("--summary", required=True)
+    parser.add_argument("--link", action="append", default=[])
+    parser.add_argument("--tag", action="append", default=[])
+    args = parser.parse_args()
+    print(capture_note(args.title, args.summary, args.link, args.tag))
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--cli":
+        sys.argv.pop(1)
+        main_cli()
+    else:
+        main()

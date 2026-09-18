@@ -206,9 +206,13 @@ let
     exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/ask_user.py}
   '';
 
+  # "$@" passthrough matters here specifically -- the SUPER+N Quickshell
+  # overlay invokes this same binary with `--cli --title ... --summary ...`
+  # for direct one-shot capture, while Goose invokes it bare (stdio MCP
+  # mode). See notes_capture.py's own `if sys.argv[1] == "--cli"` dispatch.
   notesCaptureMcp = pkgs.writeShellScriptBin "qubi-notes-capture-mcp" ''
     set -euo pipefail
-    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/notes_capture.py}
+    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/notes_capture.py} "$@"
   '';
 
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
@@ -1071,6 +1075,11 @@ in
     gooseChat
     qmlLintRepo
     gooseMobileBridge
+    # On PATH so the SUPER+N Quickshell overlay can shell out to
+    # `qubi-notes-capture-mcp --cli ...` directly (not just reachable as a
+    # Goose stdio extension, which resolves cmd by its own absolute store
+    # path regardless of PATH).
+    notesCaptureMcp
   ] ++ qubiAliases;
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
