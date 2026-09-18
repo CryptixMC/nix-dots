@@ -4,3 +4,4 @@ singleton GamesLibrary 1.0 GamesLibrary.qml
 Launcher 1.0 Launcher.qml
 GamesTab 1.0 GamesTab.qml
 FilesTab 1.0 FilesTab.qml
+SystemTab 1.0 SystemTab.qml

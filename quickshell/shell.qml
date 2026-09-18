@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQml 2.15
-import Quickshell 1.0
-import Quickshell.Io 1.0
+import Quickshell
+import Quickshell.Io
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"

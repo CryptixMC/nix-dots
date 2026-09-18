@@ -1,5 +1,6 @@
+pragma Singleton
 import QtQml 2.15
-import Quickshell 1.0
+import Quickshell
 
 QtObject {
     // The Launcher UI shows a tab bar at the top (Apps/Games/Files/System)
