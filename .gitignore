@@ -4,3 +4,4 @@ result
 .playwright-mcp/
 SECTION_7_SUMMARY.md
 TEMP_TODO.md
+__pycache__/
