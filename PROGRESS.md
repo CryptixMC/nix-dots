@@ -190,9 +190,19 @@ building systemd services — a one-shot design already has zero idle memory foo
 the actual goal behind the task's "idle timeout" ask; logged as a real trade-off in DECISIONS.md.
 
 Verified: staging load (clean, real `chat/` module symlinked in for the `GooseAcpSession`
-dependency), IPC toggle, no crash. NOT live-tested: the actual push-to-talk flow (needs a real mic
-+ real Space keypress) and the whisper/piper model downloads (deliberately not triggered — would
-be an uncontrolled multi-hundred-MB download mid-session).
+dependency), IPC toggle, no crash.
+
+**Update, later in the night**: pre-downloaded both models (whisper `base.en`, 141MB; piper
+`en_US-lessac-medium`, 63MB — fetching them needs none of the sudo/physical/auth/preference
+conditions, so no reason to leave the first real SUPER+O press blocked on a cold download) and
+mechanically verified both pipelines for real: `voice-transcribe` on a synthetic test WAV
+genuinely loaded the model and produced a transcription (~1s total; correctly-if-amusingly
+transcribed a sine tone as `(eerie music)`, which proves the pipeline works end to end, not that
+recognition is perfect on non-speech input); `piper` directly synthesized real speech audio to a
+WAV file successfully. `voice-models-ready` now returns exit 0. Deliberately did NOT trigger
+actual audio playback (`pw-play`) — didn't want to make noise through the speakers at 3am.
+**Still not live-tested**: the actual push-to-talk flow with a real mic and real Space keypress,
+and real speech (as opposed to a synthetic test tone) — those need a human.
 
 ## Phase 8 — Mobile bridge rework — DONE (fan-out fixed, Serve blocked on browser auth)
 Fixed the real bug: `goose_bridge.py` now holds ONE shared `goose acp` process for its whole
