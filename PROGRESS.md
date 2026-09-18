@@ -96,8 +96,33 @@ resolve the tool's path *from that build's closure*, don't grab an ambient store
 Also: capturing `$?` after a `| tail` pipe captures `tail`'s exit code, not the piped command's —
 redirect to a file instead of piping when the exit code matters.
 
-## Phase 4-9
-Not started yet. See TaskList (TaskCreate #4-#9) for the live checklist — kept in sync with this
+## Phase 4 — MCP servers — DONE
+- 4a `ask-user`: `mcp-servers/ask_user.py`, hand-rolled stdio JSON-RPC, verified via a direct
+  protocol probe (initialize/tools-list/tools-call) and a full round trip against a live staging
+  Quickshell instance (new `quickshell/modules/askuser/` overlay, staging-validated then
+  registered). Skips MCP elicitation entirely — couldn't verify live whether the pinned Goose
+  supports/propagates it (blocked by the dead-KFD state, see BLOCKERS.md) — blocks synchronously
+  inside the tool call instead, which works regardless of client-side elicitation support.
+- 4b `notes-capture`: `mcp-servers/notes_capture.py`, same protocol pattern, plus a `--cli` mode
+  shared by both the MCP tool path and the new SUPER+N `quickshell/modules/notes/` overlay.
+  Targets `.agents/inbox.md` (low-confidence default — real Obsidian vault found at
+  `~/Documents/Vault` but has no established capture-folder convention to guess at; see
+  DECISIONS.md).
+- 4c `research-agent.yaml` recipe chains mcp-searxng + mcp-server-fetch + notes-capture.
+  Validated with a real `goose recipe validate` run (not just eyeballed).
+- 4d Four `.agents/skills/*/SKILL.md` files (nix-dots-conventions, quickshell-qml-patterns,
+  egpu-dock-undock, game-log-discovery), each grounded in facts already gathered this session.
+  Confirmed real discovery via `goose skills list` (pure filesystem scan, no inference needed) —
+  empirically found Goose additively discovers project-local `.agents/skills/` from CWD alongside
+  the global `~/.agents/skills/` ones already on this machine. Flipped `skills` extension to
+  `enabled = true` in the main config.
+
+All of Phase 4 is build-verified and protocol-level-verified; the parts that need a real LLM tool
+call in the loop (e.g. Goose actually deciding to call `ask_user` or `capture_note` mid-session)
+could not be live-verified tonight — blocked by the dead-KFD state (BLOCKERS.md item 1).
+
+## Phase 5-9
+Not started yet. See TaskList (TaskCreate #5-#9) for the live checklist — kept in sync with this
 file's section headers.
 
 ## Environment notes for future-me
