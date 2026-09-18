@@ -1154,4 +1154,37 @@ in
     };
     Install.WantedBy = [ "default.target" ];
   };
+
+  # Puts both mobile services behind `tailscale serve` for real HTTPS
+  # (plain HTTP blocks mic access in the browser and degrades PWA
+  # installability) -- Tailnet-only, deliberately never `tailscale funnel`
+  # (which would expose this to the public internet). Idempotent (`serve`
+  # just overwrites its own config with the same values on every run), so
+  # running this on every login is safe and self-healing if Serve config
+  # is ever reset. A oneshot rather than a long-running service since
+  # `tailscale serve --bg` itself backgrounds and persists in tailscaled,
+  # not in this unit's own process.
+  #
+  # BLOCKED tonight on a one-time manual step (see BLOCKERS.md): Serve is
+  # disabled tenant-wide until a real browser login approves it at a URL
+  # `tailscale serve` itself prints -- confirmed live, this is a genuine
+  # interactive-auth wall, not a config mistake. This service is correct
+  # and ready; it will start succeeding the moment that approval happens,
+  # no further change needed here.
+  systemd.user.services.qubi-tailscale-serve = {
+    Unit = {
+      Description = "Expose qubi-bridge/qubi-mobile-static over tailscale serve (HTTPS, tailnet-only)";
+      After = [ "qubi-bridge.service" "qubi-mobile-static.service" "tailscaled.service" ];
+    };
+    Service = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "qubi-tailscale-serve-setup" ''
+        set -uo pipefail
+        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path /ws http://localhost:8765
+        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path / http://localhost:8901
+      '';
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 }

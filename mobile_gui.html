@@ -19,7 +19,11 @@
    base08 #ff5de0 critical/error, base0C #b047ff signature violet accent. */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
-body { font-family: system-ui, -apple-system, sans-serif; background: #050505; color: #c8c8c8; display: flex; flex-direction: column; }
+/* Desktop uses "JetBrainsMono Nerd Font Mono" (ThemeDefaults.qml) -- tried
+   first in case it's ever installed on the phone, falling back to the
+   closest system monospace stack rather than a plain sans-serif, closer
+   to the desktop's identity without shipping font files over mobile data. */
+body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: #050505; color: #c8c8c8; display: flex; flex-direction: column; }
 #header { padding: 8px 12px; border-bottom: 1px solid #212121; font-size: 14px; color: #e0e0e0; flex-shrink: 0; }
 #body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
 #session-list { list-style: none; padding: 8px; }
@@ -56,7 +60,16 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #050505; c
 </div>
 
 <script>
-var WS_URL = "ws://100.66.17.61:8765";
+// Derived from how this page itself was loaded, not hardcoded -- works
+// both direct (http://100.66.17.61:8901/, ws://100.66.17.61:8765, the
+// pre-Serve setup) and behind `tailscale serve` (https://<tailnet-host>/,
+// wss://<same host>/ws -- see BLOCKERS.md: Serve itself needs a one-time
+// browser approval that couldn't be done non-interactively, so the /ws
+// path specifically is unverified, but this at least stops the URL from
+// silently breaking the moment Serve is enabled and the hostname changes).
+var WS_URL = location.protocol === "https:"
+  ? "wss://" + location.host + "/ws"
+  : "ws://" + (location.hostname || "100.66.17.61") + ":8765";
 var ws = null;
 var nextId = 1;
 var connGeneration = 0;  // stale-response protection for reconnects

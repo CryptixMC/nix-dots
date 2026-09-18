@@ -48,3 +48,38 @@ completed (the first cell, gpt-oss:20b append-naive, is what triggered this) —
 `~/.local/share/goose-bench/results.jsonl` for the exact cutoff. The `docked-glm-4.7-flash-*`/
 `docked-qwen3-coder-latest-*`/etc. rows already in that file are from a *prior night* (2026-09-17
 timestamps, not tonight) and are unaffected/still valid.
+
+## 2. Tailscale Serve is disabled tenant-wide — needs one browser click (Phase 8)
+
+Tried to put the mobile bridge (`qubi-bridge`, WebSocket) and the static file server
+(`qubi-mobile-static`) behind `tailscale serve` for real HTTPS, per the task's own instruction
+(plain HTTP currently blocks mic access in the browser and degrades PWA installability). The
+commands are right (verified `tailscale serve --help` syntax) but running either one returns:
+
+```
+Serve is not enabled on your tailnet.
+To enable, visit:
+         https://login.tailscale.com/f/serve?node=nfFpvfqScx11CNTRL
+```
+
+This is a **tailnet-level admin setting**, gated behind a real browser login to
+login.tailscale.com — exactly the "interactive authentication" case I'm not able to do
+autonomously. **You need to**: open that URL in a browser (already logged into your Tailscale
+account), approve enabling Serve for this node, then run:
+
+```
+tailscale serve --bg --set-path /ws http://localhost:8765
+tailscale serve --bg --set-path / http://localhost:8901
+```
+
+(Both commands prepared and ready — I've built a `qubi-tailscale-serve` systemd user service,
+see `modules/home-manager/apps/goose.nix`, that runs these two automatically once Serve is
+enabled — it's idempotent, so running it manually first is also fine, nothing conflicts.) After
+that, the mobile GUI moves from `http://100.66.17.61:8901/mobile_gui.html` to a real
+`https://<your-tailscale-hostname>/mobile_gui.html` with a WebSocket at `/ws`. I did **not**
+change `mobile_gui.html`'s hardcoded `ws://100.66.17.61:8765` URL to match yet, since the HTTPS
+path isn't live to test against — see the corresponding item under Phase 8 in PROGRESS.md for
+what's still needed there once Serve is enabled.
+
+**This is Tailnet-only Serve, never Funnel** — nothing here is exposed to the public internet,
+only devices on your own tailnet, matching the task's explicit instruction.

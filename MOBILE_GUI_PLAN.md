@@ -7,19 +7,40 @@ Phone browser (mobile_gui.html) --WebSocket--> qubi-bridge --stdio JSON-RPC--> g
 ```
 
 `qubi-bridge` (`goose_bridge.py`, wrapped in `modules/home-manager/apps/goose.nix`)
-is a dumb, symmetric line relay: it spawns a `goose acp` subprocess per WebSocket
-client and forwards each stdout line to the client verbatim, and each client
-text frame to stdin as a line. It does not parse, interpret, or special-case
+is a dumb, symmetric line relay: it holds exactly ONE `goose acp` subprocess for
+the bridge's entire lifetime and fans its stdout out to every currently-connected
+WebSocket client (broadcast), and relays any connected client's input to that
+same shared subprocess's stdin. It does not parse, interpret, or special-case
 the ACP protocol in any way — `mobile_gui.html` speaks the real ACP JSON-RPC
 protocol directly, the same protocol `quickshell/modules/chat/GooseAcpSession.qml`
 already speaks to drive the desktop chat overlay.
 
-This was chosen over `goose serve`'s own HTTP/WebSocket server after live
-investigation found its REST endpoints mostly 404 unless authenticated
-(`--dangerously-unauthenticated` implies auth is required by default) and its
-real route surface was never fully mapped. Relaying to `goose acp` directly
-sidesteps that uncertainty entirely and reuses a protocol already proven
-working in this repo.
+**v2 (2026-09-18): fixed the "second phone can't see a session already in
+progress" gap.** v1 spawned a *new* `goose acp` process per WebSocket
+connection — correct for exactly one client, but meant N phones (or a phone
+relative to the desktop) each got a fully independent process and session
+from a cold start, never seeing each other's live activity. Now every
+subscriber sees the same broadcast stream from the one shared process —
+live-verified with two simultaneous WebSocket clients receiving byte-identical
+responses to a request sent by only one of them. This does NOT unify with the
+desktop chat overlay's own separate `goose acp` process (`GooseAcpSession.qml`)
+— see BLOCKERS.md/DECISIONS.md for why (investigated `goose serve`'s native
+HTTP/WebSocket surface as a possible shared backend for both; confirmed it's
+real — POST to enqueue + GET with `Accept: text/event-stream` and an
+`Acp-Connection-Id` header to receive results, verified live — but found no
+evidence of a live cross-connection subscribe/fan-out capability, and
+rearchitecting `GooseAcpSession.qml` to depend on it was judged too risky to
+attempt against an already-proven-live desktop feature under time pressure).
+
+This custom relay was chosen over `goose serve`'s own HTTP/WebSocket server
+after live investigation (originally inconclusive, re-investigated more
+deeply 2026-09-18: confirmed real POST+SSE semantics, a working `/health`
+endpoint, and that it requires a tailnet-scoped browser-auth-free
+`--dangerously-unauthenticated` flag to use at all) found no native
+multi-subscriber session sharing — the actual problem this rework needed to
+solve. Relaying to `goose acp` directly and doing the fan-out ourselves
+sidesteps that gap entirely and reuses a protocol already proven working in
+this repo.
 
 The bridge binds specifically to this machine's Tailscale interface address
 (`100.66.17.61:8765`), not `0.0.0.0` and not `localhost` — reachable from a
