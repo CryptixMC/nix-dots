@@ -1240,19 +1240,20 @@ in
     run install -m 0644 "$nixSource" "$configFile"
   '';
 
-  # Mobile GUI packaging: two user services (no root needed, unlike the
-  # NixOS-level systemd.services pattern used for the AI-workstation's own
-  # system services) so the phone-facing bridge and static page are always
-  # up without a human manually running qubi-bridge by hand.
-  systemd.user.services.qubi-bridge = {
-    Unit.Description = "Qubi mobile WebSocket bridge (relays goose acp over Tailscale)";
-    Service = {
-      ExecStart = "${gooseMobileBridge}/bin/qubi-bridge";
-      Restart = "on-failure";
-    };
-    Install.WantedBy = [ "default.target" ];
-  };
-
+  # qubi-bridge.service (the old goose_bridge.py single-process relay) is
+  # REMOVED here -- superseded by qubi-engine.service (qubi-engine.nix),
+  # which serves the exact same role (WebSocket on 127.0.0.1:8765 for
+  # mobile) plus the full multi-tier routing/escalation/gaming behavior
+  # goose_bridge.py never had. Confirmed live this had to be a real
+  # removal, not just a manual `systemctl stop`: with both units enabled,
+  # a real `home-manager switch` (which happened live tonight) restarts
+  # qubi-bridge.service on activation same as qubi-engine.service, and
+  # whichever wins the race grabs port 8765 first -- the loser then
+  # crash-loops forever with `OSError: [Errno 98] address already in use`,
+  # confirmed via journalctl (qubi-engine.service's own restart counter
+  # was at 9 before this fix). gooseMobileBridge/qubi-bridge the CLI
+  # binary itself stays installed (home.packages, below) as a manual
+  # fallback tool -- only the auto-starting unit is gone.
   systemd.user.services.qubi-mobile-static = {
     Unit.Description = "Static file server for mobile_gui.html, fronted by tailscale serve";
     Service = {
@@ -1285,8 +1286,8 @@ in
   # no further change needed here.
   systemd.user.services.qubi-tailscale-serve = {
     Unit = {
-      Description = "Expose qubi-bridge/qubi-mobile-static over tailscale serve (HTTPS, tailnet-only)";
-      After = [ "qubi-bridge.service" "qubi-mobile-static.service" "tailscaled.service" ];
+      Description = "Expose qubi-engine/qubi-mobile-static over tailscale serve (HTTPS, tailnet-only)";
+      After = [ "qubi-engine.service" "qubi-mobile-static.service" "tailscaled.service" ];
     };
     Service = {
       Type = "oneshot";
