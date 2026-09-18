@@ -1,5 +1,9 @@
 # SWITCH GATE 1 — Phase 1 (rebrand + system modules) ready to activate
 
+**Superseded by `WAKEUP.md`** — written mid-session, before Phases 2-9 existed. Everything below
+is still accurate for Phase 1 specifically, but `WAKEUP.md` is the complete, current activation
+guide covering the whole night's work; start there.
+
 Everything below is committed on branch `qubi/overnight`, `nix flake check` clean,
 `nixos-rebuild build --flake .#carbon` clean, home-manager activation package builds clean,
 `qml-lint-repo` clean (same baseline as before tonight — no new warnings introduced).
