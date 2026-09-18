@@ -403,6 +403,23 @@ in
           # and toggle config.yaml's registered extensions. Same
           # IPC-toggle convention.
           (mkExecBind "${mainMod} + X" "quickshell ipc -p ~/nix-dots/quickshell call extensions toggle")
+          # Reserved for parallel agent branches (not built yet — confirmed
+          # each target/function fails gracefully today, "Target not
+          # found."/"Function not found.", exit 0):
+          # clipboard-transform picker (quickshell/modules/clipboard/).
+          # SUPER+X was already taken by the extensions manager above, so
+          # this one deliberately uses U instead (bare U was unused; SHIFT+U
+          # is the eGPU-eject bind below).
+          (mkExecBind "${mainMod} + U" "quickshell ipc -p ~/nix-dots/quickshell call clipboard transform")
+          # screen-context capture (quickshell/modules/screenctx/).
+          (mkExecBind "${mainMod} + I" "quickshell ipc -p ~/nix-dots/quickshell call screenctx capture")
+          # voice conversation mode (quickshell/modules/voice/).
+          (mkExecBind "${mainMod} + O" "quickshell ipc -p ~/nix-dots/quickshell call voice toggle")
+          # research -> TODO capture (quickshell/modules/notes/).
+          (mkExecBind "${mainMod} + N" "quickshell ipc -p ~/nix-dots/quickshell call notes capture")
+          # side-by-side model comparison, a new function on the existing
+          # chat target (quickshell/modules/chat/).
+          (mkExecBind "${mainMod} + SHIFT + D" "quickshell ipc -p ~/nix-dots/quickshell call chat compare")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)

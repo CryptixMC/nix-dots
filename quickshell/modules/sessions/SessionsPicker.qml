@@ -5,7 +5,7 @@ import Quickshell.Wayland
 import "../../theme"
 import "../chat"
 
-// Session-history picker: browse past goose sessions and resume one into
+// Session-history picker: browse past qubi sessions and resume one into
 // the chat overlay. Structural template is Launcher.qml/ChatOverlay.qml
 // (centered PanelWindow, Overlay layer, click-outside/Escape close) — not
 // a literal include, this module has its own two-pane (list + preview)
@@ -56,7 +56,7 @@ PanelWindow {
         ChatState.clear();
         GooseAcpSession.loadSession(root.selectedSession.sessionId, error => {
             if (error) {
-                SessionsState.loadError = "This session cannot be resumed (it was created by goose-code and Goose has a known limitation loading recipe-based sessions).";
+                SessionsState.loadError = "This session cannot be resumed (it was created by qubi-code and the underlying Goose engine has a known limitation loading recipe-based sessions).";
             } else {
                 SessionsState.hide();
                 ChatState.visible = true;

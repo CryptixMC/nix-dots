@@ -12,7 +12,7 @@ import "../../theme"
 // Reads config.yaml directly (it's valid JSON despite the .yaml
 // extension — lib.generators.toYAML's flow-style output for this shape
 // happens to be JSON-compatible, confirmed live). Writes go through
-// `yq -i`, the same mechanism goose-state-sync already uses for other
+// `yq -i`, the same mechanism qubi-state-sync already uses for other
 // config.yaml fields — config.yaml itself stays the single source of
 // truth, this UI is just a friendlier way to edit it than hand-editing
 // YAML.

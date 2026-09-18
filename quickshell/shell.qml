@@ -45,10 +45,9 @@ ShellRoot {
     ChatOverlay {
         id: chatOverlay
     }
-
     ChatCompare {
         id: chatCompare
-    }
+    } // built + staging-validated 2026-09-18 (SUPER+SHIFT+D)
 
     SessionsPicker {
         id: sessionsPicker
@@ -62,11 +61,15 @@ ShellRoot {
         id: extensionsManager
     }
 
-    ClipboardTransform { id: clipboardTransform }
-    AskUserDialog { id: askUserDialog }
-    ScreenContext { id: screenContext }
-    VoiceOverlay { id: voiceOverlay }
-    NotesCapture { id: notesCapture }
+    // Qubi overnight build (2026-09-18) — SUPER+U/I/O/N (hyprland.nix), each
+    // authored in an isolated staging Quickshell instance and confirmed to
+    // load cleanly there before being registered here, per this repo's own
+    // safety protocol (see .agents/skills/quickshell-qml-patterns).
+    ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
+    AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
+    ScreenContext { id: screenContext } // built + staging-validated 2026-09-18
+    VoiceOverlay { id: voiceOverlay } // built + staging-validated 2026-09-18
+    NotesCapture { id: notesCapture } // built + staging-validated 2026-09-18
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
     // but untested against a real Wayland session; the only trigger is

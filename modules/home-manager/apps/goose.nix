@@ -3,13 +3,13 @@
 let
   # Reports dock/undock and gaming-eviction state changes via desktop
   # notification, and live-switches the chat overlay's goose acp session to
-  # match via its "goose-model" IPC target (GooseAcpSession.qml) — env-based
+  # match via its "qubi-model" IPC target (GooseAcpSession.qml) — env-based
   # process restart + session/load resume, never touching config.yaml.
   # Config.yaml itself stays Nix-generated and static (see gooseConfig
   # below); this only affects the long-lived chat-overlay backend process,
   # which previously had no way to notice a dock-state change short of a
   # full Quickshell restart.
-  gooseStateSync = pkgs.writeShellScriptBin "goose-state-sync" ''
+  gooseStateSync = pkgs.writeShellScriptBin "qubi-state-sync" ''
     set -euo pipefail
     PATH=${
       lib.makeBinPath [
@@ -30,7 +30,7 @@ let
     export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr" 2>/dev/null | head -n1)
 
     if [ ! -f "$STATE_FILE" ]; then
-      echo "[goose-state-sync] no state file at $STATE_FILE yet — nothing to sync" >&2
+      echo "[qubi-state-sync] no state file at $STATE_FILE yet — nothing to sync" >&2
       exit 0
     fi
 
@@ -46,7 +46,7 @@ let
     else
       # Best-effort: no live Quickshell instance (e.g. undocked headless
       # testing) just means this no-ops, same as hyprctl notify above.
-      quickshell ipc -p ~/nix-dots/quickshell call goose-model switchModel "$provider" "$model" 2>/dev/null || true
+      quickshell ipc -p ~/nix-dots/quickshell call qubi-model switchModel "$provider" "$model" 2>/dev/null || true
       hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — chat overlay switched" 2>/dev/null || true
     fi
   '';
@@ -63,6 +63,7 @@ let
         pkgs.coreutils
         pkgs.yq-go
         pkgs.ollama
+        pkgs.systemd
       ]
     }:$PATH
 
@@ -78,7 +79,25 @@ let
     install -d -m 0755 /run/ai-workstation
     printf '{"state":"gaming","provider":null,"model":null,"updated":"%s"}\n' \
       "$(date -Iseconds)" > "$STATE_FILE"
-    goose-state-sync || true
+    qubi-state-sync || true
+
+    # Runtime cgroup cap on ollama.service while gaming (Phase 5c) --
+    # `set-property` edits the live cgroup, not the unit file, so this
+    # never needs a switch and self-heals to nothing if this script is
+    # never run again. AllowedCPUs=8-15 confines it to this i7-1260P's
+    # 8 E-cores (confirmed via /sys/devices/system/cpu/cpu*/cpufreq/
+    # cpuinfo_max_freq: cpu0-7 max at 4700MHz = the 4 P-cores/8 threads,
+    # cpu8-15 max at 3400MHz = the 8 E-cores, no hyperthreading on E-cores)
+    # -- the game's own threads keep the full P-core budget untouched.
+    # CPUQuota=700% leaves one E-core-thread's worth of headroom for the
+    # game/OS rather than saturating all 8. This is a SYSTEM unit, so it
+    # needs the same scoped-NOPASSWD-for-one-exact-command pattern as
+    # egpu-eject.service (modules/nixos/apps/ai-workstation.nix's own
+    # sudo.extraRules) -- until Liam switches with that rule in place,
+    # this line will prompt for a password (or fail non-interactively)
+    # rather than silently no-op, which is the correct fail mode.
+    sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15 || \
+      echo "[ai-workstation-gaming-start] cgroup cap failed (needs the ai-workstation.nix sudo rule + a switch) -- gaming proceeds without CPU/core isolation this time" >&2
   '';
 
   # Does NOT restore a cached "previous" state — that's a stale-state trap
@@ -110,6 +129,15 @@ let
     else
       sudo ${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service
     fi
+
+    # Restores ollama.service's cgroup to its unit-file defaults (Phase
+    # 5c) -- empty property values are systemd's documented way to reset
+    # a runtime `set-property` override back to whatever the unit file
+    # itself specifies, re-deriving rather than caching a "previous"
+    # value, same rationale as the dock/undock state re-derivation just
+    # above (don't trust a stale cached number either).
+    sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota= AllowedCPUs= || \
+      echo "[ai-workstation-gaming-stop] cgroup restore failed (needs the ai-workstation.nix sudo rule + a switch)" >&2
   '';
 
   # Wraps github-mcp-server with an auth token pulled from the
@@ -131,7 +159,7 @@ let
     exec env SEARXNG_URL="http://127.0.0.1:8888" ${pkgs.mcp-searxng}/bin/mcp-searxng
   '';
 
-  # Blocks `nh ... switch` inside a goose-code session. Goose 1.47.0 has no
+  # Blocks `nh ... switch` inside a qubi-code session. Goose 1.47.0 has no
   # native per-tool denylist/allowlist config key (checked live: `strings`
   # on the real binary at bin/.goose-wrapped has zero hits for
   # never_allow/allowlist/denylist/permission-anything — the only related
@@ -144,13 +172,82 @@ let
   # hang on a password prompt goose can't answer. `nh home switch` needs no
   # elevation at all, so it's the one command in the original never_allow
   # wishlist that was actually reachable — this wrapper closes that gap by
-  # shadowing `nh` only inside goose-code's own PATH (see the `export PATH`
+  # shadowing `nh` only inside qubi-code's own PATH (see the `export PATH`
   # in gooseCode below), never the user's interactive shell.
+  # Validates every .qml file in quickshell/ with qmllint, restricted to the
+  # one warning category that would have caught a real fatal-crash incident
+  # this exists for: a boolean `anchors {}` block used on a plain
+  # Rectangle/Item instead of PanelWindow's own special Anchors type,
+  # producing "Invalid property assignment: unsupported type
+  # QQuickAnchorLine" at Quickshell runtime load — a class of bug `nix
+  # flake check` cannot see at all, since it only evaluates Nix
+  # expressions, never QML. Every other qmllint warning category
+  # (unqualified property access, uncreatable-type for Quickshell's own
+  # C++-backed types like PanelWindow, and unresolved-type — the last one
+  # false-positives repo-wide on legitimate Quickshell singletons like
+  # JsonAdapter/BluetoothAdapter that a narrower single-file test didn't
+  # happen to exercise) is disabled because it fires on this repo's real,
+  # already-working QML and would make the gate useless — confirmed live
+  # across all 49 real .qml files in this repo (clean exit 0) and against
+  # the exact incident pattern reintroduced in a scratch file (reliably
+  # exit 255, naming "Cannot assign literal of type bool to
+  # QQuickAnchorLine") with exactly this flag set.
+  qmlLintRepo = pkgs.writeShellScriptBin "qml-lint-repo" ''
+    set -uo pipefail
+    repo="''${1:-$HOME/nix-dots}"
+    mapfile -t files < <(${pkgs.findutils}/bin/find "$repo/quickshell" -name '*.qml')
+    if [ "''${#files[@]}" -eq 0 ]; then
+      echo "qml-lint-repo: no .qml files found under $repo/quickshell" >&2
+      exit 1
+    fi
+    ${pkgs.qt6.qtdeclarative}/bin/qmllint \
+      -I ${pkgs.qt6.qtdeclarative}/lib/qt-6/qml \
+      -I ${pkgs.quickshell}/lib/qt-6/qml \
+      --unqualified disable \
+      --uncreatable-type disable \
+      --incompatible-type error \
+      --unresolved-type disable \
+      "''${files[@]}"
+  '';
+
+  # Bridges goose_bridge.py (repo root — a plain WebSocket-to-`goose acp`
+  # relay, proven live: a real initialize + session/list round trip over
+  # this exact script returned real ACP data including 50 real existing
+  # sessions) into a proper Nix-managed binary. The script needs the
+  # third-party `websockets` PyPI package, which a bare system python3
+  # does not have — pkgs.python3.withPackages is the only way it actually
+  # runs on this machine.
+  gooseMobileBridge = pkgs.writeShellScriptBin "qubi-bridge" ''
+    set -euo pipefail
+    exec ${pkgs.python3.withPackages (p: [ p.websockets ])}/bin/python3 \
+      ${../../../goose_bridge.py}
+  '';
+
+  # Both MCP servers below are hand-rolled stdio JSON-RPC (stdlib only, no
+  # MCP SDK dependency) rather than using an MCP framework package — kept
+  # deliberately minimal, matching goose_bridge.py's own "dumb relay, no
+  # framework" precedent in this repo, and protocol-verified live via a
+  # hand-written JSON-RPC probe the same way GooseAcpSession.qml's ACP
+  # handling was originally derived (see mcp-servers/ for the scripts).
+  askUserMcp = pkgs.writeShellScriptBin "qubi-ask-user-mcp" ''
+    set -euo pipefail
+    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/ask_user.py}
+  '';
+
+  # "$@" passthrough matters here specifically -- the SUPER+N Quickshell
+  # overlay invokes this same binary with `--cli --title ... --summary ...`
+  # for direct one-shot capture, while Goose invokes it bare (stdio MCP
+  # mode). See notes_capture.py's own `if sys.argv[1] == "--cli"` dispatch.
+  notesCaptureMcp = pkgs.writeShellScriptBin "qubi-notes-capture-mcp" ''
+    set -euo pipefail
+    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/notes_capture.py} "$@"
+  '';
+
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
     set -euo pipefail
     for arg in "$@"; do
       if [ "$arg" = "switch" ]; then
-        echo "[goose-guard] 'nh ... switch' is blocked inside a goose-code session — system/home activation stays human-gated. Stop and tell the user what you wanted to run instead." >&2
+        echo "[qubi-guard] 'nh ... switch' is blocked inside a qubi-code session — system/home activation stays human-gated. Stop and tell the user what you wanted to run instead." >&2
         exit 1
       fi
     done
@@ -201,6 +298,17 @@ let
     esac
     exec ${pkgs.git}/bin/git "$@"
   '';
+
+  # Backward-compat aliases for the pre-rebrand wrapper names — kept for
+  # muscle memory, each just execs its renamed Qubi counterpart.
+  qubiAliases = [
+    (pkgs.writeShellScriptBin "goose-state-sync" ''exec ${gooseStateSync}/bin/qubi-state-sync "$@"'')
+    (pkgs.writeShellScriptBin "goose-mobile-bridge" ''exec ${gooseMobileBridge}/bin/qubi-bridge "$@"'')
+    (pkgs.writeShellScriptBin "goose-code" ''exec ${gooseCode}/bin/qubi-code "$@"'')
+    (pkgs.writeShellScriptBin "goose-claude" ''exec ${gooseClaude}/bin/qubi-claude "$@"'')
+    (pkgs.writeShellScriptBin "goose-plan" ''exec ${goosePlan}/bin/qubi-plan "$@"'')
+    (pkgs.writeShellScriptBin "goose-chat" ''exec ${gooseChat}/bin/qubi-chat "$@"'')
+  ];
 
   # Trimmed, Nix-generated replacement for the interactively-created
   # ~/.config/goose/config.yaml. This is what governs `goose acp` (the chat
@@ -300,8 +408,14 @@ let
         display_name = "Scheduler";
         bundled = true;
       };
+      # Enabled by default (unlike the other platform extensions above) --
+      # Phase 4d's .agents/skills/ only does anything if a session actually
+      # has this on. Confirmed live via `goose skills list` (no inference
+      # needed, pure filesystem discovery) that Goose additively discovers
+      # project-local .agents/skills/<name>/SKILL.md from CWD alongside the
+      # global ~/.agents/skills/ ones already on this machine.
       skills = {
-        enabled = false;
+        enabled = true;
         type = "platform";
         name = "skills";
         description = "Discover and provide skill instructions from filesystem and builtins";
@@ -428,22 +542,63 @@ let
         bundled = false;
         timeout = 60;
       };
+      # Enabled by default (unlike the opt-in ones above) -- these are
+      # Phase 4's actual deliverables, meant to be reachable from any
+      # session without a manual enable step. ask-user's own 300s internal
+      # timeout (mcp-servers/ask_user.py) already bounds worst-case latency
+      # if nothing answers, so there's no extra timeout tax on sessions that
+      # never call it.
+      ask-user = {
+        enabled = true;
+        type = "stdio";
+        name = "ask-user";
+        display_name = "Ask User";
+        description = "Ask the human a multiple-choice or free-text question and block for a real answer via an on-screen dialog";
+        cmd = "${askUserMcp}/bin/qubi-ask-user-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 310;
+      };
+      notes-capture = {
+        enabled = true;
+        type = "stdio";
+        name = "notes-capture";
+        display_name = "Notes Capture";
+        description = "Append a structured note (title, summary, links, tags) to the capture inbox";
+        cmd = "${notesCaptureMcp}/bin/qubi-notes-capture-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
     };
     providers = {
       ollama = {
         enabled = true;
         # Static fallback for any bare `goose run`/`goose acp` invocation
-        # that doesn't go through goose-code's dock-aware routing (cold
+        # that doesn't go through qubi-code's dock-aware routing (cold
         # start, before ai-workstation-boot-sync's switchModel IPC call
-        # lands). Matches ai-workstation.nix's dockedModel (general-chat
-        # role, not coding) — updated 2026-09-17 per the /goal speed target:
-        # qwen3:4b measured 81.0 tok/s native generation (100% GPU, dense,
-        # fully resident) vs qwen3.6:latest's 31.25 tok/s, and passed 3/3
-        # real goose-bench tasks including the append-vs-overwrite check.
-        # Coding still explicitly overrides this in codingAgentRecipe below
-        # (qwen3-coder:latest) — this default only matters for genuinely
-        # ad-hoc invocations outside goose-code/goose-chat/goose-plan, which
-        # all set --model explicitly regardless of this value.
+        # lands). This is also the model any ACP client gets by default —
+        # Goose Desktop's own "New Chat", and any qubi-bridge
+        # session that doesn't get an explicit --model override.
+        #
+        # qwen3:4b (2026-09-17 /goal speed target pick: 81.0 tok/s, 3/3 on
+        # structured goose-bench tasks) was reverted 2026-09-18 after live
+        # ACP testing found it genuinely unreliable on unstructured chat
+        # input (hallucinated a file-write action / hung 40+s on a bare
+        # "test" prompt, reproduced twice) in favor of qwen3.6:latest
+        # (23GB, reliable but slow to cold-load and ~3x slower to
+        # generate). Reverted back to qwen3:4b the same night, live, on
+        # direct user instruction after actually using qwen3.6 as the
+        # default and finding the load/generation time genuinely too slow
+        # in practice — explicitly choosing speed over that measured
+        # reliability margin, not an oversight. Also matches
+        # ai-workstation.nix's dockedModel, which was qwen3:4b already
+        # and had silently drifted inconsistent with this key. If ad-hoc
+        # chat reliability regresses (hallucinated actions, hangs), that's
+        # the known, accepted trade-off — see the git history on this
+        # line for the qwen3.6 alternative and why it was tried. Coding
+        # still explicitly overrides this in codingAgentRecipe below
+        # (qwen3-coder:latest).
         model = "qwen3:4b";
         configured = true;
       };
@@ -460,6 +615,10 @@ let
     GOOSE_TOOLSHIM = false;
     GOOSE_PROVIDER = "ollama";
     GOOSE_MODEL = "qwen3:4b";
+    # See the model-choice comment above the "ollama" provider entry.
+    # Thinking-off has no downside for casual/voice chat regardless of
+    # which model is active, so this stays off unconditionally.
+    GOOSE_LOCAL_ENABLE_THINKING = false;
     # Was unset (Goose's own internal default is "auto" -- confirmed live
     # via a real session/new call: availableModes lists auto/approve/
     # smart_approve/chat, and every session this repo has ever created
@@ -478,7 +637,7 @@ let
     # overlay/compare pane still wins there (Process.environment overrides
     # the inherited env, confirmed elsewhere in this repo), so this change
     # only affects the *unsupervised* surfaces where nobody's watching
-    # every turn in real time. gooseGitGuard (below) is the hard backstop
+    # every turn in real time. gooseGitGuard (above) is the hard backstop
     # for git specifically, since smart_approve's "sensitive" classifier
     # is Goose's own internal heuristic, not something this repo can
     # verify actually flags git commit/push.
@@ -506,7 +665,7 @@ let
     postBuild = ''
       wrapProgram $out/bin/goose-desktop \
         --prefix PATH : ${gooseGitGuard}/bin \
-        --run '${gooseStateSync}/bin/goose-state-sync || true'
+        --run '${gooseStateSync}/bin/qubi-state-sync || true'
     '';
   };
 
@@ -545,6 +704,15 @@ let
         density) rather than introducing your own conventions.
       - Do not add comments explaining what code does line by line. Only comment
         a genuinely non-obvious reason (a workaround, a subtle constraint).
+      - You are running fully non-interactively. No human is watching this
+        session or able to answer a question mid-run. Never end your turn by
+        asking whether to proceed, offering a menu of options, or explaining
+        how something works as if reporting to a reviewer — there is no one
+        to respond, and the session will simply end unfinished. Reading a
+        file to inform your task is not a request for your feedback on that
+        file. Keep making progress on the actual task's deliverables until
+        they exist, or you are genuinely blocked by one of the
+        destructive/capability-exceeding cases below.
       - After every edit, verify it: run the relevant build/check/test command if
         one is available (nix flake check, a linter, a test runner, or just
         re-reading the file back). Do not declare a task finished on faith.
@@ -565,7 +733,7 @@ let
         describe what you want to do instead of doing it.
       - If a task exceeds your capability (needs broader reasoning, deep
         research, or repeated failed attempts), say so plainly and
-        recommend the user run `goose-claude <task>` to escalate to
+        recommend the user run `qubi-claude <task>` to escalate to
         Claude Code. Never switch providers yourself.
       - Keep your final answer concise: state what changed and why, referencing
         real file paths. Do not narrate your internal step-by-step process.
@@ -618,7 +786,7 @@ let
       # settings sub-schema (confirmed live: arbitrary unknown keys also
       # pass), so runtime effect is unconfirmed. Kept as a cheap, harmless
       # belt-and-suspenders alongside the confirmed-real GOOSE_MAX_TOKENS
-      # env var goose-code sets below — targets the truncation bug ("Tool
+      # env var qubi-code sets below — targets the truncation bug ("Tool
       # arguments for shell ... were truncated because the model reached
       # its output token limit").
       max_tokens: 4096
@@ -627,14 +795,220 @@ let
     # goose logs "Reset message history to initial state for retry" and
     # tries again — correct behaviour for a small model that talked itself
     # into a corner. Assumes CWD is the repo root being edited, same
-    # assumption goose-code's own doc comment already makes.
+    # assumption qubi-code's own doc comment already makes.
     retry:
       max_retries: 3
       checks:
         - type: shell
           command: "nix flake check"
+        # Catches fatal QML runtime bugs nix flake check can't see (it only
+        # evaluates Nix expressions) — e.g. the boolean anchors-on-Rectangle
+        # incident that crashed the whole Quickshell shell and previously
+        # required a human to find by reading Quickshell's own stdout log.
+        - type: shell
+          command: "qml-lint-repo"
       on_failure: "git checkout -- ."
       timeout_seconds: 900
+  '';
+
+  # Phase 4c: "research this and file it" — chains the two opt-in-disabled
+  # search/fetch extensions with notes-capture (always-on, see the main
+  # extensions block above). Recipes declare their own extensions list
+  # independent of the main config's enabled flags (same pattern
+  # codingAgentRecipe/mobileGuiAgentRecipe already establish), so
+  # mcp-searxng/mcp-server-fetch being disabled by default globally doesn't
+  # block them here. Invoke via `goose run --recipe
+  # ~/.config/goose/recipes/research-agent.yaml --params topic="..."`.
+  researchAgentRecipe = ''
+    version: 1.0.0
+    title: "Research and Capture"
+    description: "Searches the local SearXNG instance and fetches real pages to research a topic, then files a structured summary via notes-capture."
+    instructions: |
+      You are a research agent. Given a topic or question, do real research
+      and file a structured note about what you found -- do not answer from
+      memory alone and do not skip the capture step.
+
+      Process:
+      1. Use searxng_web_search (or equivalent) to find several real,
+         relevant sources for the topic. Do not fabricate URLs -- only use
+         URLs a real search result actually returned.
+      2. Fetch at least 2-3 of the most relevant results with your fetch
+         tool and read their real content. Do not summarize a page you
+         didn't actually fetch.
+      3. Synthesize what you found into a concise summary, noting where
+         sources disagree or something is unconfirmed.
+      4. Call capture_note with a clear title, your summary, the real
+         source URLs as links, and a few relevant tags. This is the
+         required last step -- research that was never captured is
+         incomplete, regardless of how good your final answer text is.
+
+      You are running fully non-interactively -- no one is watching this
+      session. Never end your turn asking whether to proceed; do the
+      research and capture it, then stop.
+    prompt: "{{ topic }}"
+    parameters:
+      - key: topic
+        input_type: string
+        requirement: required
+        description: "The topic or question to research"
+    extensions:
+      - type: stdio
+        name: mcp-searxng
+        display_name: Web Search
+        cmd: ${mcpSearxngWrapped}/bin/mcp-searxng-wrapped
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: mcp-server-fetch
+        display_name: Fetch
+        cmd: ${pkgs.mcp-server-fetch}/bin/mcp-server-fetch
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: notes-capture
+        display_name: Notes Capture
+        cmd: ${notesCaptureMcp}/bin/qubi-notes-capture-mcp
+        args: []
+        bundled: false
+        timeout: 60
+    settings:
+      goose_provider: ollama
+      goose_model: qwen3.6:latest
+      max_tokens: 4096
+  '';
+
+  # A one-off variant of codingAgentRecipe with real browser control added
+  # (playwright-mcp — normally kept out of the default recipe entirely
+  # since its ~68 browser_* tools cost real tokens on every single
+  # qubi-code invocation forever, see the "playwright" comment above).
+  # Used for tasks that need to actually load a page and interact with it
+  # to self-verify, not just read/write files — e.g. finishing and
+  # packaging the mobile chat GUI, where the only real verification is
+  # loading it in a browser and clicking through it. Not wired into any
+  # permanent wrapper script; invoke directly with `goose run --recipe
+  # ~/.config/goose/recipes/mobile-gui-agent.yaml`.
+  mobileGuiAgentRecipe = ''
+    version: 1.0.0
+    title: "Local Coding Agent (browser-capable)"
+    description: "Claude-Code-style software engineering agent tuned for small local models, with real browser control for self-testing web UIs."
+    instructions: |
+      You are a careful, disciplined software engineering agent running on a small
+      local model. Because you are smaller than a frontier model, you must
+      compensate with process, not improvisation.
+
+      Core rules:
+      - Always use your real tools to read files and run commands. Never write out
+        what a tool call "would" return, and never print a tool call as text
+        instead of invoking it for real.
+      - Before making any change, read the actual file content first. Do not
+        guess file contents from memory or from the task description.
+      - Make the smallest change that correctly accomplishes the task. Do not
+        refactor, rename, or "clean up" code that isn't part of the task.
+      - Match the existing code style exactly (indentation, naming, comment
+        density) rather than introducing your own conventions.
+      - Do not add comments explaining what code does line by line. Only comment
+        a genuinely non-obvious reason (a workaround, a subtle constraint).
+      - You are running fully non-interactively. No human is watching this
+        session or able to answer a question mid-run. Never end your turn by
+        asking whether to proceed, offering a menu of options, or explaining
+        how something works as if reporting to a reviewer — there is no one
+        to respond, and the session will simply end unfinished. Reading a
+        file to inform your task is not a request for your feedback on that
+        file. Keep making progress on the actual task's deliverables until
+        they exist, or you are genuinely blocked by one of the
+        destructive/capability-exceeding cases below.
+      - You have real browser control via your playwright tools. For any task
+        involving a web page or HTML/JS file, do not declare it finished from
+        reading the source alone: actually navigate to it, interact with it
+        (click, fill, type) the way a real user would, and take a screenshot to
+        confirm what actually renders and happens. Do not declare a UI feature
+        working without having driven it through the browser at least once.
+      - If a tool call fails or a command errors, read the actual error message
+        and fix the real problem. Retry with corrected input. Do not stop and ask
+        a question if you can resolve it yourself with the tools you already
+        have.
+      - If you are asked to diagnose or investigate something, do real
+        investigation: grep the codebase, read the relevant files in full, check
+        installed library/type definitions on disk if relevant, and reason from
+        what you actually find — not from a guess. State your confidence and
+        what you verified vs. assumed.
+      - Never run `git push`, `git reset --hard`, `rm -rf`, `nixos-rebuild
+        switch`, or `nh ... switch`. These are irreversible or affect shared
+        state beyond this repo. If your task seems to need one, stop and
+        describe what you want to do instead of doing it.
+      - For any other destructive or hard-to-reverse action, stop and
+        describe what you want to do instead of doing it.
+      - If a task exceeds your capability (needs broader reasoning, deep
+        research, or repeated failed attempts), say so plainly and
+        recommend the user run `qubi-claude <task>` to escalate to
+        Claude Code. Never switch providers yourself.
+      - Keep your final answer concise: state what changed and why, referencing
+        real file paths. Do not narrate your internal step-by-step process.
+    prompt: "{{ task }}"
+    parameters:
+      - key: task
+        input_type: string
+        requirement: required
+        description: "The task or question for the agent to work on"
+    extensions:
+      - type: builtin
+        name: developer
+        display_name: Developer
+        timeout: 300
+        bundled: true
+      - type: platform
+        name: todo
+        display_name: Todo
+        bundled: true
+      - type: platform
+        name: summon
+        display_name: Summon
+        bundled: true
+      - type: platform
+        name: orchestrator
+        display_name: Orchestrator
+        bundled: true
+      - type: stdio
+        name: mcp-nixos
+        display_name: MCP NixOS
+        cmd: ${pkgs.mcp-nixos}/bin/mcp-nixos
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: mcp-language-server
+        display_name: MCP Language Server (nixd)
+        cmd: ${pkgs.mcp-language-server}/bin/mcp-language-server
+        args:
+          - -lsp
+          - ${pkgs.nixd}/bin/nixd
+          - -workspace
+          - /home/cryptix/nix-dots
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: playwright
+        display_name: Playwright
+        description: "Browser automation for web testing, scraping, and interaction"
+        cmd: ${pkgs.playwright-mcp}/bin/playwright-mcp
+        args: []
+        bundled: false
+        timeout: 60
+    settings:
+      goose_provider: ollama
+      goose_model: qwen3-coder:latest
+      max_tokens: 4096
+    retry:
+      max_retries: 3
+      checks:
+        - type: shell
+          command: "nix flake check"
+        - type: shell
+          command: "qml-lint-repo"
+      on_failure: "git checkout -- ."
+      timeout_seconds: 1800
   '';
 
   # One-shot task, then drops into an interactive follow-up session (`-s`,
@@ -686,9 +1060,9 @@ let
   #
   # GOOSE_LOCAL_ENABLE_THINKING=false: measured faster in every directly
   # comparable Stage 2 cell with no accuracy loss (e.g. 472s vs 679s
-  # CPU-only on edit-verify) — goose-code is the execution wrapper, thinking
-  # stays reserved for goose-plan below.
-  gooseCode = pkgs.writeShellScriptBin "goose-code" ''
+  # CPU-only on edit-verify) — qubi-code is the execution wrapper, thinking
+  # stays reserved for qubi-plan below.
+  gooseCode = pkgs.writeShellScriptBin "qubi-code" ''
     set -uo pipefail
     PREV_PROFILE=$(${pkgs.power-profiles-daemon}/bin/powerprofilesctl get 2>/dev/null || echo balanced)
     ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance 2>/dev/null || true
@@ -730,7 +1104,7 @@ let
       -s
   '';
 
-  gooseClaude = pkgs.writeShellScriptBin "goose-claude" ''
+  gooseClaude = pkgs.writeShellScriptBin "qubi-claude" ''
     set -uo pipefail
 
     export PATH=${gooseGitGuard}/bin:$PATH
@@ -751,8 +1125,8 @@ let
   # qwen2.5-coder:14b) for CPU-only invocations — same Stage 2 rationale as
   # gooseCode above. Thinking left at its default (on) here deliberately:
   # planning is exactly the role Part II's roster keeps thinking enabled
-  # for, unlike goose-code's execution wrapper.
-  goosePlan = pkgs.writeShellScriptBin "goose-plan" ''
+  # for, unlike qubi-code's execution wrapper.
+  goosePlan = pkgs.writeShellScriptBin "qubi-plan" ''
     set -uo pipefail
 
     export PATH=${gooseGitGuard}/bin:$PATH
@@ -785,7 +1159,7 @@ let
   # failed (append-vs-overwrite) — a strict upgrade on every measured axis
   # for this role, at the cost of gemma4:12b's vision/audio capability,
   # which this chat/lookup role never used anyway.
-  gooseChat = pkgs.writeShellScriptBin "goose-chat" ''
+  gooseChat = pkgs.writeShellScriptBin "qubi-chat" ''
     set -uo pipefail
     export PATH=${gooseGitGuard}/bin:$PATH
     export GOOSE_LOCAL_ENABLE_THINKING=false
@@ -796,6 +1170,14 @@ in
   home.packages = [
     pkgs.goose-cli
     pkgs.llmfit
+    # sqlite3 CLI — goose itself stores session history in
+    # ~/.local/share/goose/sessions/sessions.db (SQLite). Without this,
+    # any qubi-code task that needs to inspect real session data (not
+    # just Nix/QML files) fails with a bare "command not found" (exit
+    # 127) the first time it reaches for sqlite3 — confirmed live: a
+    # session investigating goose's session-storage format hit exactly
+    # this and aborted with no working fallback.
+    pkgs.sqlite
     gooseStateSync
     aiWorkstationGamingStart
     aiWorkstationGamingStop
@@ -804,9 +1186,30 @@ in
     gooseClaude
     goosePlan
     gooseChat
-  ];
+    qmlLintRepo
+    gooseMobileBridge
+    # On PATH so the SUPER+N Quickshell overlay can shell out to
+    # `qubi-notes-capture-mcp --cli ...` directly (not just reachable as a
+    # Goose stdio extension, which resolves cmd by its own absolute store
+    # path regardless of PATH).
+    notesCaptureMcp
+    # SUPER+I screen-context capture's undocked/gaming OCR path
+    # (ScreenContext.qml) -- not installed anywhere else in this flake.
+    pkgs.tesseract
+  ] ++ qubiAliases;
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
+  home.file.".config/goose/recipes/mobile-gui-agent.yaml".text = mobileGuiAgentRecipe;
+  home.file.".config/goose/recipes/research-agent.yaml".text = researchAgentRecipe;
+
+  # Global counterpart to this repo's own AGENTS.md (repo root) — covers
+  # a goose session invoked from outside this repo's directory, which the
+  # project-level file wouldn't reach. Same content, single source of
+  # truth via readFile rather than a second copy that could drift.
+  # Read-only reference file, not runtime-mutated by Goose the way
+  # config.yaml is, so a plain home.file (unlike config.yaml below) is
+  # sufficient — no activation-copy dance needed.
+  home.file.".config/goose/AGENTS.md".text = builtins.readFile ../../../AGENTS.md;
 
   # Read-only oracle copy used below to detect runtime drift before
   # overwriting the live config.yaml. Not the live file itself — Goose
@@ -836,4 +1239,64 @@ in
 
     run install -m 0644 "$nixSource" "$configFile"
   '';
+
+  # Mobile GUI packaging: two user services (no root needed, unlike the
+  # NixOS-level systemd.services pattern used for the AI-workstation's own
+  # system services) so the phone-facing bridge and static page are always
+  # up without a human manually running qubi-bridge by hand.
+  systemd.user.services.qubi-bridge = {
+    Unit.Description = "Qubi mobile WebSocket bridge (relays goose acp over Tailscale)";
+    Service = {
+      ExecStart = "${gooseMobileBridge}/bin/qubi-bridge";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+
+  systemd.user.services.qubi-mobile-static = {
+    Unit.Description = "Static file server for mobile_gui.html, fronted by tailscale serve";
+    Service = {
+      # Loopback only -- tailscale serve (qubi-tailscale-serve.service) is
+      # the sole tailnet-facing surface now, proxying to localhost:8901.
+      # Binding directly to the Tailscale IP here breaks that proxy (a
+      # real 502, confirmed live) since it refuses the loopback connection
+      # tailscale serve makes.
+      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8901 --bind 127.0.0.1 --directory /home/cryptix/nix-dots";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+
+  # Puts both mobile services behind `tailscale serve` for real HTTPS
+  # (plain HTTP blocks mic access in the browser and degrades PWA
+  # installability) -- Tailnet-only, deliberately never `tailscale funnel`
+  # (which would expose this to the public internet). Idempotent (`serve`
+  # just overwrites its own config with the same values on every run), so
+  # running this on every login is safe and self-healing if Serve config
+  # is ever reset. A oneshot rather than a long-running service since
+  # `tailscale serve --bg` itself backgrounds and persists in tailscaled,
+  # not in this unit's own process.
+  #
+  # BLOCKED tonight on a one-time manual step (see BLOCKERS.md): Serve is
+  # disabled tenant-wide until a real browser login approves it at a URL
+  # `tailscale serve` itself prints -- confirmed live, this is a genuine
+  # interactive-auth wall, not a config mistake. This service is correct
+  # and ready; it will start succeeding the moment that approval happens,
+  # no further change needed here.
+  systemd.user.services.qubi-tailscale-serve = {
+    Unit = {
+      Description = "Expose qubi-bridge/qubi-mobile-static over tailscale serve (HTTPS, tailnet-only)";
+      After = [ "qubi-bridge.service" "qubi-mobile-static.service" "tailscaled.service" ];
+    };
+    Service = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "qubi-tailscale-serve-setup" ''
+        set -uo pipefail
+        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path /ws http://localhost:8765
+        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path / http://localhost:8901
+      '';
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 }

@@ -33,6 +33,8 @@
     ../../modules/nixos/core/programs.nix
     ../../modules/nixos/hardware/amd.nix
     ../../modules/nixos/hardware/thinkpad-power.nix
+    ../../modules/nixos/services/zram.nix
+    ../../modules/nixos/services/qubi-health.nix
   ];
 
   programs.claude-desktop.enable = true;
