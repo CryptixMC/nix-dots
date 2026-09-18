@@ -111,3 +111,18 @@ directly.
 `~/Documents/Vault/<wherever you actually want captures to land>`.
 **Confidence:** low — this is exactly the kind of subjective-preference call flagged as something
 only Liam can make; flagging prominently rather than guessing his vault's organization.
+
+## Chat overlay: whole-message copy kept, not per-fenced-code-block copy
+**Decided:** Did not build distinct per-code-block copy buttons inside a message. The existing
+whole-message copy button (already present pre-tonight) is what ships.
+**Why:** `Text.MarkdownText` (QML's built-in renderer, already used for message bubbles) doesn't
+expose fenced-code-block boundaries as addressable elements — building real per-block copy would
+mean parsing the raw Markdown into segments and rendering code blocks as separate `TextEdit`
+elements instead of one `Text` per bubble, a much bigger change than the remaining Phase 5 budget
+justified against Phases 6-9 still being fully unbuilt. Whole-message copy already covers the
+practical need (copy the whole reply, then trim in your editor if you only want the code).
+**Alternatives:** Build the full segmented renderer.
+**To change it:** `ChatOverlay.qml`'s message delegate — would need a real Markdown-to-segments
+parse step before the `Text` element.
+**Confidence:** medium — a real scope cut made under time pressure, not a "this is definitely
+right" call; revisit if per-block copy turns out to matter in practice.
