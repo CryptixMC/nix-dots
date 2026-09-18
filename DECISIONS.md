@@ -51,3 +51,45 @@ pulled by the prior session under this tag.
 **Confidence:** medium (didn't re-verify against Ollama's live library index this session — trusting
 the prior session's pull, which is currently `ollama list`-confirmed present and 14GB, a plausible
 size for a 24B Q4-class quant).
+
+## Clipboard transform: disabled entirely while gaming, not routed to a smaller model
+**Decided:** When `/run/ai-workstation/state.json`'s `state == "gaming"`, the overlay shows
+"disabled while gaming" and does not attempt any inference at all — it never falls back to a
+tiny/CPU model.
+**Why:** Matches Phase 6's own explicit principle (never load even a small model onto the game's
+GPU). A clipboard-transform request is rare enough mid-game that losing availability there is a
+much smaller cost than a frame hitch from contending inference, however brief.
+**Alternatives:** Route to OCR-tier/CPU-only inference during gaming, like Phase 6 does for vision.
+Rejected — clipboard transform is pure text, so "CPU-only" would just mean "slow," not
+"differently-capable," and slow-but-contending is still contending.
+**To change it:** `quickshell/modules/clipboard/ClipboardTransform.qml`, the `gamingCheckProcess`
+handler — remove the early return on `gaming === true`.
+**Confidence:** medium.
+
+## Clipboard transform model: whatever ai-workstation.nix currently routes, falling back to qwen3:4b
+**Decided:** Reads the model name straight out of `/run/ai-workstation/state.json` (same value the
+rest of the system already routes to); falls back to `qwen3:4b` if the state file is missing or
+unreadable.
+**Why:** A raw `/api/generate` call has zero tool-calling surface — the qwen3:4b-vs-qwen3.6
+reliability gap documented in `goose.nix` (tonight, ACP tool-use specific) doesn't apply here, so
+there's no reason to hardcode a different model than whatever's already resident for the current
+dock/gaming state. Falling back to qwen3:4b (not qwen3.6:latest) specifically when the state file
+is absent matches this feature's own latency preference (clipboard transforms should feel instant)
+over the ACP chat default's reliability preference.
+**Alternatives:** Always use a fixed fast model regardless of routing state (rejected — would load
+a second model into VRAM/RAM alongside whatever's already resident, doubling memory pressure for
+no real benefit when docked).
+**To change it:** `ClipboardTransform.qml`'s `gamingCheckProcess.stdout.onStreamFinished`.
+**Confidence:** medium.
+
+## Clipboard oversized cap: 8000 characters
+**Decided:** Clipboard content over 8000 characters shows an "too large" message instead of
+attempting a transform.
+**Why:** Keeps a single request comfortably inside even the smallest routed model's
+`OLLAMA_CONTEXT_LENGTH=16384`-token budget (see TODO.md §7) after prompt-template overhead, without
+needing to know which model is currently active. 8000 chars is roughly 2000 tokens of English
+prose — generous for "a paragraph or a few," which is this feature's actual use case.
+**Alternatives:** Size the cap dynamically off the currently-routed model's real context window.
+Rejected as unnecessary complexity for a feature whose whole point is quick snippets, not documents.
+**To change it:** `ClipboardState.qml`'s `maxChars` property.
+**Confidence:** medium.

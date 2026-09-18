@@ -1,1 +1,2 @@
-# Reserved for the qubi/clipboard branch — ClipboardTransform.qml not authored yet.
+singleton ClipboardState 1.0 ClipboardState.qml
+ClipboardTransform 1.0 ClipboardTransform.qml

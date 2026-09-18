@@ -11,7 +11,7 @@ import "modules/modelbrowser"
 import "modules/extensions"
 import "modules/lock"
 import "modules/wallpaper"
-// import "modules/clipboard"
+import "modules/clipboard"
 // import "modules/screenctx"
 // import "modules/voice"
 // import "modules/notes"
@@ -60,7 +60,7 @@ ShellRoot {
     // Placeholders reserved for parallel agent branches — SUPER+U/I/O/N
     // (hyprland.nix) already IPC-call these targets and confirm-fail
     // gracefully today. Uncomment each block once its branch lands.
-    // ClipboardTransform { id: clipboardTransform } // qubi/clipboard
+    ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
     // ScreenContext { id: screenContext } // qubi/screenctx
     // VoiceOverlay { id: voiceOverlay } // qubi/voice
     // NotesCapture { id: notesCapture } // qubi/notes
