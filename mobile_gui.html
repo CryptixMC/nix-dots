@@ -12,42 +12,59 @@
 <meta name="apple-mobile-web-app-title" content="Qubi">
 
 <style>
-/* Ultraviolet theme (themes/ultraviolet/base16.yaml):
-   base00 #050505 app bg, base01 #080808 panel bg, base02 #0f0f0f card bg,
-   base03 #212121 borders, base04 #373737 muted/disabled text,
-   base05 #c8c8c8 body text, base06 #e0e0e0 labels/header, base07 #f5f5f5 text-on-accent,
-   base08 #ff5de0 critical/error, base0C #b047ff signature violet accent. */
+/* Custom properties, not hardcoded hex -- defaults here are the
+   Ultraviolet palette (themes/ultraviolet/base16.yaml) so the page still
+   looks right before the real theme loads (or if qubi/theme ever fails),
+   but applyTheme() below overwrites every one of these from a live
+   qubi/theme reply the moment the engine answers, same base16 role
+   mapping the desktop shell's own ThemeDefaults.qml uses: base00 app bg,
+   base01 panel bg, base02 card bg, base03 borders, base04 muted/disabled
+   text, base05 body text, base06 labels/header, base07 text-on-accent,
+   base08 critical/error, base0C signature accent. */
+:root {
+  --qubi-base00: #050505;
+  --qubi-base01: #080808;
+  --qubi-base02: #0f0f0f;
+  --qubi-base03: #212121;
+  --qubi-base04: #373737;
+  --qubi-base05: #c8c8c8;
+  --qubi-base06: #e0e0e0;
+  --qubi-base07: #f5f5f5;
+  --qubi-base08: #ff5de0;
+  --qubi-accent: #b047ff;
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 /* Desktop uses "JetBrainsMono Nerd Font Mono" (ThemeDefaults.qml) -- tried
    first in case it's ever installed on the phone, falling back to the
    closest system monospace stack rather than a plain sans-serif, closer
    to the desktop's identity without shipping font files over mobile data. */
-body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: #050505; color: #c8c8c8; display: flex; flex-direction: column; }
-#header { padding: 8px 12px; border-bottom: 1px solid #212121; font-size: 14px; color: #e0e0e0; flex-shrink: 0; }
+body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--qubi-base00); color: var(--qubi-base05); display: flex; flex-direction: column; }
+#header { padding: 8px 12px; border-bottom: 1px solid var(--qubi-base03); font-size: 14px; color: var(--qubi-base06); flex-shrink: 0; }
 #body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
 #session-list { list-style: none; padding: 8px; }
-#session-list li { padding: 12px 14px; margin: 4px 0; background: #080808; border-radius: 6px; cursor: pointer; font-size: 14px; border-left: 3px solid #212121; }
-#session-list li.active { background: #b047ff; border-left-color: #b047ff; color: #f5f5f5; font-weight: bold; }
-#session-list li:hover { background: #0f0f0f; }
+#session-list li { padding: 12px 14px; margin: 4px 0; background: var(--qubi-base01); border-radius: 6px; cursor: pointer; font-size: 14px; border-left: 3px solid var(--qubi-base03); }
+#session-list li.active { background: var(--qubi-accent); border-left-color: var(--qubi-accent); color: var(--qubi-base07); font-weight: bold; }
+#session-list li:hover { background: var(--qubi-base02); }
 #messages { flex: 1; overflow-y: auto; padding: 8px 12px; min-height: 0; }
 .msg { margin: 6px 0; padding: 8px 12px; border-radius: 8px; max-width: 85%; word-wrap: break-word; font-size: 14px; line-height: 1.4; }
-.msg.user { background: #b047ff; color: #f5f5f5; align-self: flex-end; margin-left: auto; }
-.msg.agent { background: #0f0f0f; align-self: flex-start; }
-.msg.thought { background: transparent; font-style: italic; color: #373737; padding-left: 24px; max-width: 85%; }
-#input-bar { display: flex; border-top: 1px solid #212121; padding: 6px 8px; flex-shrink: 0; gap: 6px; background: #080808; }
-#input-bar input { flex: 1; padding: 10px 12px; border-radius: 20px; border: 1px solid #212121; background: #0f0f0f; color: #c8c8c8; font-size: 15px; outline: none; }
-#input-bar input:focus { border-color: #b047ff; }
-#input-bar button { padding: 10px 18px; border-radius: 20px; border: none; background: #b047ff; color: #f5f5f5; font-size: 15px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+.msg.user { background: var(--qubi-accent); color: var(--qubi-base07); align-self: flex-end; margin-left: auto; }
+.msg.agent { background: var(--qubi-base02); align-self: flex-start; }
+.msg.thought { background: transparent; font-style: italic; color: var(--qubi-base04); padding-left: 24px; max-width: 85%; }
+#input-bar { display: flex; border-top: 1px solid var(--qubi-base03); padding: 6px 8px; flex-shrink: 0; gap: 6px; background: var(--qubi-base01); }
+#input-bar input { flex: 1; padding: 10px 12px; border-radius: 20px; border: 1px solid var(--qubi-base03); background: var(--qubi-base02); color: var(--qubi-base05); font-size: 15px; outline: none; }
+#input-bar input:focus { border-color: var(--qubi-accent); }
+#input-bar button { padding: 10px 18px; border-radius: 20px; border: none; background: var(--qubi-accent); color: var(--qubi-base07); font-size: 15px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
 #input-bar button:disabled { opacity: 0.4; cursor: default; }
-.error { color: #ff5de0 !important; font-style: italic; }
-#error-banner { display: none; background: #ff5de0; color: #050505; padding: 10px 14px; font-size: 13px; font-weight: bold; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+.error { color: var(--qubi-base08) !important; font-style: italic; }
+#error-banner { display: none; background: var(--qubi-base08); color: var(--qubi-base00); padding: 10px 14px; font-size: 13px; font-weight: bold; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
 #error-banner.show { display: flex; }
-#error-banner button { background: transparent; border: none; color: #050505; font-size: 16px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0 4px; }
-#install-banner { display: none; background: #0f0f0f; border-bottom: 1px solid #212121; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; font-size: 13px; color: #c8c8c8; }
+#error-banner button { background: transparent; border: none; color: var(--qubi-base00); font-size: 16px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0 4px; }
+#install-banner { display: none; background: var(--qubi-base02); border-bottom: 1px solid var(--qubi-base03); padding: 10px 14px; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; font-size: 13px; color: var(--qubi-base05); }
 #install-banner.show { display: flex; }
-#install-banner button { background: #b047ff; color: #f5f5f5; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
-#install-banner-dismiss { background: transparent !important; color: #373737 !important; font-size: 16px !important; padding: 0 4px !important; }
+#install-banner button { background: var(--qubi-accent); color: var(--qubi-base07); border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+#install-banner-dismiss { background: transparent !important; color: var(--qubi-base04) !important; font-size: 16px !important; padding: 0 4px !important; }
+#new-chat-btn { background: var(--qubi-accent); color: var(--qubi-base07); }
 </style>
 </head>
 <body>
@@ -62,7 +79,7 @@ body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Men
 </div>
 <div id="error-banner"><span id="error-banner-text"></span><button id="error-banner-close" aria-label="Dismiss">×</button></div>
 <div id="body">
-  <button id="new-chat-btn" style="margin:8px;padding:10px;background:#b047ff;color:#f5f5f5;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">New Chat</button>
+  <button id="new-chat-btn" style="margin:8px;padding:10px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">New Chat</button>
   <ul id="session-list"><li>Loading sessions…</li></ul>
   <div id="messages"></div>
 </div>
@@ -105,6 +122,43 @@ var deferredInstallPrompt = null;
 
 function setStatus(text) {
   header.textContent = text;
+}
+
+// base16 role -> the CSS custom property it drives (see the :root block's
+// own comment for the full role mapping, shared with the desktop shell's
+// ThemeDefaults.qml). qubi/theme's reply shape is {base16: {base00: "hex",
+// ...}} with no leading "#" (confirmed by reading qubi_engine.py's
+// _read_theme, which strips quotes off base16.yaml's raw values verbatim).
+var THEME_ROLE_TO_VAR = {
+  base00: "--qubi-base00", base01: "--qubi-base01", base02: "--qubi-base02",
+  base03: "--qubi-base03", base04: "--qubi-base04", base05: "--qubi-base05",
+  base06: "--qubi-base06", base07: "--qubi-base07", base08: "--qubi-base08",
+  base0C: "--qubi-accent"
+};
+
+var HEX6 = /^[0-9a-fA-F]{6}$/;
+
+function applyTheme(result) {
+  var base16 = result && result.base16;
+  if (!base16) return;
+  var root = document.documentElement.style;
+  // Every var() usage below has no CSS-side fallback, so a value that
+  // isn't valid CSS at all makes the *whole declaration* invalid at
+  // computed-value time (the property falls back to its initial value,
+  // not to :root's default) -- confirmed live tonight against a real
+  // pre-fix engine reply: body ended up with a fully transparent
+  // background and black text, not the intended dark theme. Validating
+  // the hex shape here, not just trusting the server, means a future
+  // malformed qubi/theme reply degrades to "keeps the built-in
+  // Ultraviolet default" instead of "breaks the whole page."
+  for (var role in THEME_ROLE_TO_VAR) {
+    var hex = base16[role];
+    if (typeof hex === "string" && HEX6.test(hex)) root.setProperty(THEME_ROLE_TO_VAR[role], "#" + hex);
+  }
+  var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta && typeof base16.base00 === "string" && HEX6.test(base16.base00)) {
+    themeColorMeta.setAttribute("content", "#" + base16.base00);
+  }
 }
 
 // Real install flow: Chromium/Android fires beforeinstallprompt when this
@@ -214,11 +268,17 @@ function init() {
   ws = new WebSocket(WS_URL);
   ws.onopen = function () {
     pendingMethods = {};  // reset pending on reconnect
-    pendingMethods[nextId] = "initialize";
     setStatus("Connected. Initializing…");
     var initId = nextId++;
-    var req = { jsonrpc: "2.0", id: initId, method: "initialize", params: { protocolVersion: 1, clientCapabilities: {} } };
-    wsSend(req);
+    pendingMethods[initId] = "initialize";
+    wsSend({ jsonrpc: "2.0", id: initId, method: "initialize", params: { protocolVersion: 1, clientCapabilities: {} } });
+    // No name param -- qubi/theme without one reads the engine's live
+    // active theme (~/.config/qubi/config.json's own "theme" key), same
+    // theme the desktop shell is showing, not a hardcoded Ultraviolet
+    // assumption. Independent of ACP init state, so fired in parallel.
+    var themeId = nextId++;
+    pendingMethods[themeId] = "qubi/theme";
+    wsSend({ jsonrpc: "2.0", id: themeId, method: "qubi/theme", params: {} });
   };
   ws.onerror = function () { setStatus("WebSocket error"); };
   ws.onclose = function (ev) {
@@ -276,6 +336,10 @@ function handleRaw(raw) {
     delete pendingMethods[obj.id];
     if (expectMethod === "initialize") {
       loadSessions();
+      return;
+    }
+    if (expectMethod === "qubi/theme") {
+      applyTheme(obj.result);
       return;
     }
     if (expectMethod === "session/list") {
