@@ -44,10 +44,22 @@ body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Men
 #error-banner { display: none; background: #ff5de0; color: #050505; padding: 10px 14px; font-size: 13px; font-weight: bold; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
 #error-banner.show { display: flex; }
 #error-banner button { background: transparent; border: none; color: #050505; font-size: 16px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0 4px; }
+#install-banner { display: none; background: #0f0f0f; border-bottom: 1px solid #212121; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; font-size: 13px; color: #c8c8c8; }
+#install-banner.show { display: flex; }
+#install-banner button { background: #b047ff; color: #f5f5f5; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+#install-banner-dismiss { background: transparent !important; color: #373737 !important; font-size: 16px !important; padding: 0 4px !important; }
 </style>
 </head>
 <body>
 <div id="header">Qubi Mobile — connected</div>
+<!-- Real install button (beforeinstallprompt) on Chromium/Android; a
+     manual-steps hint on iOS Safari, which has no such API at all -- the
+     browser itself, not this page, decides whether either ever fires. -->
+<div id="install-banner">
+  <span id="install-banner-text">Install Qubi as an app for the full-screen experience.</span>
+  <button id="install-banner-btn">Install</button>
+  <button id="install-banner-dismiss" aria-label="Dismiss">×</button>
+</div>
 <div id="error-banner"><span id="error-banner-text"></span><button id="error-banner-close" aria-label="Dismiss">×</button></div>
 <div id="body">
   <button id="new-chat-btn" style="margin:8px;padding:10px;background:#b047ff;color:#f5f5f5;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">New Chat</button>
@@ -86,9 +98,58 @@ var sendBtn = document.getElementById("send-btn");
 var header = document.getElementById("header");
 var errorBanner = document.getElementById("error-banner");
 var errorBannerText = document.getElementById("error-banner-text");
+var installBanner = document.getElementById("install-banner");
+var installBannerText = document.getElementById("install-banner-text");
+var installBannerBtn = document.getElementById("install-banner-btn");
+var deferredInstallPrompt = null;
 
 function setStatus(text) {
   header.textContent = text;
+}
+
+// Real install flow: Chromium/Android fires beforeinstallprompt when this
+// page meets installability criteria (served over HTTPS with a valid
+// manifest -- see BLOCKERS.md/DECISIONS.md for why plain HTTP never
+// triggers this at all, no matter what the manifest says). We suppress
+// the browser's own default mini-infobar (preventDefault) and drive our
+// own themed banner + button instead, calling .prompt() on click -- this
+// IS the real native install dialog, not a fake button that just shows
+// instructions.
+var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+window.addEventListener("beforeinstallprompt", function (e) {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!isStandalone) installBanner.classList.add("show");
+});
+
+window.addEventListener("appinstalled", function () {
+  deferredInstallPrompt = null;
+  installBanner.classList.remove("show");
+});
+
+installBannerBtn.addEventListener("click", function () {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.finally(function () {
+    deferredInstallPrompt = null;
+    installBanner.classList.remove("show");
+  });
+});
+
+document.getElementById("install-banner-dismiss").addEventListener("click", function () {
+  installBanner.classList.remove("show");
+});
+
+// iOS Safari has no beforeinstallprompt API at all -- "Add to Home
+// Screen" only exists in the Share sheet, and no page can trigger it
+// programmatically. Show instructions instead of a button that would
+// never work.
+if (isIOS && !isStandalone) {
+  installBannerText.textContent = "Tap Share, then \"Add to Home Screen\" for the full-screen app.";
+  installBannerBtn.style.display = "none";
+  installBanner.classList.add("show");
 }
 
 function showError(text) {
