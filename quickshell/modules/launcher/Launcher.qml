@@ -434,6 +434,14 @@ PanelWindow {
                     searchQuery: searchInput.text
                 }
             }
+
+            Loader {
+                width: parent.width
+                clip: true
+                active: LauncherState.activeTab === "system"
+                visible: active
+                sourceComponent: SystemTab {}
+            }
         }
     }
 

@@ -20,7 +20,8 @@ QtObject {
         { id: "apps", label: "Applications", glyph: "󰀻" },
         { id: "games", label: "Games", glyph: "󰊗" },
         { id: "files", label: "Files", glyph: "󰉋" },
-        { id: "themes", label: "Themes", glyph: "󰸌" }
+        { id: "themes", label: "Themes", glyph: "󰸌" },
+        { id: "system", label: "System", glyph: "󰡨" }
     ]
     property string activeTab: "apps"
 
