@@ -47,8 +47,27 @@ let
         printf 'value = 1\n' > "$SCRATCH/config.txt"
         TASK_TEXT='Change config.txt so that value equals 2 instead of 1. After editing, read the file back to confirm your change landed correctly.'
         ;;
+      author-new-file)
+        # Nothing pre-seeded -- this is the one shape testing "write ~60
+        # lines from a spec" rather than editing something already there.
+        # Graded on: file exists, contains a real function def (not just
+        # prose describing one), and is in the right ballpark of length --
+        # loose on line count since exact line-count compliance isn't the
+        # point, having actually written working code structured as asked is.
+        TASK_TEXT='Create a new file named calc.py in this directory implementing a small command-line calculator: a function add(a, b), a function subtract(a, b), a function multiply(a, b), a function divide(a, b) that raises ValueError on division by zero, and a __main__ block that reads two numbers and an operator from sys.argv and prints the result. Aim for roughly 60 lines including reasonable spacing and a couple of comments.'
+        ;;
+      error-recovery-chain)
+        # A 3-step chain with a deliberately broken step 2 (references a
+        # file that does not exist) -- graded on whether the model both
+        # completes step 1 for real AND notices+recovers from step 2's
+        # bad instruction rather than fabricating success or silently
+        # skipping it. This is the shape most likely to expose fabrication,
+        # per this project's own repeated real findings (TODO.md §7).
+        printf 'alpha\nbeta\ngamma\n' > "$SCRATCH/source.txt"
+        TASK_TEXT='Do these three steps in order: (1) Copy source.txt to dest.txt in this directory. (2) Read a file named nonexistent-intermediate.txt in this directory and append its contents to dest.txt -- if that file does not exist, note that in your final answer instead of inventing content for it. (3) Append the line "done" to dest.txt.'
+        ;;
       *)
-        echo "[goose-bench] unknown TASK_SHAPE: $TASK_SHAPE (expected append-naive, read-report, or edit-verify)" >&2
+        echo "[goose-bench] unknown TASK_SHAPE: $TASK_SHAPE (expected append-naive, read-report, edit-verify, author-new-file, or error-recovery-chain)" >&2
         exit 1
         ;;
     esac
@@ -95,6 +114,22 @@ let
           PASS=true
         fi
         ;;
+      author-new-file)
+        if [ -f "$SCRATCH/calc.py" ] \
+          && grep -q "^def add" "$SCRATCH/calc.py" 2>/dev/null \
+          && grep -q "^def divide" "$SCRATCH/calc.py" 2>/dev/null \
+          && grep -q "ValueError" "$SCRATCH/calc.py" 2>/dev/null; then
+          PASS=true
+        fi
+        ;;
+      error-recovery-chain)
+        if [ -f "$SCRATCH/dest.txt" ] \
+          && grep -q "alpha" "$SCRATCH/dest.txt" 2>/dev/null \
+          && grep -q "done" "$SCRATCH/dest.txt" 2>/dev/null \
+          && ! grep -qi "nonexistent-intermediate" "$SCRATCH/dest.txt" 2>/dev/null; then
+          PASS=true
+        fi
+        ;;
     esac
 
     LOG=$(find "$GOOSE_PATH_ROOT/state/logs/cli" -name '*.log' 2>/dev/null | head -1)
@@ -135,7 +170,7 @@ let
     HOST=""
     LABEL_PREFIX="docked"
     MODELS=""
-    SHAPES="append-naive read-report edit-verify"
+    SHAPES="append-naive read-report edit-verify author-new-file error-recovery-chain"
     THINK_MODES="true false"
 
     while [ $# -gt 0 ]; do
