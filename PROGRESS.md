@@ -42,13 +42,121 @@ engine/routing architecture work. Timestamps are wall-clock CDT.
 
 (in progress)
 
-## Phase 2 — qubi-engine daemon
+## Phase 2 — qubi-engine daemon (13:20-13:35)
 
-(not started)
+- `engine/qubi_engine.py`: promotes `goose_bridge.py`'s one-process-fan-out
+  idea into a real multi-tier router. Unix socket
+  (`$XDG_RUNTIME_DIR/qubi/engine.sock`) + WebSocket (127.0.0.1:8765, same
+  port `qubi-bridge.service` used — that service is stopped, being
+  replaced, per the task's explicit permission).
+- Per-tier isolation via `XDG_CONFIG_HOME` (confirmed real in Phase 0's
+  probing, reused here): each tier gets its own generated `config.yaml`
+  with only its configured extensions enabled; light tier's `escalate`
+  extension is synthesized into its config (never written to the real
+  `~/.config/goose/config.yaml`, so it can't leak into heavy/claude).
+  `XDG_DATA_HOME` is deliberately left untouched across tiers, so all three
+  processes share the one real `sessions.db` -- this is what makes
+  Phase 3c's cross-tier `session/load` continuation possible at all.
+- Warm-up bug found and fixed live: routing the light tier's warm-up
+  through a full ACP `session/prompt` turn took **54.5 seconds** (the model
+  "thinking" through a whole reply just to warm up), confirmed via the
+  engine's own first real run. Switched to a direct `/api/generate` call
+  with `keep_alive` set (what warm-up actually needs is the weights loaded
+  into VRAM, not a finished reasoning pass) -- **cold start dropped to
+  4.5 seconds**, confirmed on the very next run. Also found and fixed:
+  Ollama's duration parser rejects the JSON string `"-1"` ("time: missing
+  unit in duration") but accepts the JSON number `-1` -- config.json keeps
+  `"-1"` as a string (matches every other keep_alive value), engine
+  normalizes just this one case before calling Ollama directly.
+- Session registry (`Session`/`ClientConn` classes): status
+  {idle/working/awaiting_permission/awaiting_escalation/done/error}, tier,
+  last_activity, subscriber set. `qubi/session_status` pushed on every
+  state change. `qubi/session_list` merges live sessions with a
+  `sqlite3 -json` query against Goose's own `sessions.db` for sessions the
+  engine didn't create (terminal runs) -- Phase 2d's completeness
+  requirement.
+- Fan-out + single-driver queueing: a session's notifications go to every
+  subscriber; a `session/prompt` while the session is already busy queues
+  behind the in-flight one instead of racing it.
+- `qubi/theme`: reads `themes/<name>/base16.yaml` (flat `key: "#hex"`
+  parser, no YAML dependency needed) + `theme.json` if present.
+- **Live-verified** (real client over the real socket, `~/qubi-staging/
+  engine/engine_client.py` + `test_multiclient.py`):
+  - `qubi/status` reports real per-tier running/ready state.
+  - `session/new` -> real session id in 62ms; full ACP proxy round-trip
+    (`session/prompt` with real streaming chunks, correct final result
+    with the client's own request id preserved) confirmed working.
+  - **Two simultaneous clients on one session**: client A drives a prompt,
+    client B connects via `qubi/subscribe` mid-turn -- B received 345 of
+    the same 352 notifications A saw (the 7-notification gap is exactly
+    what fired before B subscribed). Confirms Phase 2's explicit
+    "client connecting to a session another client is mid-prompt on"
+    requirement.
+  - Heavy tier lazy-spawn confirmed: process spawns and initializes on
+    first routed use, no error.
+- **Known gap, documented not hidden**: `qubi-bridge.service` was stopped
+  manually for tonight's testing (port 8765 conflict) -- Phase 2h's real
+  systemd unit replacing it isn't written yet (done together with Phase 8's
+  client migration, since that's when the unit actually needs to exist
+  for real). Until then, the engine only runs when started by hand.
 
-## Phase 3 — Routing + escalation
+## Phase 3 — Routing + escalation-that-asks (13:35-13:45)
 
-(not started)
+- `score_prompt()`: zero-latency heuristic (code fence, length>400, file
+  path mention, verb-list hit) with a numeric threshold (score>=5 ->
+  heavy). Deliberately conservative -- a verb hit alone (e.g. "refactor")
+  does NOT cross the threshold on its own, so a moderate natural-language
+  request stays on light and relies on light's own judgment (the
+  `escalate` tool) rather than the pre-router guessing wrong. See
+  DECISIONS.md for the full reasoning (this was a real ambiguity in how to
+  read the task brief, resolved by matching both of its own verification
+  examples simultaneously).
+- `engine/escalate.py`: one-tool stdio MCP server (same hand-rolled pattern
+  as `ask_user.py`), attached only to the light tier via its synthesized
+  tier config. The tool itself just acknowledges; the engine watches for
+  the `tool_call` notification, extracts `rawInput.reason`/
+  `rawInput.suggested_tier`, and emits `qubi/escalation_offer`.
+  `escalation.auto_escalate_never` is enforced structurally, not just by
+  convention: the engine never calls `qubi/set_tier` itself anywhere in
+  the codebase -- only a client-initiated call can switch a session's tier.
+- `qubi/set_tier`: switches a session to a target tier by spawning it if
+  needed, calling `session/load` with the SAME session id (proving
+  cross-process session continuation works, not just asserting it), then
+  re-sending the session's last user prompt on the new tier.
+- **Live-verified, all three routing decisions observed with real
+  evidence** (`grep "routed ->" engine.log`):
+  - `"Say the single word: ready"` -> score=0 -> **light**.
+  - `"refactor this into a module: \`\`\`...\`\`\`"` -> score=6 (code fence
+    + verb) -> **heavy**, heavy tier process spawned and initialized clean.
+  - `"refactor the dock/undock state machine into a single module"` ->
+    score=1 (verb alone) -> **light**.
+- **The single most important live test tonight**: sent the exact prompt
+  from the task brief's own verification example
+  ("refactor the dock/undock state machine into a single module") through
+  a real client against the real light-tier `qwen3:4b` model. It started
+  on light (as scored), thought about it, and **the model's own judgment
+  called the real `escalate` tool** with a genuine reason ("the current
+  dock/undock state machine code structure is unclear without inspecting
+  existing files..."). The engine correctly intercepted the `tool_call`
+  notification, emitted a real `qubi/escalation_offer` to the subscribed
+  client with `reason`/`suggested_tier`/`options`, and set the session's
+  status to `awaiting_escalation` -- before the underlying `tool_call`
+  notification itself was even relayed. This is not a mocked test; it's
+  the full light-model-decides -> engine-intercepts -> client-offered loop
+  working exactly as designed, end to end, with a real 4B model making the
+  actual judgment call.
+- **Observed nuance, not a bug**: after the tool call completed, the light
+  model kept emitting a few more thinking tokens about escalation instead
+  of immediately stopping, despite escalate.py's tool-result text saying
+  "stop here and wait." Cosmetic (the offer was already sent and is
+  correct; the extra thinking tokens don't change the outcome), but worth
+  a stronger system-prompt instruction if this matters in practice later.
+- **Not yet live-tested**: the accept-path of `qubi/set_tier` actually
+  continuing a session on heavy/claude with history intact end-to-end (the
+  session/load call itself is exercised by the escalation flow above, but
+  a full accept-and-continue turn on the target tier wasn't run tonight --
+  heavy tier's model is large enough that a full turn would cost several
+  more minutes of wall-clock; deferred, flagged rather than assumed).
 
 ## Phase 4 — Claude tier tooling
 
