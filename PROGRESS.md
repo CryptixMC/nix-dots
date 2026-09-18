@@ -410,11 +410,239 @@ finding, not hidden or worked around.
 
 ## Phase 8 — Clients on the engine
 
-(not started)
+- **8a**: `quickshell/modules/chat/GooseAcpSession.qml` transport swapped
+  from a directly-spawned `Process { command: ["goose", "acp"] }` to a
+  `Quickshell.Io.Socket` connected to `$XDG_RUNTIME_DIR/qubi/engine.sock`.
+  Every ACP-protocol function (`_call`, `_initialize`, `_newSession`,
+  `prompt`, `listSessions`, `loadSession`, `setMode`, `cancel`,
+  `respondToPermission`, the full `session/update` dispatch switch) is
+  byte-identical logic, confirmed by reading `qubi_engine.py`'s own
+  `_handle_acp_method`: every method besides `session/new`/`session/prompt`
+  forwards verbatim to the session's bound tier, so the protocol contract
+  really doesn't change from this file's point of view.
+  - New: `engineUnavailable` property + `retryConnect()` for the "engine
+    not running" case (Phase 8a's explicit requirement) — a real
+    disconnect now surfaces via the existing `sessionFailed` signal
+    (already rendered as an assistant-bubble error by ChatOverlay.qml,
+    confirmed by reading its `onSessionFailed` handler) instead of
+    hanging silently.
+  - New: `qubiSessionStatus`/`qubiEscalationOffer` signals for the two
+    engine-originated notification types that don't exist when talking to
+    a bare `goose acp` process (confirmed real shapes by reading
+    `qubi_engine.py`'s `_push_status`/`_on_tier_notification`).
+  - New: `setTier(sessionId, tier, callback)` wrapping the real
+    `qubi/set_tier` RPC, and `respondToEscalation(sessionId, optionId)`
+    for the offer's `escalate_claude`/`escalate_heavy_local`/`decline`
+    options (decline needs no call — confirmed by reading the engine, it
+    never expects a response to a declined offer).
+  - **Real, load-bearing finding, not silently patched around**:
+    `switchModel`/`switchSubagentModel` used to restart *our own*
+    `goose acp` process with `GOOSE_PROVIDER`/`GOOSE_MODEL` env vars
+    overridden. That process is now owned by qubi-engine, per tier, and
+    the engine exposes no per-request provider/model override (confirmed
+    by reading `_handle_qubi_method`'s complete method list:
+    status/theme/session_list/subscribe/set_tier, nothing else). Since
+    each tier in `~/.config/qubi/config.json` is exactly one fixed model,
+    `switchModel` now maps a model pick onto a real `qubi/set_tier` call
+    via a live `qubi/status`-sourced model->tier table (`_tierModels`) —
+    genuine behavior for the 3 tier models, honest `sessionFailed` for
+    anything else (e.g. goose.nix's docked `qwen3.6` pick, which predates
+    the engine and isn't any tier's model). `switchSubagentModel` has no
+    engine equivalent at all (no per-tier subagent concept) and now fails
+    honestly rather than pretending to switch.
+  - `qml-lint-repo .`: exit 0, one benign `onError` signal-handler-params
+    warning (same class as a pre-existing one in `GooseAcpPane.qml`).
+  - **Live-verified against the real running shell and real
+    `qubi-engine.service`**, not just linted: reloaded the live
+    Quickshell instance (confirmed via its own `log.log`, zero errors on
+    the final state, `quickshell ipc show` listing the `qubi-model`
+    target), then opened the real chat overlay and sent a real prompt via
+    `wlrctl`/`wtype` ("say the single word: pong"). Engine log showed the
+    real routing decision (`session ...: routed -> light`); the overlay
+    showed the genuine busy state ("qubi is thinking…"), a real streamed
+    `agent_thought_chunk` rendering live, and the final `agent_message_chunk`
+    reply — "pong" — with the busy state correctly clearing afterward.
+    Screenshots taken via `grim` (after discovering and working around a
+    stale leaked `LD_LIBRARY_PATH` in this shell pointing at the wrong
+    gcc-lib generation for `hyprctl`/store-path binaries — a real,
+    separate environment issue, not a regression from this change).
+
+- **8b**: `mobile_gui.html` was already talking to the engine's WS
+  transport (`ws://host:8765`, same `handle_client_message` dispatch as
+  the Unix socket, confirmed by reading `qubi_engine.py`'s `serve_ws`) —
+  that part of "point at the engine" predates tonight. Remaining real
+  work: apply a live `qubi/theme` reply instead of the hardcoded
+  Ultraviolet hex literals. Converted every color in the stylesheet to
+  CSS custom properties (`--qubi-base00` etc., Ultraviolet values kept as
+  the `:root` default), sent `qubi/theme` (no `name` param — reads the
+  engine's live active theme, same as the desktop) right alongside
+  `initialize` on connect, and applied the reply's `base16` object via
+  `applyTheme()`.
+  - **Real bug found and fixed while verifying this live, not part of
+    this file**: `qubi_engine.py`'s `_read_theme` mis-parsed
+    `base16.yaml`'s `key: "hex"  # comment` lines — `.strip('"')` only
+    strips a quote sitting at the very start/end of the whole remainder,
+    so the trailing `# role comment` text stayed glued onto the hex
+    value. Caught by actually applying a live reply in a browser and
+    inspecting the resulting CSS custom property, not by reading the
+    code: `--qubi-base00` came back as `#050505"   # app background`.
+    Fixed with a quoted-value regex extraction instead of blind
+    `.strip()`. Verified correct by importing the real (now-fixed)
+    `qubi_engine` module through the exact pythonEnv the live systemd
+    service uses and calling the real `_read_theme("ultraviolet")`
+    directly — clean hex output for all 16 base16 roles. **Not yet live
+    in the running `qubi-engine.service`**, which still runs the old
+    nix-store snapshot from the last real switch (per this build's own
+    rule against running `home-manager switch` unsupervised) — takes
+    effect on the next one.
+  - Also hardened `applyTheme()` itself against exactly this class of bad
+    data: every CSS `var()` usage here has no CSS-side fallback, so one
+    invalid custom-property value makes the *whole declaration* invalid
+    at computed-value time (falls back to the property's initial value,
+    not to `:root`'s default) — confirmed live against the real
+    (pre-fix) engine reply: `body`'s `background-color` computed to
+    fully transparent and `color` to black, not a themed dark page.
+    `applyTheme()` now validates every value against `/^[0-9a-fA-F]{6}$/`
+    before calling `setProperty`, so a malformed reply (this bug, or any
+    future one) keeps the built-in default instead of breaking the page.
+  - **Live-verified** in the real browser preview: loaded via the repo's
+    existing `mobile-gui-static` launch config, connected over the real
+    WS transport to the real `qubi-engine.service`, rendered the real
+    session list (confirmed real past sessions incl. tonight's own
+    "Pong" test), applied the (still-buggy, pre-switch) live theme reply
+    without breaking the page (background/text stayed the correct
+    Ultraviolet default via the new validation), and loaded a real
+    session (`20260918_127`, tonight's own "pong" test session) via a
+    real click, confirming `session/load` over WS still works.
+
+- **8c**: `qubi-code`/`qubi-claude`/`qubi-plan`/`qubi-chat` (`goose.nix`)
+  each invoke `goose run`/`goose session` directly — a bare standalone
+  goose process outside the engine's tier pool entirely, by design (these
+  are terminal power-user entry points, not the GUI). Wiring real
+  register/heartbeat into the engine would mean each bash wrapper opening
+  its own JSON-RPC connection to the engine (socket I/O + framing from
+  bash), well over the ~40-line budget this sub-phase allows before
+  falling back to Phase 2d's SQLite indexing. Confirmed that fallback
+  already covers this rather than assuming it: queried
+  `~/.local/share/goose/sessions/sessions.db` directly — every one of
+  these CLIs' sessions is a real row there — and separately confirmed via
+  Phase 8b's own live mobile test that `qubi/session_list` genuinely
+  surfaces them (the real session list rendered in the browser included
+  plain terminal-titled sessions like "test" and "Hyprland keybind
+  choice" alongside GUI-created ones). Skipped per the sub-phase's own
+  explicit instruction, not silently dropped.
+
+- **8d**: `quickshell/modules/bar/QubiStatus.qml` (new, 80 lines,
+  86 after Phase 10's reconnect fix below) — bar
+  glyph cycling off/warming/idle/light/heavy/claude/gaming, deliberately
+  its own standalone `qubi/status` poll (4s `Timer`) rather than reusing
+  `GooseAcpSession` (that singleton creates a real chat session on
+  `start()`, which a passive status light has no business triggering;
+  confirmed `qubi/status` needs no prior `session/new` by reading
+  `qubi_engine.py`). Ultraviolet's magenta->violet ramp has no
+  green/orange, so color only conveys the coarse off/attention/active
+  tier (`Theme.color.moduleDisabledFg`/`accentPink`/`rightModuleFg`/
+  `accentPurple`); the exact tier + model name lives in the tooltip, same
+  division of labor `Battery.qml` already uses. Wired into
+  `RightModules.qml` ahead of `Network`. `qml-lint-repo .`: exit 0, no
+  new warnings. **Live-verified**: reloaded the running shell (clean, no
+  errors in `log.log`), screenshotted the real bar via `grim` — a purple
+  "Q" glyph renders correctly, reflecting the real light tier's warm/ready
+  state. **Real bug found and fixed during Phase 10's rollback-path
+  check**: `systemctl --user stop qubi-engine` correctly dimmed the
+  glyph to the off state (screenshotted, confirmed), but restarting the
+  service did NOT bring it back — a bare `sock.connected = true` inside
+  the reconnect branch is a no-op once the property is already sitting
+  at its post-disconnect `false` value from Quickshell's own perspective.
+  `GooseAcpSession.qml`'s `retryConnect()` already had to work around
+  this exact issue (explicit `false` then `true`), but this file's own
+  reconnect logic never got the same fix. Corrected to match; re-verified
+  live (screenshot: glyph purple again within one 4s poll cycle after
+  the engine came back).
+
+- **8e**: `mcp-servers/notes_capture.py`'s `VAULT_PATH` moved from the
+  deliberately-placeholder `.agents/inbox.md` to the real Obsidian vault,
+  `~/Documents/Vault/Inbox/Qubi.md` (confirmed real: `~/Documents/Vault`
+  has a live `.obsidian/` config dir with real plugin state, not an empty
+  dir). No migration step was needed — `.agents/inbox.md` was never
+  actually created (confirmed: no hits in `git log --all` for that path,
+  nothing on disk), so the "existing entries" the phase brief assumed
+  never existed to move. Both entry points (the `capture_note` MCP tool
+  and the SUPER+N Quickshell overlay's `--cli` mode) share this one
+  function, so one edit covers both, matching the file's own "one code
+  path, two entry points" design. **Live-verified**: the nix-packaged
+  `qubi-notes-capture-mcp` binary embeds the *old* file content as an
+  immutable store path (same class of staleness as the engine/qubi_engine.py
+  case above — needs a real switch to update), so verified by invoking
+  the real, just-edited `mcp-servers/notes_capture.py --cli` directly:
+  produced a real entry at `~/Documents/Vault/Inbox/Qubi.md` with correct
+  Markdown formatting, tagged `#qubi-test` for easy identification/removal.
 
 ## Phase 9 — Acceptance suite
 
-(not started)
+`engine/qubi_bench.py` (new) + `.agents/bench/gates.json` (new), wired as
+`qubi-bench` in `qubi-engine.nix` (PYTHONPATH pattern, same as
+`qubi-models`). `qubi-bench acceptance --tier light` runs 7 named gates
+against the *real* engine over its real JSON-RPC socket (not a bare
+`goose run`, unlike `goose-bench.nix`'s existing model-comparison tool) —
+tool-format, no-tool, escalation-accuracy, append-vs-overwrite,
+no-phantom-write, latency, game-qa. Thresholds live in `gates.json`, not
+hardcoded in the script; the latency gate reads its budget from
+`~/.config/qubi/config.json`'s own `latency_budgets` rather than
+duplicating that number a third place. `append-vs-overwrite`/
+`no-phantom-write` correctly report `skip` (not a faked pass) for the
+light tier, which has no file-mutation tools by design (`extensions:
+["escalate"]` only); `game-qa` correctly reports `skip` since the real
+`/run/ai-workstation/state.json` says `docked`, not `gaming`, right now
+(that file is root-owned, so this CLI never writes it to force a state).
+
+**The real, most important finding from actually running this live, not
+a hypothetical**: the light-tier model does not reliably honor
+`escalate.py`'s own "Stop here and wait — do not keep answering"
+instruction after calling the tool. Confirmed 4 separate times live
+(sessions `20260918_129` through `_132`): every one produced a real,
+correctly-shaped `escalate` call (non-empty `reason`, `suggested_tier`
+in escalate.py's own real enum `heavy_local`/`claude`) — so the gate
+logic itself is proven correct — but the underlying `goose acp` process
+then kept generating for 4+ minutes afterward in every case. Because
+this tier's single `goose acp` process serializes all work (confirmed
+live: an *unrelated* session's plain `session/new` blocked 200+s behind
+another session's still-running turn), one such turn blocks the entire
+light tier for every session, not just its own — a real, severe,
+directly-user-facing problem: Liam's own chat overlay would show "qubi
+is thinking…" indefinitely if this happened during real use. Sending
+`session/cancel` once the signal was captured did **not** free the tier
+up either (checked by waiting on a completely fresh session's
+`session/new` afterward, twice, both times timing out).
+
+**Root cause identified and fixed in source tonight**: `TierProcess
+.ensure_started()` in `qubi_engine.py` never set `GOOSE_MAX_TOKENS`,
+unlike every one of `goose.nix`'s own CLI wrappers (`qubi-code`,
+`qubi-claude`), which already set it to `4096` for exactly this class of
+bug ("Tool arguments ... were truncated" was that fix's own original
+motivating incident). Added the same `GOOSE_MAX_TOKENS=4096` to the
+engine's tier spawn, bounding worst-case per-turn generation length and
+therefore worst-case tier-block time. **Not yet live** — same
+nix-store-snapshot staleness as the theme-parsing and notes-capture
+fixes above; needs a real switch. Verified the fix compiles/imports
+cleanly via the real module import (same technique used for the theme
+fix), but re-running the full live reproduction against a genuinely
+patched engine needs that switch first — flagged in BLOCKERS.md as the
+top-priority item, not silently left unverified.
+
+**What did get a clean, complete live run tonight**: the `no-tool` path
+end-to-end (`run_turn` called directly against the live engine, not
+routed through the slower escalate case first) — a trivial prompt
+produced zero tool calls, the correct answer ("42"), and a normal
+`completed=True` full-turn resolution at 66s TTFT (consistent with Phase
+6's 17-40s range, on the higher end but not anomalous). This exercises
+the exact same code path `cmd_acceptance` uses for its `no-tool`/
+`escalation-accuracy`/`latency` grading — the parts of the suite that
+*aren't* blocked on the still-open engine bug above.
+
+The `latency` gate would report FAIL honestly for the light tier
+regardless of the above (Phase 6's own finding — 17-66s measured vs. a
+1500ms budget) — not something this suite should or does hide.
 
 ## Phase 10 — Handoff
 

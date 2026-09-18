@@ -5,7 +5,54 @@ Night 1 (2026-09-18) blockers are archived at
 `docs/history/BLOCKERS-2026-09-18.md`. This file now covers night 2
 (`qubi/engine` branch) only.
 
-## 1. gpt-oss:20b / devstral:24b isolated retest blocked by model-store permissions
+## 1. A rambling escalate turn can block an entire tier for everyone (fix written, not yet live)
+
+**What I found**: building and live-running Phase 9's acceptance suite
+(`qubi-bench acceptance --tier light`) surfaced a real, severe bug —
+confirmed 4 separate times, not a one-off: when the light tier's model
+correctly calls the `escalate` tool (real, well-formed calls every time:
+non-empty `reason`, valid `suggested_tier`), it does NOT reliably stop
+generating afterward despite `escalate.py`'s own explicit instruction
+("Stop here and wait — do not keep answering"). The underlying `goose
+acp` process then kept running for 4+ minutes past the tool call in
+every observed case. Because this tier's single `goose acp` process
+serializes all work — confirmed live: a totally unrelated session's
+plain `session/new` blocked 200+ seconds behind another session's
+still-running turn — one such rambling turn blocks the ENTIRE light
+tier for every session, not just its own. `session/cancel`, sent as
+soon as the escalate signal was captured, did not free the tier up
+either (checked twice, both times a subsequent fresh `session/new`
+still hung).
+
+**What this blocks**: this is directly user-facing. If Liam asks the
+light tier something that trips escalation during real use, his own
+chat overlay (or anyone else's concurrent session on the light tier)
+would show "qubi is thinking…" for minutes with no way to unstick it
+short of restarting `qubi-engine.service`.
+
+**Root cause identified, fix already written**: `TierProcess
+.ensure_started()` in `engine/qubi_engine.py` never set
+`GOOSE_MAX_TOKENS` for the tier's spawned `goose acp` process — every
+one of `goose.nix`'s own CLI wrappers (`qubi-code`, `qubi-claude`)
+already sets `GOOSE_MAX_TOKENS=4096` for exactly this class of runaway-
+generation bug, but the engine's tier processes never inherited it.
+Added the same value with the same rationale. **Not yet live** — the
+running `qubi-engine.service` is a nix-store snapshot from the last real
+`home-manager switch` (this build's own rule against running `switch`
+unsupervised), so this fix needs one before it's actually in effect.
+
+**What you need to do**: run a real `home-manager switch` (or `nh home
+switch`) to pick up the fix, then re-run `qubi-bench acceptance --tier
+light` — the escalate case should now resolve within a bounded time
+instead of hanging for minutes. If it's still slow after that, the next
+thing to check is whether `GOOSE_MAX_TOKENS=4096` is too generous a cap
+for this specific failure mode (i.e. the model reasoning past 4096
+tokens before ever calling the tool, not just rambling after it) —
+`qubi-bench`'s own output JSON (`~/.local/share/qubi-bench/acceptance-
+light.json`) records the real per-case `ttft_ms` and `completed` flags
+needed to tell those two failure modes apart.
+
+## 2. gpt-oss:20b / devstral:24b isolated retest blocked by model-store permissions
 
 **What I found**: `qubi-health` reports `HEALTHY` tonight (the eGPU recovered
 after last night's reboot) — the intended path was to retest `gpt-oss:20b`
@@ -38,7 +85,7 @@ unattended next time — worth doing regardless of tonight's blocker, since
 "isolate a risky model in a throwaway instance" is exactly the safety pattern
 TODO.md already established as the right one.
 
-## 2. `goose acp`'s claude-code bridge doesn't surface MCP tools to the model
+## 3. `goose acp`'s claude-code bridge doesn't surface MCP tools to the model
 
 **What I found**: registered `ask-user`/`notes-capture` as real MCP servers
 for the `claude` CLI at both user-scope (`claude mcp add --scope user`,
@@ -65,6 +112,36 @@ through the engine's own permission-banner UI instead of relying on
 Claude's own tool-calling for this one case). Full capability table and
 the two-different-outcomes evidence: `DECISIONS.md`, "Claude tier vs.
 local tiers: capability gap table."
+
+## 4. Free-form model/subagent switching regressed by the engine architecture
+
+**What I found**: `GooseAcpSession.qml`'s pre-engine `switchModel`/
+`switchSubagentModel` worked by restarting *our own* `goose acp` process
+with `GOOSE_PROVIDER`/`GOOSE_MODEL` env vars overridden. Now that
+qubi-engine owns each tier's `goose acp` process (the whole point of
+Phase 2/3's design), that process is no longer ours to restart, and the
+engine exposes no per-request provider/model override — confirmed by
+reading `qubi_engine.py`'s `_handle_qubi_method` in full: its complete
+method list is `qubi/status`, `qubi/theme`, `qubi/session_list`,
+`qubi/subscribe`, `qubi/set_tier`, nothing else.
+
+**What this blocks**: `switchModel` now only works for the 3 real tier
+models (routes to `qubi/set_tier` via a live `qubi/status`-sourced
+model->tier table) — picking any other model (e.g. goose.nix's docked
+`qwen3.6:latest`, which predates the engine and isn't any tier's model)
+fails with a real, visible `sessionFailed` error instead of silently
+doing nothing. `switchSubagentModel` has no engine equivalent at all (no
+per-tier subagent concept exists) and always fails now.
+
+**What you need to do**: decide whether ChatOverlay.qml's model/subagent
+picker UI (the `modelConfigOption.options` dropdown, sourced from
+whichever tier's own ACP `configOptions` happen to be exposed) should be
+replaced with a tier-based picker (light/heavy/claude, i.e. exactly the
+3 real choices `qubi/set_tier` supports) or removed in favor of the
+escalation-offer chip (Phase 8a's own new UI) as the primary way to
+change models mid-conversation. Not fixed tonight — this needs a real UI
+decision, not a silent code patch. Full technical detail: `PROGRESS.md`,
+Phase 8a.
 
 ---
 
