@@ -158,9 +158,75 @@ engine/routing architecture work. Timestamps are wall-clock CDT.
   heavy tier's model is large enough that a full turn would cost several
   more minutes of wall-clock; deferred, flagged rather than assumed).
 
-## Phase 4 — Claude tier tooling
+## Phase 4 — Claude tier tooling (13:45-14:10)
 
-(not started)
+- `claude mcp add --scope user ask-user /nix/store/.../qubi-ask-user-mcp`
+  and `notes-capture` -- both confirmed `√ Connected` via `claude mcp list`
+  run in a **fresh shell** (`bash -lc`), per the task's own verification
+  requirement.
+- Skills discovery path: confirmed live, empirically, that `.agents/skills/`
+  (Goose's convention) is NOT auto-discovered by Claude Code -- asked a
+  fresh `claude -p` session about the eGPU skill's content with nothing but
+  ambient context; it correctly said it had nothing loaded and refused to
+  guess. Symlinked `.claude/skills/<name> -> ../../.agents/skills/<name>`
+  for all four skills (single source of truth preserved, no content
+  duplicated) and re-ran the identical question: **now it surfaced the
+  skill's real one-line description verbatim**, and a follow-up "load the
+  skill" prompt returned the exact real facts from `SKILL.md` (PCI id
+  `1002:73bf`, `gaming` state's `model: null`) -- word-for-word matching
+  the source file, not invented.
+- **Real bug found and fixed live**: the claude tier's `goose acp` process
+  (spawned via the engine with `GOOSE_PROVIDER=claude-code`) failed
+  `session/new` outright with `Failed to resolve model: Configuration
+  value not found: GOOSE_MODEL` the moment the engine's per-tier isolated
+  config didn't carry a usable model value, and separately, when the base
+  config's own top-level `GOOSE_MODEL: "qwen3:4b"` leaked through, every
+  prompt failed with `issue with the selected model (qwen3:4b)` -- because
+  the claude tier's config.json default was `model: ""` and Goose's `acp`
+  entrypoint (unlike `goose run --provider claude-code`, the CLI-flag path
+  `qubi-claude` already uses) does not independently resolve a sensible
+  claude-code default model. Fixed by setting `tiers.claude.model` to
+  `"sonnet"` (a real alias `claude --help` documents) in
+  `qubi_config.py`'s `DEFAULT_CONFIG` -- confirmed working end-to-end
+  through the real engine immediately after (`qubi/set_tier` ->
+  `session/load` -> real streaming Claude response, session correctly
+  switched `light -> claude` in the engine's own log).
+- **The central verification, run for real, twice, with two different
+  outcomes worth recording precisely** (not papering over): using the real
+  engine, created a session, forced it onto the claude tier via
+  `qubi/set_tier` (which itself proves cross-tier `session/load`
+  continuation works -- Phase 3c's open item, now closed), then sent
+  "I haven't decided which keybind combo to use, use the ask_user tool to
+  ask me -- do not guess":
+  1. **Through `goose acp` + `GOOSE_PROVIDER=claude-code`** (the actual
+     pathway the engine's claude tier uses): the model answered entirely
+     in plain conversational text ("please specify the exact combination
+     you prefer... `Mod+Q` or `Super+Enter`...") and **never attempted any
+     tool call at all** -- confirmed by inspecting every notification in
+     the full session transcript, zero `tool_call` events. This held both
+     before and after adding `ask-user`/`notes-capture` to this repo's
+     project-scope `.mcp.json` (tried both registration scopes; neither
+     changed the observed behavior through this specific bridge).
+  2. **Through plain `claude -p` directly** (same prompt, no goose in the
+     loop): the model DID see and attempt the tool
+     (`mcp__ask-user__ask_user`) -- but Claude Code's own permission gate
+     blocked it: *"the `ask_user` tool call came back needing permission
+     that hasn't been granted, and this session is non-interactive... You'd
+     need to allow `mcp__ask-user__ask_user`."*
+  This isolates the gap precisely: user-scope (and project-scope) MCP
+  registration DOES make `ask_user` visible and attemptable to a direct
+  `claude` CLI invocation (blocked only by an orthogonal, fixable
+  permission-prompt setting), but **`goose acp`'s claude-code provider
+  bridge does not surface registered MCP tools to the model at all** --
+  a deeper integration gap than a permission setting, not something
+  fixable from this repo's config alone. Did not blanket-grant the
+  permission in `~/.claude/settings.json` tonight: that file is this
+  actual interactive session's own global settings (would affect every
+  future `claude` invocation, not just Qubi's claude tier), and fixing it
+  wouldn't even help the real pathway (`goose acp`) which has the deeper,
+  separate gap. Logged as `BLOCKERS.md` item 2.
+- Capability differences table: see `DECISIONS.md`, "Claude tier vs. local
+  tiers: capability gap table" -- not papered over.
 
 ## Phase 5 — Gaming CPU-only
 

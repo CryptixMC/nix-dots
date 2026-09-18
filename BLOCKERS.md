@@ -38,6 +38,34 @@ unattended next time — worth doing regardless of tonight's blocker, since
 "isolate a risky model in a throwaway instance" is exactly the safety pattern
 TODO.md already established as the right one.
 
+## 2. `goose acp`'s claude-code bridge doesn't surface MCP tools to the model
+
+**What I found**: registered `ask-user`/`notes-capture` as real MCP servers
+for the `claude` CLI at both user-scope (`claude mcp add --scope user`,
+confirmed `√ Connected`) and project-scope (`.mcp.json`, this repo). A
+direct `claude -p` session sees and attempts to call `ask_user` (blocked
+only by an unrelated, separately-fixable permission-prompt setting). But a
+`goose acp` process with `GOOSE_PROVIDER=claude-code` -- the actual pathway
+the engine's claude tier uses -- never attempts any tool call at all when
+explicitly instructed to use `ask_user`; it just answers in plain text.
+Confirmed by inspecting a full real session transcript through the real
+engine: zero `tool_call` notifications anywhere in it.
+
+**What this blocks**: the claude tier cannot currently trigger the real
+on-screen `AskUserDialog` (or `notes-capture`) the way the local tiers can.
+An escalated-to-claude conversation that needs to ask Liam something will
+currently just ask in plain chat text instead.
+
+**What you need to do**: this needs someone with either Goose's source or
+much deeper black-box probing of the `goose-cli` binary's claude-code
+provider integration to determine whether it can be made to pass through
+MCP config to the underlying `claude` invocation, or whether a structural
+workaround is needed (e.g. routing escalated-tier `ask_user`-shaped needs
+through the engine's own permission-banner UI instead of relying on
+Claude's own tool-calling for this one case). Full capability table and
+the two-different-outcomes evidence: `DECISIONS.md`, "Claude tier vs.
+local tiers: capability gap table."
+
 ---
 
 *Night 1's blockers (dead-KFD reboot requirement, Tailscale Serve admin

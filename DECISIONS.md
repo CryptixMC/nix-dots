@@ -87,3 +87,59 @@ being about as short as a prompt gets and still costing 17-36s).
 **To change it:** `Engine.start()`/`Engine._ollama_warm()` in
 `engine/qubi_engine.py`.
 **Confidence:** high -- directly measured, not inferred.
+
+## Claude tier default model: `"sonnet"`, not empty string
+**Decided:** `tiers.claude.model` and `tiers.claude.cpu_model` both default
+to `"sonnet"` in `qubi_config.py`.
+**Why:** Confirmed live -- empty string makes `goose acp`'s `session/new`
+fail outright (`Failed to resolve model: Configuration value not found:
+GOOSE_MODEL`) when the per-tier isolated config doesn't otherwise supply
+one, and even when the *base* config's stale top-level `GOOSE_MODEL:
+"qwen3:4b"` leaks through as a fallback, every prompt then fails
+("issue with the selected model (qwen3:4b)"). `claude --help` documents
+`sonnet`/`opus`/`fable` as real model aliases; `sonnet` confirmed working
+end-to-end (real streaming response from a real engine-spawned claude-tier
+session).
+**Alternatives:** A fully-qualified model id instead of the alias
+(untested, alias confirmed working so no reason to chase this tonight);
+leaving it empty and forcing every caller to set `GOOSE_MODEL` explicitly
+(rejected -- defeats the point of a sensible tier default).
+**To change it:** `engine/qubi_config.py`'s `DEFAULT_CONFIG["tiers"]
+["claude"]["model"]`, or live via `qubi-config set tiers.claude.model
+'"opus"'`.
+**Confidence:** high -- directly measured.
+
+## Claude tier vs. local tiers: capability gap table (not papered over)
+**Decided:** Document the real, measured differences rather than assume
+Phase 4a/4b's registration work made the claude tier fully equivalent to
+the local tiers.
+
+| Capability | light/heavy (ollama) | claude tier (via `goose acp` + claude-code) |
+|---|---|---|
+| Responds to prompts | yes | yes (confirmed, real streaming) |
+| `escalate` tool | light only, by design | not attached (not in its extension list; also see below) |
+| Skills (`.agents/skills/` via `.claude/skills/` symlinks) | goose reads `.agents/skills/` directly (Goose's own skills extension) | **not verified reachable from inside a goose-acp claude-code session** -- Phase 4b's live proof used the `claude` CLI directly, not through goose's bridge; not re-tested through the bridge specifically |
+| `ask_user` / `notes-capture` MCP tools | reachable via Goose's own extension config (per-tier synthesized `config.yaml`) | **registered (user-scope AND project-scope, both tried) but not surfaced to the model at all** through `goose acp`'s claude-code bridge -- confirmed live, zero tool_call events across a full transcript where the model was explicitly instructed to use the tool. Directly querying the SAME registration via plain `claude -p` (no goose) DOES surface the tool (blocked only by an orthogonal permission-prompt gate, itself fixable) -- isolating the gap to goose's claude-code bridge specifically, not the MCP registration |
+| Session continuity across a tier switch (`session/load`) | n/a (same process family) | **confirmed working** -- `qubi/set_tier` to claude, real `session/load` succeeded, real follow-on response streamed |
+| Cost/latency | free, local, GPU/CPU-bound | Liam's subscription, network-bound, no local thinking-token tax (first token in ~2.3s vs. 17-36s+ for local reasoning models on trivial prompts) |
+
+**Why this matters**: the escalation flow's `suggested_tier: "claude"`
+path will currently get a real, fast, coherent response from Claude -- but
+if that response needs to call `ask_user` or `notes-capture` (the whole
+reason Phase 4c was called "the single most important verification
+tonight"), it will currently fall back to asking in plain conversational
+text instead of firing the real on-screen `AskUserDialog`. This is a real,
+user-visible gap, not a subtle one.
+**What's needed to actually close it** (not done tonight, out of tonight's
+safe scope -- would mean digging into how `goose`'s claude-code provider
+invokes the `claude` binary/SDK internally, likely via strings/behavioral
+probing of the `goose-cli` binary itself, or filing/checking a Goose
+upstream issue): determine whether goose's claude-code bridge invocation
+can be made to pass through `--mcp-config`/equivalent, or whether it uses
+the Claude Agent SDK in a mode that structurally can't load MCP servers at
+all (in which case the real fix is architectural -- e.g. routing
+escalated-to-claude ask_user needs through the engine's own permission
+banner instead of relying on Claude's own tool-calling).
+**Confidence:** high on the measurements; the "why"/root-cause of goose's
+specific bridge behavior is not root-caused (would need source access or
+much deeper probing) -- flagged as exactly that, not overclaimed.

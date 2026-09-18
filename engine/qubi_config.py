@@ -58,8 +58,18 @@ DEFAULT_CONFIG = {
         },
         "claude": {
             "provider": "claude-code",
-            "model": "",
-            "cpu_model": "",
+            # NOT "" -- confirmed live (Phase 4) that an empty/absent
+            # GOOSE_MODEL makes `goose acp` fail session/new outright
+            # ("Failed to resolve model: Configuration value not found:
+            # GOOSE_MODEL") the moment the base config.yaml's own
+            # top-level GOOSE_MODEL default isn't present to fall back on,
+            # and even when it IS present, it leaks the wrong model
+            # ("qwen3:4b") into a claude-code-provider session and every
+            # prompt fails ("issue with the selected model (qwen3:4b)").
+            # `claude --help` documents "sonnet"/"opus"/"fable" as valid
+            # model aliases; "sonnet" confirmed working end-to-end live.
+            "model": "sonnet",
+            "cpu_model": "sonnet",
             "extensions": ["ask-user", "notes-capture"],
             "keep_alive": "8m",
             "warm_at_start": False,
