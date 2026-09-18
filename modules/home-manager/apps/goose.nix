@@ -1147,9 +1147,14 @@ in
   };
 
   systemd.user.services.qubi-mobile-static = {
-    Unit.Description = "Static file server for mobile_gui.html, bound to Tailscale only";
+    Unit.Description = "Static file server for mobile_gui.html, fronted by tailscale serve";
     Service = {
-      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8901 --bind 100.66.17.61 --directory /home/cryptix/nix-dots";
+      # Loopback only -- tailscale serve (qubi-tailscale-serve.service) is
+      # the sole tailnet-facing surface now, proxying to localhost:8901.
+      # Binding directly to the Tailscale IP here breaks that proxy (a
+      # real 502, confirmed live) since it refuses the loopback connection
+      # tailscale serve makes.
+      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8901 --bind 127.0.0.1 --directory /home/cryptix/nix-dots";
       Restart = "on-failure";
     };
     Install.WantedBy = [ "default.target" ];

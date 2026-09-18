@@ -42,24 +42,34 @@ solve. Relaying to `goose acp` directly and doing the fan-out ourselves
 sidesteps that gap entirely and reuses a protocol already proven working in
 this repo.
 
-The bridge binds specifically to this machine's Tailscale interface address
-(`100.66.17.61:8765`), not `0.0.0.0` and not `localhost` — reachable from a
-phone over Tailscale with no NixOS firewall changes, and not exposed on the
-raw LAN.
+**v3 (2026-09-18, later same night): binds to loopback, fronted by `tailscale
+serve`.** Originally bound directly to this machine's Tailscale interface
+address (`100.66.17.61`) — the right call before Serve was wired up (reachable
+over Tailscale, not exposed on the raw LAN, no firewall changes). Once
+`tailscale serve` became the tailnet-facing HTTPS surface, its local proxy
+connects to `http://localhost:PORT` — a backend bound only to the Tailscale IP
+refuses that connection (a real, live-confirmed 502). Both services now bind
+to `127.0.0.1` only; `tailscale serve` is the sole thing exposing them on the
+tailnet, which is strictly more locked-down than the old direct-bind setup,
+not less.
 
 ## Usage
 
 After `nh home switch`, two systemd user services start automatically and
 restart on failure (`systemd.user.services.qubi-bridge` and
 `qubi-mobile-static`, both in `modules/home-manager/apps/goose.nix`):
-`qubi-bridge` runs the WebSocket relay on `100.66.17.61:8765`, and
+`qubi-bridge` runs the WebSocket relay on `127.0.0.1:8765`, and
 `qubi-mobile-static` serves this repo's root directory as plain static
-files on `100.66.17.61:8901` (a plain `python3 -m http.server`, bound to
-the Tailscale interface only). No manual server-starting is needed after
-the switch — check with `systemctl --user status qubi-bridge
-qubi-mobile-static` if something seems off.
+files on `127.0.0.1:8901`. A third service, `qubi-tailscale-serve`, puts
+both behind `tailscale serve` for real HTTPS (see BLOCKERS.md for the
+one-time `tailscale serve` tailnet approval + `sudo tailscale set
+--operator=$USER` this needs before it can actually submit its config).
+No manual server-starting is needed after the switch — check with
+`systemctl --user status qubi-bridge qubi-mobile-static
+qubi-tailscale-serve` if something seems off.
 
-From a phone on the same tailnet: visit `http://100.66.17.61:8901/mobile_gui.html`.
+From a phone on the same tailnet: visit `https://<this-machine's-tailnet-hostname>/mobile_gui.html`
+(find the hostname with `tailscale status --self` or `tailscale serve status`).
 It's installable — `manifest.json` + `icon-192.png`/`icon-512.png` make it
 add-to-home-screen capable on both Android (Chrome) and iOS (Safari), and
 it opens standalone (no browser chrome) once added.

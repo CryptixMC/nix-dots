@@ -29,6 +29,17 @@ Phase 5's own instruction is to leave that file's protocol handling
 untouched) or building and migrating to a wholly new unified backend
 tonight, which risks the desktop chat overlay's already-proven-live
 behavior for an unproven rewrite under time pressure. See BLOCKERS.md.
+
+v3: binds to 127.0.0.1, not the Tailscale interface IP directly. Binding
+to the Tailscale IP was the right call for direct phone access (no
+firewall changes, not exposed on the raw LAN) before `tailscale serve`
+was wired up -- but once `tailscale serve` itself became the tailnet-
+facing surface (for real HTTPS), it proxies to `http://localhost:8765`,
+and a backend that only listens on the Tailscale IP refuses that
+connection (confirmed live: a real 502 from `tailscale serve` the first
+time this was tested end to end). `tailscale serve` is now the only
+thing exposing this on the tailnet -- binding to loopback only is
+strictly more locked-down than before, not less.
 """
 import asyncio
 import time
@@ -37,7 +48,7 @@ from websockets.exceptions import ConnectionClosed
 import websockets
 
 
-HOST, PORT = "100.66.17.61", 8765
+HOST, PORT = "127.0.0.1", 8765
 
 
 class SharedSession:
