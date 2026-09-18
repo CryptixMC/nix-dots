@@ -50,10 +50,22 @@ PanelWindow {
         });
     }
 
+    // Buffered, not appended straight to ChatState per-message -- see
+    // ChatState.appendMessages' own comment for the real "chat loading/
+    // resuming feels slow" bug this fixes. historyMessage signals arrive
+    // (and this buffer fills) for the whole replay before historyLoaded
+    // fires, since that signal only fires once session/load's own
+    // JSON-RPC *result* arrives, which is ordered after every notification
+    // line a real ACP process sends on stdout -- GooseAcpSession.qml's own
+    // _loadingHistory/historyLoaded design already depends on this same
+    // ordering guarantee.
+    property var _historyBuffer: []
+
     function resumeSelected() {
         if (!root.selectedSession)
             return;
         ChatState.clear();
+        root._historyBuffer = [];
         GooseAcpSession.loadSession(root.selectedSession.sessionId, error => {
             if (error) {
                 SessionsState.loadError = "This session cannot be resumed (it was created by qubi-code and the underlying Goose engine has a known limitation loading recipe-based sessions).";
@@ -67,7 +79,14 @@ PanelWindow {
     Connections {
         target: GooseAcpSession
         function onHistoryMessage(role, text) {
-            ChatState.appendMessage(role, text);
+            root._historyBuffer.push({
+                role: role,
+                text: text
+            });
+        }
+        function onHistoryLoaded() {
+            ChatState.appendMessages(root._historyBuffer);
+            root._historyBuffer = [];
         }
     }
 

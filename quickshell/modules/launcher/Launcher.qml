@@ -95,7 +95,7 @@ PanelWindow {
         apps: "search applications…",
         games: "search games…",
         files: "search files…",
-        themes: ""
+        system: ""
     })
     readonly property string searchPlaceholder: root.searchPlaceholders[LauncherState.activeTab] ?? ""
 
@@ -271,9 +271,11 @@ PanelWindow {
                 color: Theme.color.launcherInputBg
                 border.width: Theme.spacing.borderHairline
                 border.color: Theme.color.launcherInputBorder
-                // Themes tab has nothing to search (cycling/wallpaper picks
-                // are click-driven, not text-filtered).
-                visible: LauncherState.activeTab !== "themes"
+                // System tab (themes now live there as a section, not a
+                // top-level tab -- see LauncherState.qml/SystemTab.qml)
+                // has nothing to search: theme picks and update buttons
+                // are click-driven, not text-filtered.
+                visible: LauncherState.activeTab !== "system"
 
                 Text {
                     visible: searchInput.text.length === 0 && root.searchPlaceholder.length > 0
@@ -299,11 +301,57 @@ PanelWindow {
                     font.pixelSize: Theme.font.sizeBase
 
                     onTextChanged: resultsList.currentIndex = 0
-                    onAccepted: root.launch(root.filteredEntries[resultsList.currentIndex])
+                    onAccepted: {
+                        if (LauncherState.activeTab === "games")
+                            gamesLoader.item?.launchCurrent();
+                        else
+                            root.launch(root.filteredEntries[resultsList.currentIndex]);
+                    }
 
                     Keys.onEscapePressed: LauncherState.hide()
                     Keys.onDownPressed: resultsList.currentIndex = Math.min(resultsList.currentIndex + 1, root.filteredEntries.length - 1)
                     Keys.onUpPressed: resultsList.currentIndex = Math.max(resultsList.currentIndex - 1, 0)
+
+                    // Tab always cycles tabs -- a single-line search field
+                    // has no other use for Tab (no multi-field focus chain
+                    // to traverse here), so this is never ambiguous.
+                    Keys.onTabPressed: (event) => {
+                        LauncherState.nextTab();
+                        event.accepted = true;
+                    }
+                    Keys.onBacktabPressed: (event) => {
+                        LauncherState.prevTab();
+                        event.accepted = true;
+                    }
+
+                    // Left/Right: only overridden on the games tab, where
+                    // there's a real horizontal strip to browse (see
+                    // GamesTab.qml's moveLeft/moveRight) -- explicitly left
+                    // unaccepted everywhere else so normal text-cursor
+                    // movement inside the search box keeps working on
+                    // apps/files. At either end of the Recommended row,
+                    // moveLeft/moveRight return false and this switches
+                    // tabs instead, per Liam's own explicit ask ("if there
+                    // is nothing to move forward or backwards for I should
+                    // be able to use the arrow keys to switch tabs").
+                    Keys.onLeftPressed: (event) => {
+                        if (LauncherState.activeTab === "games") {
+                            if (gamesLoader.item && !gamesLoader.item.moveLeft())
+                                LauncherState.prevTab();
+                            event.accepted = true;
+                        } else {
+                            event.accepted = false;
+                        }
+                    }
+                    Keys.onRightPressed: (event) => {
+                        if (LauncherState.activeTab === "games") {
+                            if (gamesLoader.item && !gamesLoader.item.moveRight())
+                                LauncherState.nextTab();
+                            event.accepted = true;
+                        } else {
+                            event.accepted = false;
+                        }
+                    }
                 }
             }
 
@@ -408,14 +456,7 @@ PanelWindow {
             // sidesteps that question rather than depending on exactly
             // what an inactive Loader reports.
             Loader {
-                width: parent.width
-                clip: true
-                active: LauncherState.activeTab === "themes"
-                visible: active
-                sourceComponent: ThemesTab {}
-            }
-
-            Loader {
+                id: gamesLoader
                 width: parent.width
                 clip: true
                 active: LauncherState.activeTab === "games"

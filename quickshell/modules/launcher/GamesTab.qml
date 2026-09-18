@@ -26,6 +26,49 @@ Item {
 
     property string searchQuery: ""
 
+    // Keyboard navigation (Launcher.qml's Left/Right arrow handling) only
+    // drives the Recommended row -- it's the one real horizontal strip;
+    // Library/per-launcher content is a grid, so "left/right" has no
+    // single obvious meaning there. moveLeft/moveRight return false at
+    // either end so the caller knows to switch tabs instead of no-op'ing
+    // silently, matching Liam's own explicit ask: "if there is nothing to
+    // move forward or backwards for I should be able to use the arrow
+    // keys to switch tabs as well" (real quote, sessions.db transcript).
+    property int currentIndex: 0
+
+    function moveLeft() {
+        if (root.currentIndex > 0) {
+            root.currentIndex--;
+            return true;
+        }
+        return false;
+    }
+
+    function moveRight() {
+        if (root.currentIndex < root.recommended.length - 1) {
+            root.currentIndex++;
+            return true;
+        }
+        return false;
+    }
+
+    function launchCurrent() {
+        const entry = root.recommended[root.currentIndex];
+        if (entry) {
+            entry.launch();
+            LauncherState.hide();
+        }
+    }
+
+    // GamesLibrary.entries can populate asynchronously after this tab is
+    // already active (real Steam/Prism scans, not instant) -- without this,
+    // an in-flight currentIndex from a longer previous list could point
+    // past the end of a freshly-shrunk one.
+    onRecommendedChanged: {
+        if (root.currentIndex >= root.recommended.length)
+            root.currentIndex = Math.max(0, root.recommended.length - 1);
+    }
+
     function matchesSearch(entry) {
         const q = root.searchQuery.trim().toLowerCase();
         return q.length === 0 || entry.name.toLowerCase().includes(q);
@@ -109,6 +152,87 @@ Item {
         }
     }
 
+    // Recommended row only -- the one section this is a genuinely
+    // meaningful "current selection" for (a single horizontal strip;
+    // Library/per-launcher below are grids with no single obvious
+    // left/right order). Otherwise identical to cardDelegate, just with
+    // an extra border driven by keyboard state (root.currentIndex) on top
+    // of the existing hover-driven one, so mouse and keyboard highlighting
+    // never fight over the same border.width binding.
+    Component {
+        id: recommendedCardDelegate
+
+        Rectangle {
+            id: rcard
+            required property var modelData
+            required property int index
+            readonly property bool current: index === root.currentIndex
+            width: Theme.spacing.gameCardWidth
+            height: Theme.spacing.gameCardImageHeight + 28
+            color: "transparent"
+
+            Rectangle {
+                id: rart
+                width: parent.width
+                height: Theme.spacing.gameCardImageHeight
+                radius: Theme.radius.input
+                color: ThemeDefaults.alpha(Theme.base16.base02, 0.5)
+                border.width: (rmouse.containsMouse || rcard.current) ? 2 : 0
+                border.color: Theme.color.accentPurple
+                clip: true
+
+                Behavior on border.width {
+                    NumberAnimation { duration: Theme.motion.hoverColor.duration }
+                }
+
+                Image {
+                    anchors.fill: parent
+                    visible: rcard.modelData.iconSource.length > 0
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    source: rcard.modelData.iconSource
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: rcard.modelData.iconSource.length === 0
+                    text: "󰺵"
+                    renderType: Text.NativeRendering
+                    font.family: Theme.font.family
+                    font.pixelSize: 32
+                    color: Theme.color.accentPurple
+                }
+            }
+
+            Text {
+                anchors {
+                    top: rart.bottom
+                    left: parent.left
+                    right: parent.right
+                    topMargin: 4
+                }
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: rcard.modelData.name
+                color: Theme.color.fg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
+            }
+
+            MouseArea {
+                id: rmouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.currentIndex = rcard.index
+                onClicked: {
+                    rcard.modelData.launch();
+                    LauncherState.hide();
+                }
+            }
+        }
+    }
+
     component SectionLabel: Text {
         color: Theme.color.launcherPlaceholderFg
         font.family: Theme.font.family
@@ -138,12 +262,24 @@ Item {
                 }
 
                 ListView {
+                    id: recommendedList
                     width: parent.width
                     height: Theme.spacing.gameRecommendedRowHeight
                     orientation: ListView.Horizontal
                     spacing: Theme.spacing.gameCardGap
+                    clip: true
                     model: root.recommended
-                    delegate: cardDelegate
+                    delegate: recommendedCardDelegate
+                    // Keeps the keyboard-highlighted card scrolled into
+                    // view as currentIndex changes via Launcher.qml's
+                    // arrow-key handling -- ListView's own currentIndex
+                    // (not just root.currentIndex) drives this, so they're
+                    // kept in sync here rather than duplicating
+                    // positionViewAtIndex calls at every root.currentIndex
+                    // change site.
+                    currentIndex: root.currentIndex
+                    highlightMoveDuration: Theme.motion.hoverColor.duration
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
                 }
             }
 

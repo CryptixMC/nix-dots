@@ -62,6 +62,29 @@ QtObject {
         return messages.length - 1;
     }
 
+    // Bulk variant for session/load's history replay -- ONE array
+    // reassignment for the whole batch instead of one per historical
+    // message. Root-caused live as the real "chat loading/resuming feels
+    // slow" complaint (Goose Desktop session, sessions.db): SessionsPicker.
+    // qml previously called appendMessage once per historyMessage signal,
+    // and since `messages` is a plain QML array property, each call
+    // reassigns the ENTIRE array to trigger change notification -- for a
+    // resumed session with N historical turns, that's N full ListView
+    // model rebinds/re-renders during one resume, an O(n²) cost that gets
+    // worse the longer the conversation being resumed is (a 300-message
+    // session, not hypothetical -- this repo's own Goose Desktop history
+    // has one that size). Batching collects the whole replay into one
+    // plain JS array first, then reassigns `messages` exactly once.
+    function appendMessages(entries) {
+        if (entries.length === 0)
+            return;
+        messages = messages.concat(entries.map(e => ({
+            role: e.role,
+            text: e.text,
+            time: Date.now()
+        })));
+    }
+
     // Mutates messages[streamingIndex] in place (for streaming assistant
     // text) by reassigning the whole array — required for QML change
     // notification, same discipline as UsageStore.qml/ThemeState.qml's own
