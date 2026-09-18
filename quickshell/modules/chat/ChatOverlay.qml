@@ -59,6 +59,14 @@ PanelWindow {
         right: true
     }
     exclusiveZone: 0
+    // Without this, the bar's own exclusive zone (reserved top-of-screen
+    // space) shrinks this window's usable area from underneath it, so a
+    // panel anchored top+bottom (touching both screen edges, unlike a
+    // smaller centered dialog) ends up taller than the actually-available
+    // space and its bottom edge hangs off-screen -- confirmed as a real,
+    // reported bug. `Ignore` makes this window's geometry the true full
+    // screen regardless of what other layer-shell surfaces reserve.
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     color: "transparent"
 
