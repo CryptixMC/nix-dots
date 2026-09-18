@@ -359,9 +359,54 @@ correctly translate into it for the ollama provider. Full writeup:
 TTFT gate will genuinely fail tonight -- documented as a real, honest
 finding, not hidden or worked around.
 
-## Phase 7 — Resource/storage hygiene
+## Phase 7 — Resource/storage hygiene (17:40-17:55)
 
-(not started)
+- **7a, real finding**: `tiers.<name>.keep_alive` in config.json is only
+  actually wired to Ollama for the **light tier's warm-up call**
+  (`Engine._ollama_warm`). Heavy/claude tiers run as real `goose acp`
+  processes, which make their own Ollama HTTP calls directly -- the
+  engine has no hook into what `keep_alive` value Goose itself sends,
+  so `tiers.heavy.keep_alive: "8m"` is currently **not enforced**
+  anywhere for real heavy-tier generation calls. Separately, confirmed by
+  reading `TierProcess.stop()`: the engine's own idle-reap
+  (`_idle_reap_loop`, `idle_timeout_s`) only `terminate()`s the
+  lightweight `goose acp` wrapper process (tens of MB) -- it never calls
+  `ollama stop <model>`, so the actual VRAM-resident model (multi-GB)
+  stays loaded until Ollama's own system-wide default (`OLLAMA_KEEP_ALIVE
+  =30m`, `modules/nixos/services/ollama.nix`) independently expires,
+  regardless of the per-tier config value. **This is a real gap, not
+  fixed tonight** -- closing it needs either the engine calling
+  `ollama stop` explicitly on idle-reap (straightforward, safe, a good
+  first fix) or finding/passing a Goose-side keep_alive override (needs
+  Goose source access, same class of gap as Phase 6's thinking-suppression
+  finding). Logged here and in WAKEUP.md rather than silently claiming the
+  config value does something it doesn't.
+- **7b**: `engine/qubi_models.py` (`qubi-models roster` / `qubi-models
+  prune --dry-run`), wired into `qubi-engine.nix`. Live-verified against
+  the real built binary: roster correctly lists the 5 real declared
+  models (grep-verified against actual source, not guessed); prune
+  --dry-run correctly flags `devstral:24b`/`gpt-oss:20b` (Phase 0's
+  benchmark candidates, never adopted into any real routing) and
+  `nomic-embed-text:latest` (no code reference found anywhere) as
+  undeclared. No real deletion implemented, per instruction.
+- **7c**: real resident-memory snapshot (idle, light tier warm, heavy
+  tier mid-load from an earlier routing test):
+  - `qubi-engine.service` (systemd accounting): **169 MiB**
+  - each `goose acp` tier process: **~65-120 MB RSS** (3 samples across
+    light/heavy)
+  - `quickshell` (live shell): **~184 MB RSS**
+  - `ollama serve`: **~40 MB RSS** (model weights are GPU-VRAM-resident,
+    not host RSS, so this number undersells Ollama's real footprint --
+    `qwen3:4b` alone is 4.0GB VRAM per `ollama ps`)
+  - System total at the time of this snapshot: 7.5GiB used / 38GiB total.
+  Full table with sourcing goes in WAKEUP.md's "does it feel invasive"
+  section. Heavy tier's own settled VRAM number wasn't captured cleanly
+  -- `qwen3-coder:latest` (18GB) was still mid-load after 2+ minutes when
+  this snapshot was taken, consistent with Phase 0's own benchmark data
+  showing this model's real load times run into the tens of seconds to
+  minutes range, especially under VRAM contention with the already-
+  resident light-tier model -- not re-measured further tonight, flagged
+  rather than invented.
 
 ## Phase 8 — Clients on the engine
 
