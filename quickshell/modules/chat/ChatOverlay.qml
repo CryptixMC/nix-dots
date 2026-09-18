@@ -167,6 +167,13 @@ PanelWindow {
             ChatState.pendingPermission = request;
         }
 
+        function onQubiEscalationOffer(offer) {
+            // Real, engine-only notification (Phase 8a) -- the light
+            // tier's escalate tool call, surfaced as a user-facing choice
+            // instead of the engine ever auto-switching tiers on its own.
+            ChatState.pendingEscalation = offer;
+        }
+
         function onSessionFailed(message) {
             console.warn("GooseAcpSession failed:", message);
             ChatState.appendMessage("assistant", `(qubi error: ${message})`);
@@ -628,6 +635,84 @@ PanelWindow {
                                         const req = ChatState.pendingPermission;
                                         GooseAcpSession.respondToPermission(req.id, modelData.optionId);
                                         ChatState.pendingPermission = null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The one new UI element Phase 8a's brief allowed: a minimal
+            // inline chip for a real qubi/escalation_offer notification.
+            // Same visual pattern as permissionBanner above, deliberately
+            // reused rather than invented fresh.
+            Rectangle {
+                id: escalationBanner
+                visible: ChatState.pendingEscalation !== null
+                width: parent.width
+                height: visible ? implicitHeight : 0
+                implicitHeight: escalationColumn.implicitHeight + Theme.spacing.launcherContentGap
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.accentPurple
+
+                Column {
+                    id: escalationColumn
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                        margins: Theme.spacing.launcherRowInset
+                    }
+                    spacing: Theme.spacing.launcherContentGap / 2
+
+                    Text {
+                        width: parent.width
+                        text: escalationBanner.visible ? `qubi wants a bigger model: ${ChatState.pendingEscalation.reason ?? ""}` : ""
+                        wrapMode: Text.Wrap
+                        color: Theme.color.fg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+                    }
+
+                    Row {
+                        spacing: Theme.spacing.launcherContentGap
+
+                        Repeater {
+                            // Real option ids from escalate.py/qubi_engine.py's
+                            // own qubi/escalation_offer shape — not guessed.
+                            model: [
+                                { optionId: "escalate_claude", name: "Escalate to Claude" },
+                                { optionId: "escalate_heavy_local", name: "Escalate to heavy (local)" },
+                                { optionId: "decline", name: "Stay on light" }
+                            ]
+
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: escalationOptionLabel.implicitWidth + Theme.spacing.themePillPadX * 2
+                                height: Theme.spacing.themePillHeight
+                                radius: height / 2
+                                color: Theme.color.launcherItemSelectedBg
+                                border.width: Theme.spacing.borderHairline
+                                border.color: Theme.color.launcherInputBorder
+
+                                Text {
+                                    id: escalationOptionLabel
+                                    anchors.centerIn: parent
+                                    text: modelData.name
+                                    color: Theme.color.fg
+                                    font.family: Theme.font.family
+                                    font.pixelSize: Theme.font.sizeSmall
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        const offer = ChatState.pendingEscalation;
+                                        GooseAcpSession.respondToEscalation(offer.session, modelData.optionId);
+                                        ChatState.pendingEscalation = null;
                                     }
                                 }
                             }

@@ -23,6 +23,11 @@ QtObject {
     // requests at all (confirmed live).
     property var pendingPermission: null
 
+    // The raw qubi/escalation_offer notification params currently awaiting
+    // a real user decision (null when nothing's pending) -- engine-only,
+    // never sent by a bare `goose acp` process (Phase 8a).
+    property var pendingEscalation: null
+
     // Index into `messages` of the assistant bubble currently being
     // streamed into, or -1 if no turn is in flight. Tracked explicitly
     // (not "whichever message is last") because a queued user message can

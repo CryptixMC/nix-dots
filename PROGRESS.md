@@ -466,6 +466,24 @@ finding, not hidden or worked around.
     stale leaked `LD_LIBRARY_PATH` in this shell pointing at the wrong
     gcc-lib generation for `hyprctl`/store-path binaries — a real,
     separate environment issue, not a regression from this change).
+  - **Caught late, during Phase 10's own review**: the escalation-offer
+    chip UI Phase 8a's own brief explicitly called out as "the one
+    allowed new UI element" was never actually built — only the backend
+    (`qubiEscalationOffer` signal, `respondToEscalation()`) existed;
+    nothing in `ChatOverlay.qml` listened for it. Fixed: added
+    `ChatState.pendingEscalation`, an `onQubiEscalationOffer` handler,
+    and a banner (escalate_claude / escalate_heavy_local / decline)
+    reusing the exact same visual pattern as the already-working
+    permission-request banner right above it, not a new design.
+    `qml-lint-repo .`: exit 0. Live-verified structurally (clean reload,
+    zero errors in the live shell's log) but **not** visually confirmed
+    with a real triggered escalation tonight — deliberately: the running
+    engine still has the not-yet-live GOOSE_MAX_TOKENS bug (BLOCKERS.md
+    #1), so a real live trigger right now would very likely tie up the
+    light tier for several more minutes for comparatively little
+    additional proof over what escalation itself already had (4 real,
+    separately-confirmed live escalations tonight). Worth a real
+    SUPER+D + an escalation-shaped prompt once the engine fix is live.
 
 - **8b**: `mobile_gui.html` was already talking to the engine's WS
   transport (`ws://host:8765`, same `handle_client_message` dispatch as
