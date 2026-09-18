@@ -1,29 +1,43 @@
-pragma Singleton
-import QtQuick
+import QtQml 2.15
+import Quickshell 1.0
 
-// Global show/hide state, reachable from Launcher.qml's IpcHandler
-// (external `quickshell ipc call` from a Hyprland keybind) and from the
-// window itself. Search text deliberately isn't mirrored here — it lives
-// as local state on Launcher.qml's TextInput and gets reset in that file's
-// onVisibleChanged, since a two-way binding between a TextInput's `text`
-// and a singleton property tears the moment the user types (TextInput sets
-// `text` imperatively, which permanently breaks a declarative `text: ...`
-// binding on the same property).
 QtObject {
-    property bool visible: false
-
-    // Data-driven so adding a tab later is one more list entry, not a new
-    // code path — Launcher.qml's tab row is a Repeater over this. Only
-    // "apps" has real content this pass; the rest render a placeholder
-    // (see TODO.md for their intended designs).
-    readonly property var tabs: [
-        { id: "apps", label: "Applications", glyph: "󰀻" },
-        { id: "games", label: "Games", glyph: "󰊗" },
-        { id: "files", label: "Files", glyph: "󰉋" },
-        { id: "themes", label: "Themes", glyph: "󰸌" },
-        { id: "system", label: "System", glyph: "󰡨" }
-    ]
+    // The Launcher UI shows a tab bar at the top (Apps/Games/Files/Themes)
+    // to switch between different content sections. This state tracks which tab
+    // is currently active, as well as what tabs are available to be selected.
     property string activeTab: "apps"
+    readonly property var tabs: [
+        {
+            id: "apps",
+            glyph: "A",
+            label: "Applications",
+            searchable: true
+        },
+        {
+            id: "games",
+            glyph: "G",
+            label: "Games",
+            searchable: true
+        },
+        {
+            id: "files",
+            glyph: "F",
+            label: "Files",
+            searchable: true
+        },
+        {
+            id: "themes",
+            glyph: "T",
+            label: "Themes",
+            searchable: false
+        },
+        {
+            id: "system",
+            glyph: "S",
+            label: "System",
+            searchable: false
+        }
+    ]
 
     function setTab(id) {
         activeTab = id;
