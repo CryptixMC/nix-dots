@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Qubi Mobile</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Qubi">
+
+<style>
+/* Ultraviolet theme (themes/ultraviolet/base16.yaml):
+   base00 #050505 app bg, base01 #080808 panel bg, base02 #0f0f0f card bg,
+   base03 #212121 borders, base04 #373737 muted/disabled text,
+   base05 #c8c8c8 body text, base06 #e0e0e0 labels/header, base07 #f5f5f5 text-on-accent,
+   base08 #ff5de0 critical/error, base0C #b047ff signature violet accent. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #050505; color: #c8c8c8; display: flex; flex-direction: column; }
+#header { padding: 8px 12px; border-bottom: 1px solid #212121; font-size: 14px; color: #e0e0e0; flex-shrink: 0; }
+#body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
+#session-list { list-style: none; padding: 8px; }
+#session-list li { padding: 12px 14px; margin: 4px 0; background: #080808; border-radius: 6px; cursor: pointer; font-size: 14px; border-left: 3px solid #212121; }
+#session-list li.active { background: #b047ff; border-left-color: #b047ff; color: #f5f5f5; font-weight: bold; }
+#session-list li:hover { background: #0f0f0f; }
+#messages { flex: 1; overflow-y: auto; padding: 8px 12px; min-height: 0; }
+.msg { margin: 6px 0; padding: 8px 12px; border-radius: 8px; max-width: 85%; word-wrap: break-word; font-size: 14px; line-height: 1.4; }
+.msg.user { background: #b047ff; color: #f5f5f5; align-self: flex-end; margin-left: auto; }
+.msg.agent { background: #0f0f0f; align-self: flex-start; }
+.msg.thought { background: transparent; font-style: italic; color: #373737; padding-left: 24px; max-width: 85%; }
+#input-bar { display: flex; border-top: 1px solid #212121; padding: 6px 8px; flex-shrink: 0; gap: 6px; background: #080808; }
+#input-bar input { flex: 1; padding: 10px 12px; border-radius: 20px; border: 1px solid #212121; background: #0f0f0f; color: #c8c8c8; font-size: 15px; outline: none; }
+#input-bar input:focus { border-color: #b047ff; }
+#input-bar button { padding: 10px 18px; border-radius: 20px; border: none; background: #b047ff; color: #f5f5f5; font-size: 15px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
+#input-bar button:disabled { opacity: 0.4; cursor: default; }
+.error { color: #ff5de0 !important; font-style: italic; }
+#error-banner { display: none; background: #ff5de0; color: #050505; padding: 10px 14px; font-size: 13px; font-weight: bold; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+#error-banner.show { display: flex; }
+#error-banner button { background: transparent; border: none; color: #050505; font-size: 16px; font-weight: bold; cursor: pointer; line-height: 1; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div id="header">Qubi Mobile — connected</div>
+<div id="error-banner"><span id="error-banner-text"></span><button id="error-banner-close" aria-label="Dismiss">×</button></div>
+<div id="body">
+  <button id="new-chat-btn" style="margin:8px;padding:10px;background:#b047ff;color:#f5f5f5;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;">New Chat</button>
+  <ul id="session-list"><li>Loading sessions…</li></ul>
+  <div id="messages"></div>
+</div>
+<div id="input-bar">
+  <input type="text" id="msg-input" placeholder="Type a message…" autofocus autocomplete="off">
+  <button id="send-btn" disabled>Send</button>
+</div>
+
+<script>
+var WS_URL = "ws://100.66.17.61:8765";
+var ws = null;
+var nextId = 1;
+var connGeneration = 0;  // stale-response protection for reconnects
+var pendingMethods = {};  // requestId -> expected method after initialize completes
+var currentSessionId = "";
+var streamRole = null;   // role of the bubble currently being streamed into
+var streamDiv = null;    // that bubble's element, or null if none is open
+var busy = false;
+var initialized = true;
+var messagesEl = document.getElementById("messages");
+var sessionList = document.getElementById("session-list");
+var inputField = document.getElementById("msg-input");
+var sendBtn = document.getElementById("send-btn");
+var header = document.getElementById("header");
+var errorBanner = document.getElementById("error-banner");
+var errorBannerText = document.getElementById("error-banner-text");
+
+function setStatus(text) {
+  header.textContent = text;
+}
+
+function showError(text) {
+  errorBannerText.textContent = text;
+  errorBanner.classList.add("show");
+}
+
+function hideError() {
+  errorBanner.classList.remove("show");
+}
+
+document.getElementById("error-banner-close").addEventListener("click", hideError);
+
+function resetToSessionList() {
+  currentSessionId = "";
+  busy = false;
+  initialized = true;
+  messagesEl.innerHTML = "";
+  sessionList.style.display = "";
+  messagesEl.style.display = "";
+  sendBtn.disabled = true;
+  inputField.placeholder = "Select a session…";
+  loadSessions();
+}
+
+function addMsg(role, text) {
+  var chunk = (text !== null && text !== undefined) ? text.replace(/\n+$/, "") : "";
+  if (!chunk.length) return;
+
+  // Consecutive chunks of the same streaming role (agent/thought) append
+  // to the same bubble instead of each becoming a separate message.
+  if ((role === "agent" || role === "thought") && streamRole === role && streamDiv) {
+    streamDiv.textContent += chunk;
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return;
+  }
+
+  var div = document.createElement("div");
+  div.className = "msg" + (role === "user" ? " user" : (role === "thought" ? " thought" : " agent"));
+  div.textContent = chunk;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  if (role === "agent" || role === "thought") {
+    streamRole = role;
+    streamDiv = div;
+  } else {
+    streamRole = null;
+    streamDiv = null;
+  }
+}
+
+function wsSend(obj) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+  ws.send(JSON.stringify(obj));
+  return true;
+}
+
+function init() {
+  setStatus("Connecting…");
+  var gen = ++connGeneration;  // new generation for this connection
+  ws = new WebSocket(WS_URL);
+  ws.onopen = function () {
+    pendingMethods = {};  // reset pending on reconnect
+    pendingMethods[nextId] = "initialize";
+    setStatus("Connected. Initializing…");
+    var initId = nextId++;
+    var req = { jsonrpc: "2.0", id: initId, method: "initialize", params: { protocolVersion: 1, clientCapabilities: {} } };
+    wsSend(req);
+  };
+  ws.onerror = function () { setStatus("WebSocket error"); };
+  ws.onclose = function (ev) {
+    connGeneration++;  // invalidate pending on disconnect
+    setStatus("Disconnected (code " + ev.code + ")");
+    // brief reconnect backoff
+    setTimeout(init, 2000);
+  };
+  ws.onmessage = function (ev) {
+    handleRaw(ev.data);
+  };
+}
+
+function handleRaw(raw) {
+  var obj;
+  try { obj = JSON.parse(raw); } catch (_) { return; }
+  if (!obj || typeof obj !== "object") return;
+
+  // Stale response from old connection? Ignore.
+  if (connGeneration === undefined) return;
+
+  // Check if this is an error response for our initialize call
+  if (obj.error && obj.id === 1) {
+    showError("Initialize failed: " + JSON.stringify(obj.error));
+    // still list sessions since the server is live
+    resetToSessionList();
+    return;
+  }
+
+  // Error response to one of our own tracked requests: recover the UI
+  // instead of leaving it permanently disabled.
+  if (obj.error && obj.id !== undefined && pendingMethods[obj.id]) {
+    var failedMethod = pendingMethods[obj.id];
+    delete pendingMethods[obj.id];
+    var errText = obj.error.message || JSON.stringify(obj.error);
+    if (failedMethod === "session/load") {
+      showError("Couldn't load that session: " + errText);
+      resetToSessionList();
+    } else if (failedMethod === "session/new") {
+      showError("Couldn't start a new chat: " + errText);
+      resetToSessionList();
+    } else if (failedMethod === "session/prompt") {
+      busy = false;
+      sendBtn.disabled = false;
+      showError("Message failed: " + errText);
+    } else {
+      showError(failedMethod + " failed: " + errText);
+    }
+    return;
+  }
+
+  // Response with result to one of our own requests (no method field in response)
+  if (obj.result !== undefined && obj.id !== undefined && pendingMethods[obj.id]) {
+    var expectMethod = pendingMethods[obj.id];
+    delete pendingMethods[obj.id];
+    if (expectMethod === "initialize") {
+      loadSessions();
+      return;
+    }
+    if (expectMethod === "session/list") {
+      renderSessions(obj.result);
+      return;
+    }
+    if (expectMethod === "session/load") {
+      onSessionLoaded(obj.result);
+      return;
+    }
+    if (expectMethod === "session/new") {
+      currentSessionId = obj.result.sessionId || "";
+      onSessionLoaded(obj.result);
+      return;
+    }
+    if (expectMethod === "session/prompt") {
+      busy = false;
+      sendBtn.disabled = false;
+      return;
+    }
+  }
+
+  // Notification we care about during an active session
+  if (obj.method && obj.method === "session/update") {
+    var upd = obj.params && obj.params.update;
+    if (!upd) return;
+    switch (upd.sessionUpdate) {
+      case "agent_message_chunk":
+        addMsg("agent", upd.content ? upd.content.text : "");
+        break;
+      case "user_message_chunk":
+        addMsg("user", upd.content ? upd.content.text : "");
+        break;
+      case "thought_message_chunk":
+        // NixOS config uses thought_message_chunk for agent_thought
+        addMsg("thought", upd.content ? upd.content.text : "");
+        break;
+      default:
+        // other updates (tool_call, tool_call_update, current_mode_update)
+        // silently acknowledged for now
+        break;
+    }
+    return;
+  }
+
+  // Handle errors not caught in the result branch
+  if (obj.error && obj.id !== undefined) {
+    addMsg("agent", "[Error] " + JSON.stringify(obj.error));
+  }
+}
+
+function renderSessions(result) {
+  var sessions = result.sessions || [];
+  sessionList.innerHTML = "";
+  if (!sessions.length) {
+    var li = document.createElement("li");
+    li.textContent = "No sessions";
+    sessionList.appendChild(li);
+    return;
+  }
+  for (var i = 0; i < sessions.length; i++) {
+    (function (s) {
+      var li = document.createElement("li");
+      var title = s.title || s.description || "(untitled)";
+      li.textContent = title;
+      li.addEventListener("click", function () {
+        // remove active from all
+        for (var j = 0; j < sessionList.children.length; j++) {
+          sessionList.children[j].classList.remove("active");
+        }
+        li.classList.add("active");
+        loadSession(s.sessionId);
+      });
+      sessionList.appendChild(li);
+    })(sessions[i]);
+  }
+}
+
+function onSessionLoaded(result) {
+  busy = false;
+  sendBtn.disabled = false;
+  inputField.placeholder = "Type a message…";
+  setStatus("Chatting: " + currentSessionId);
+  addMsg("agent", "Session loaded.");
+  // clear messages since this is a fresh load
+  // (historyMessage signals would come from server during session/load replay)
+}
+
+function loadSessions() {
+  var id = nextId++;
+  pendingMethods[id] = "session/list";
+  var req = { jsonrpc: "2.0", id: id, method: "session/list", params: {} };
+  wsSend(req);
+}
+
+function loadSession(sessionId) {
+  hideError();
+  currentSessionId = sessionId;
+  busy = true;
+  sessionList.style.display = "none";
+  messagesEl.innerHTML = "";
+  streamRole = null;
+  streamDiv = null;
+  setStatus("Loading session…");
+  var id = nextId++;
+  pendingMethods[id] = "session/load";
+  var req = { jsonrpc: "2.0", id: id, method: "session/load", params: { sessionId: sessionId, cwd: "/home/cryptix/nix-dots", mcpServers: [] } };
+  wsSend(req);
+}
+
+function newChat() {
+  hideError();
+  sessionList.style.display = "none";
+  messagesEl.innerHTML = "";
+  streamRole = null;
+  streamDiv = null;
+  busy = true;
+  setStatus("Creating new session…");
+  var id = nextId++;
+  pendingMethods[id] = "session/new";
+  var req = { jsonrpc: "2.0", id: id, method: "session/new", params: { cwd: "/home/cryptix/nix-dots", mcpServers: [] } };
+  wsSend(req);
+}
+
+function sendMessage() {
+  var text = inputField.value.trim();
+  if (!text || busy) return;
+  hideError();
+  busy = true;
+  sendBtn.disabled = true;
+  addMsg("user", text);
+  inputField.value = "";
+  var id = nextId++;
+  pendingMethods[id] = "session/prompt";
+  var req = { jsonrpc: "2.0", id: id, method: "session/prompt", params: { sessionId: currentSessionId, prompt: [{ type: "text", text: text }] } };
+  wsSend(req);
+}
+
+document.getElementById("new-chat-btn").addEventListener("click", newChat);
+
+inputField.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") sendMessage();
+});
+sendBtn.addEventListener("click", sendMessage);
+
+// kick off
+init();
+</script>
+</body>
+</html>

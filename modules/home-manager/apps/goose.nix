@@ -3,13 +3,13 @@
 let
   # Reports dock/undock and gaming-eviction state changes via desktop
   # notification, and live-switches the chat overlay's goose acp session to
-  # match via its "goose-model" IPC target (GooseAcpSession.qml) — env-based
+  # match via its "qubi-model" IPC target (GooseAcpSession.qml) — env-based
   # process restart + session/load resume, never touching config.yaml.
   # Config.yaml itself stays Nix-generated and static (see gooseConfig
   # below); this only affects the long-lived chat-overlay backend process,
   # which previously had no way to notice a dock-state change short of a
   # full Quickshell restart.
-  gooseStateSync = pkgs.writeShellScriptBin "goose-state-sync" ''
+  gooseStateSync = pkgs.writeShellScriptBin "qubi-state-sync" ''
     set -euo pipefail
     PATH=${
       lib.makeBinPath [
@@ -30,7 +30,7 @@ let
     export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t "''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/hypr" 2>/dev/null | head -n1)
 
     if [ ! -f "$STATE_FILE" ]; then
-      echo "[goose-state-sync] no state file at $STATE_FILE yet — nothing to sync" >&2
+      echo "[qubi-state-sync] no state file at $STATE_FILE yet — nothing to sync" >&2
       exit 0
     fi
 
@@ -46,7 +46,7 @@ let
     else
       # Best-effort: no live Quickshell instance (e.g. undocked headless
       # testing) just means this no-ops, same as hyprctl notify above.
-      quickshell ipc -p ~/nix-dots/quickshell call goose-model switchModel "$provider" "$model" 2>/dev/null || true
+      quickshell ipc -p ~/nix-dots/quickshell call qubi-model switchModel "$provider" "$model" 2>/dev/null || true
       hyprctl notify -1 4000 "rgb(89dceb)" "AI tier: $state ($model) — chat overlay switched" 2>/dev/null || true
     fi
   '';
@@ -78,7 +78,7 @@ let
     install -d -m 0755 /run/ai-workstation
     printf '{"state":"gaming","provider":null,"model":null,"updated":"%s"}\n' \
       "$(date -Iseconds)" > "$STATE_FILE"
-    goose-state-sync || true
+    qubi-state-sync || true
   '';
 
   # Does NOT restore a cached "previous" state — that's a stale-state trap
@@ -131,7 +131,7 @@ let
     exec env SEARXNG_URL="http://127.0.0.1:8888" ${pkgs.mcp-searxng}/bin/mcp-searxng
   '';
 
-  # Blocks `nh ... switch` inside a goose-code session. Goose 1.47.0 has no
+  # Blocks `nh ... switch` inside a qubi-code session. Goose 1.47.0 has no
   # native per-tool denylist/allowlist config key (checked live: `strings`
   # on the real binary at bin/.goose-wrapped has zero hits for
   # never_allow/allowlist/denylist/permission-anything — the only related
@@ -144,18 +144,78 @@ let
   # hang on a password prompt goose can't answer. `nh home switch` needs no
   # elevation at all, so it's the one command in the original never_allow
   # wishlist that was actually reachable — this wrapper closes that gap by
-  # shadowing `nh` only inside goose-code's own PATH (see the `export PATH`
+  # shadowing `nh` only inside qubi-code's own PATH (see the `export PATH`
   # in gooseCode below), never the user's interactive shell.
+  # Validates every .qml file in quickshell/ with qmllint, restricted to the
+  # one warning category that would have caught a real fatal-crash incident
+  # this exists for: a boolean `anchors {}` block used on a plain
+  # Rectangle/Item instead of PanelWindow's own special Anchors type,
+  # producing "Invalid property assignment: unsupported type
+  # QQuickAnchorLine" at Quickshell runtime load — a class of bug `nix
+  # flake check` cannot see at all, since it only evaluates Nix
+  # expressions, never QML. Every other qmllint warning category
+  # (unqualified property access, uncreatable-type for Quickshell's own
+  # C++-backed types like PanelWindow, and unresolved-type — the last one
+  # false-positives repo-wide on legitimate Quickshell singletons like
+  # JsonAdapter/BluetoothAdapter that a narrower single-file test didn't
+  # happen to exercise) is disabled because it fires on this repo's real,
+  # already-working QML and would make the gate useless — confirmed live
+  # across all 49 real .qml files in this repo (clean exit 0) and against
+  # the exact incident pattern reintroduced in a scratch file (reliably
+  # exit 255, naming "Cannot assign literal of type bool to
+  # QQuickAnchorLine") with exactly this flag set.
+  qmlLintRepo = pkgs.writeShellScriptBin "qml-lint-repo" ''
+    set -uo pipefail
+    repo="''${1:-$HOME/nix-dots}"
+    mapfile -t files < <(${pkgs.findutils}/bin/find "$repo/quickshell" -name '*.qml')
+    if [ "''${#files[@]}" -eq 0 ]; then
+      echo "qml-lint-repo: no .qml files found under $repo/quickshell" >&2
+      exit 1
+    fi
+    ${pkgs.qt6.qtdeclarative}/bin/qmllint \
+      -I ${pkgs.qt6.qtdeclarative}/lib/qt-6/qml \
+      -I ${pkgs.quickshell}/lib/qt-6/qml \
+      --unqualified disable \
+      --uncreatable-type disable \
+      --incompatible-type error \
+      --unresolved-type disable \
+      "''${files[@]}"
+  '';
+
+  # Bridges goose_bridge.py (repo root — a plain WebSocket-to-`goose acp`
+  # relay, proven live: a real initialize + session/list round trip over
+  # this exact script returned real ACP data including 50 real existing
+  # sessions) into a proper Nix-managed binary. The script needs the
+  # third-party `websockets` PyPI package, which a bare system python3
+  # does not have — pkgs.python3.withPackages is the only way it actually
+  # runs on this machine.
+  gooseMobileBridge = pkgs.writeShellScriptBin "qubi-bridge" ''
+    set -euo pipefail
+    exec ${pkgs.python3.withPackages (p: [ p.websockets ])}/bin/python3 \
+      ${../../../goose_bridge.py}
+  '';
+
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
     set -euo pipefail
     for arg in "$@"; do
       if [ "$arg" = "switch" ]; then
-        echo "[goose-guard] 'nh ... switch' is blocked inside a goose-code session — system/home activation stays human-gated. Stop and tell the user what you wanted to run instead." >&2
+        echo "[qubi-guard] 'nh ... switch' is blocked inside a qubi-code session — system/home activation stays human-gated. Stop and tell the user what you wanted to run instead." >&2
         exit 1
       fi
     done
     exec ${pkgs.nh}/bin/nh "$@"
   '';
+
+  # Backward-compat aliases for the pre-rebrand wrapper names — kept for
+  # muscle memory, each just execs its renamed Qubi counterpart.
+  qubiAliases = [
+    (pkgs.writeShellScriptBin "goose-state-sync" ''exec ${gooseStateSync}/bin/qubi-state-sync "$@"'')
+    (pkgs.writeShellScriptBin "goose-mobile-bridge" ''exec ${gooseMobileBridge}/bin/qubi-bridge "$@"'')
+    (pkgs.writeShellScriptBin "goose-code" ''exec ${gooseCode}/bin/qubi-code "$@"'')
+    (pkgs.writeShellScriptBin "goose-claude" ''exec ${gooseClaude}/bin/qubi-claude "$@"'')
+    (pkgs.writeShellScriptBin "goose-plan" ''exec ${goosePlan}/bin/qubi-plan "$@"'')
+    (pkgs.writeShellScriptBin "goose-chat" ''exec ${gooseChat}/bin/qubi-chat "$@"'')
+  ];
 
   # Trimmed, Nix-generated replacement for the interactively-created
   # ~/.config/goose/config.yaml. This is what governs `goose acp` (the chat
@@ -388,18 +448,25 @@ let
       ollama = {
         enabled = true;
         # Static fallback for any bare `goose run`/`goose acp` invocation
-        # that doesn't go through goose-code's dock-aware routing (cold
+        # that doesn't go through qubi-code's dock-aware routing (cold
         # start, before ai-workstation-boot-sync's switchModel IPC call
-        # lands). Matches ai-workstation.nix's dockedModel (general-chat
-        # role, not coding) — updated 2026-09-17 per the /goal speed target:
-        # qwen3:4b measured 81.0 tok/s native generation (100% GPU, dense,
-        # fully resident) vs qwen3.6:latest's 31.25 tok/s, and passed 3/3
-        # real goose-bench tasks including the append-vs-overwrite check.
-        # Coding still explicitly overrides this in codingAgentRecipe below
-        # (qwen3-coder:latest) — this default only matters for genuinely
-        # ad-hoc invocations outside goose-code/goose-chat/goose-plan, which
-        # all set --model explicitly regardless of this value.
-        model = "qwen3:4b";
+        # lands). This is also the model any ACP client gets by default —
+        # Goose Desktop's own "New Chat", and any qubi-bridge
+        # session that doesn't get an explicit --model override.
+        #
+        # qwen3:4b (2026-09-17 /goal speed target pick: 81.0 tok/s, 3/3 on
+        # structured goose-bench tasks) was reverted 2026-09-18 after live
+        # ACP testing found it genuinely unreliable on unstructured chat
+        # input: given the literal text "test" with the default extension
+        # set, it either hallucinated an unrelated file-write action or
+        # hung for 40+ seconds producing zero response — reproduced twice.
+        # qwen3.6:latest with thinking disabled passed the identical "test"
+        # prompt cleanly 3/3 times (14.5s-26.7s, sane acknowledgement each
+        # time) — slower than qwen3:4b's benchmark number but the only one
+        # of the two that's actually reliable for ad-hoc chat, which is
+        # this key's whole job. Coding still explicitly overrides this in
+        # codingAgentRecipe below (qwen3-coder:latest).
+        model = "qwen3.6:latest";
         configured = true;
       };
       "claude-code" = {
@@ -414,7 +481,12 @@ let
     GOOSE_TOOLSHIM_OLLAMA_MODEL = "qwen2.5-coder:7b";
     GOOSE_TOOLSHIM = false;
     GOOSE_PROVIDER = "ollama";
-    GOOSE_MODEL = "qwen3:4b";
+    GOOSE_MODEL = "qwen3.6:latest";
+    # See the model-choice comment above the "ollama" provider entry —
+    # thinking-off is required for qwen3.6 to be usable as an ad-hoc chat
+    # default (measured 14.5-26.7s per reply either way; thinking-on adds
+    # real latency on top with no correctness benefit for casual chat).
+    GOOSE_LOCAL_ENABLE_THINKING = false;
   };
 
   gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
@@ -437,7 +509,7 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/goose-desktop \
-        --run '${gooseStateSync}/bin/goose-state-sync || true'
+        --run '${gooseStateSync}/bin/qubi-state-sync || true'
     '';
   };
 
@@ -476,6 +548,15 @@ let
         density) rather than introducing your own conventions.
       - Do not add comments explaining what code does line by line. Only comment
         a genuinely non-obvious reason (a workaround, a subtle constraint).
+      - You are running fully non-interactively. No human is watching this
+        session or able to answer a question mid-run. Never end your turn by
+        asking whether to proceed, offering a menu of options, or explaining
+        how something works as if reporting to a reviewer — there is no one
+        to respond, and the session will simply end unfinished. Reading a
+        file to inform your task is not a request for your feedback on that
+        file. Keep making progress on the actual task's deliverables until
+        they exist, or you are genuinely blocked by one of the
+        destructive/capability-exceeding cases below.
       - After every edit, verify it: run the relevant build/check/test command if
         one is available (nix flake check, a linter, a test runner, or just
         re-reading the file back). Do not declare a task finished on faith.
@@ -496,7 +577,7 @@ let
         describe what you want to do instead of doing it.
       - If a task exceeds your capability (needs broader reasoning, deep
         research, or repeated failed attempts), say so plainly and
-        recommend the user run `goose-claude <task>` to escalate to
+        recommend the user run `qubi-claude <task>` to escalate to
         Claude Code. Never switch providers yourself.
       - Keep your final answer concise: state what changed and why, referencing
         real file paths. Do not narrate your internal step-by-step process.
@@ -549,7 +630,7 @@ let
       # settings sub-schema (confirmed live: arbitrary unknown keys also
       # pass), so runtime effect is unconfirmed. Kept as a cheap, harmless
       # belt-and-suspenders alongside the confirmed-real GOOSE_MAX_TOKENS
-      # env var goose-code sets below — targets the truncation bug ("Tool
+      # env var qubi-code sets below — targets the truncation bug ("Tool
       # arguments for shell ... were truncated because the model reached
       # its output token limit").
       max_tokens: 4096
@@ -558,14 +639,152 @@ let
     # goose logs "Reset message history to initial state for retry" and
     # tries again — correct behaviour for a small model that talked itself
     # into a corner. Assumes CWD is the repo root being edited, same
-    # assumption goose-code's own doc comment already makes.
+    # assumption qubi-code's own doc comment already makes.
     retry:
       max_retries: 3
       checks:
         - type: shell
           command: "nix flake check"
+        # Catches fatal QML runtime bugs nix flake check can't see (it only
+        # evaluates Nix expressions) — e.g. the boolean anchors-on-Rectangle
+        # incident that crashed the whole Quickshell shell and previously
+        # required a human to find by reading Quickshell's own stdout log.
+        - type: shell
+          command: "qml-lint-repo"
       on_failure: "git checkout -- ."
       timeout_seconds: 900
+  '';
+
+  # A one-off variant of codingAgentRecipe with real browser control added
+  # (playwright-mcp — normally kept out of the default recipe entirely
+  # since its ~68 browser_* tools cost real tokens on every single
+  # qubi-code invocation forever, see the "playwright" comment above).
+  # Used for tasks that need to actually load a page and interact with it
+  # to self-verify, not just read/write files — e.g. finishing and
+  # packaging the mobile chat GUI, where the only real verification is
+  # loading it in a browser and clicking through it. Not wired into any
+  # permanent wrapper script; invoke directly with `goose run --recipe
+  # ~/.config/goose/recipes/mobile-gui-agent.yaml`.
+  mobileGuiAgentRecipe = ''
+    version: 1.0.0
+    title: "Local Coding Agent (browser-capable)"
+    description: "Claude-Code-style software engineering agent tuned for small local models, with real browser control for self-testing web UIs."
+    instructions: |
+      You are a careful, disciplined software engineering agent running on a small
+      local model. Because you are smaller than a frontier model, you must
+      compensate with process, not improvisation.
+
+      Core rules:
+      - Always use your real tools to read files and run commands. Never write out
+        what a tool call "would" return, and never print a tool call as text
+        instead of invoking it for real.
+      - Before making any change, read the actual file content first. Do not
+        guess file contents from memory or from the task description.
+      - Make the smallest change that correctly accomplishes the task. Do not
+        refactor, rename, or "clean up" code that isn't part of the task.
+      - Match the existing code style exactly (indentation, naming, comment
+        density) rather than introducing your own conventions.
+      - Do not add comments explaining what code does line by line. Only comment
+        a genuinely non-obvious reason (a workaround, a subtle constraint).
+      - You are running fully non-interactively. No human is watching this
+        session or able to answer a question mid-run. Never end your turn by
+        asking whether to proceed, offering a menu of options, or explaining
+        how something works as if reporting to a reviewer — there is no one
+        to respond, and the session will simply end unfinished. Reading a
+        file to inform your task is not a request for your feedback on that
+        file. Keep making progress on the actual task's deliverables until
+        they exist, or you are genuinely blocked by one of the
+        destructive/capability-exceeding cases below.
+      - You have real browser control via your playwright tools. For any task
+        involving a web page or HTML/JS file, do not declare it finished from
+        reading the source alone: actually navigate to it, interact with it
+        (click, fill, type) the way a real user would, and take a screenshot to
+        confirm what actually renders and happens. Do not declare a UI feature
+        working without having driven it through the browser at least once.
+      - If a tool call fails or a command errors, read the actual error message
+        and fix the real problem. Retry with corrected input. Do not stop and ask
+        a question if you can resolve it yourself with the tools you already
+        have.
+      - If you are asked to diagnose or investigate something, do real
+        investigation: grep the codebase, read the relevant files in full, check
+        installed library/type definitions on disk if relevant, and reason from
+        what you actually find — not from a guess. State your confidence and
+        what you verified vs. assumed.
+      - Never run `git push`, `git reset --hard`, `rm -rf`, `nixos-rebuild
+        switch`, or `nh ... switch`. These are irreversible or affect shared
+        state beyond this repo. If your task seems to need one, stop and
+        describe what you want to do instead of doing it.
+      - For any other destructive or hard-to-reverse action, stop and
+        describe what you want to do instead of doing it.
+      - If a task exceeds your capability (needs broader reasoning, deep
+        research, or repeated failed attempts), say so plainly and
+        recommend the user run `qubi-claude <task>` to escalate to
+        Claude Code. Never switch providers yourself.
+      - Keep your final answer concise: state what changed and why, referencing
+        real file paths. Do not narrate your internal step-by-step process.
+    prompt: "{{ task }}"
+    parameters:
+      - key: task
+        input_type: string
+        requirement: required
+        description: "The task or question for the agent to work on"
+    extensions:
+      - type: builtin
+        name: developer
+        display_name: Developer
+        timeout: 300
+        bundled: true
+      - type: platform
+        name: todo
+        display_name: Todo
+        bundled: true
+      - type: platform
+        name: summon
+        display_name: Summon
+        bundled: true
+      - type: platform
+        name: orchestrator
+        display_name: Orchestrator
+        bundled: true
+      - type: stdio
+        name: mcp-nixos
+        display_name: MCP NixOS
+        cmd: ${pkgs.mcp-nixos}/bin/mcp-nixos
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: mcp-language-server
+        display_name: MCP Language Server (nixd)
+        cmd: ${pkgs.mcp-language-server}/bin/mcp-language-server
+        args:
+          - -lsp
+          - ${pkgs.nixd}/bin/nixd
+          - -workspace
+          - /home/cryptix/nix-dots
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: playwright
+        display_name: Playwright
+        description: "Browser automation for web testing, scraping, and interaction"
+        cmd: ${pkgs.playwright-mcp}/bin/playwright-mcp
+        args: []
+        bundled: false
+        timeout: 60
+    settings:
+      goose_provider: ollama
+      goose_model: qwen3-coder:latest
+      max_tokens: 4096
+    retry:
+      max_retries: 3
+      checks:
+        - type: shell
+          command: "nix flake check"
+        - type: shell
+          command: "qml-lint-repo"
+      on_failure: "git checkout -- ."
+      timeout_seconds: 1800
   '';
 
   # One-shot task, then drops into an interactive follow-up session (`-s`,
@@ -617,9 +836,9 @@ let
   #
   # GOOSE_LOCAL_ENABLE_THINKING=false: measured faster in every directly
   # comparable Stage 2 cell with no accuracy loss (e.g. 472s vs 679s
-  # CPU-only on edit-verify) — goose-code is the execution wrapper, thinking
-  # stays reserved for goose-plan below.
-  gooseCode = pkgs.writeShellScriptBin "goose-code" ''
+  # CPU-only on edit-verify) — qubi-code is the execution wrapper, thinking
+  # stays reserved for qubi-plan below.
+  gooseCode = pkgs.writeShellScriptBin "qubi-code" ''
     set -uo pipefail
     PREV_PROFILE=$(${pkgs.power-profiles-daemon}/bin/powerprofilesctl get 2>/dev/null || echo balanced)
     ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance 2>/dev/null || true
@@ -659,7 +878,7 @@ let
       -s
   '';
 
-  gooseClaude = pkgs.writeShellScriptBin "goose-claude" ''
+  gooseClaude = pkgs.writeShellScriptBin "qubi-claude" ''
     set -uo pipefail
 
     export GOOSE_MAX_TOKENS=4096
@@ -679,8 +898,8 @@ let
   # qwen2.5-coder:14b) for CPU-only invocations — same Stage 2 rationale as
   # gooseCode above. Thinking left at its default (on) here deliberately:
   # planning is exactly the role Part II's roster keeps thinking enabled
-  # for, unlike goose-code's execution wrapper.
-  goosePlan = pkgs.writeShellScriptBin "goose-plan" ''
+  # for, unlike qubi-code's execution wrapper.
+  goosePlan = pkgs.writeShellScriptBin "qubi-plan" ''
     set -uo pipefail
 
     export GOOSE_PLANNER_PROVIDER=ollama
@@ -712,7 +931,7 @@ let
   # failed (append-vs-overwrite) — a strict upgrade on every measured axis
   # for this role, at the cost of gemma4:12b's vision/audio capability,
   # which this chat/lookup role never used anyway.
-  gooseChat = pkgs.writeShellScriptBin "goose-chat" ''
+  gooseChat = pkgs.writeShellScriptBin "qubi-chat" ''
     set -uo pipefail
     export GOOSE_LOCAL_ENABLE_THINKING=false
     exec ${pkgs.goose-cli}/bin/goose session --provider ollama --model qwen3:4b
@@ -722,6 +941,14 @@ in
   home.packages = [
     pkgs.goose-cli
     pkgs.llmfit
+    # sqlite3 CLI — goose itself stores session history in
+    # ~/.local/share/goose/sessions/sessions.db (SQLite). Without this,
+    # any qubi-code task that needs to inspect real session data (not
+    # just Nix/QML files) fails with a bare "command not found" (exit
+    # 127) the first time it reaches for sqlite3 — confirmed live: a
+    # session investigating goose's session-storage format hit exactly
+    # this and aborted with no working fallback.
+    pkgs.sqlite
     gooseStateSync
     aiWorkstationGamingStart
     aiWorkstationGamingStop
@@ -730,9 +957,21 @@ in
     gooseClaude
     goosePlan
     gooseChat
-  ];
+    qmlLintRepo
+    gooseMobileBridge
+  ] ++ qubiAliases;
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
+  home.file.".config/goose/recipes/mobile-gui-agent.yaml".text = mobileGuiAgentRecipe;
+
+  # Global counterpart to this repo's own AGENTS.md (repo root) — covers
+  # a goose session invoked from outside this repo's directory, which the
+  # project-level file wouldn't reach. Same content, single source of
+  # truth via readFile rather than a second copy that could drift.
+  # Read-only reference file, not runtime-mutated by Goose the way
+  # config.yaml is, so a plain home.file (unlike config.yaml below) is
+  # sufficient — no activation-copy dance needed.
+  home.file.".config/goose/AGENTS.md".text = builtins.readFile ../../../AGENTS.md;
 
   # Read-only oracle copy used below to detect runtime drift before
   # overwriting the live config.yaml. Not the live file itself — Goose
@@ -762,4 +1001,26 @@ in
 
     run install -m 0644 "$nixSource" "$configFile"
   '';
+
+  # Mobile GUI packaging: two user services (no root needed, unlike the
+  # NixOS-level systemd.services pattern used for the AI-workstation's own
+  # system services) so the phone-facing bridge and static page are always
+  # up without a human manually running qubi-bridge by hand.
+  systemd.user.services.qubi-bridge = {
+    Unit.Description = "Qubi mobile WebSocket bridge (relays goose acp over Tailscale)";
+    Service = {
+      ExecStart = "${gooseMobileBridge}/bin/qubi-bridge";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+
+  systemd.user.services.qubi-mobile-static = {
+    Unit.Description = "Static file server for mobile_gui.html, bound to Tailscale only";
+    Service = {
+      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8901 --bind 100.66.17.61 --directory /home/cryptix/nix-dots";
+      Restart = "on-failure";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 }

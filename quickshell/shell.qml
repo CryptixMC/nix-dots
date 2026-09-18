@@ -11,6 +11,10 @@ import "modules/modelbrowser"
 import "modules/extensions"
 import "modules/lock"
 import "modules/wallpaper"
+// import "modules/clipboard"
+// import "modules/screenctx"
+// import "modules/voice"
+// import "modules/notes"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -52,6 +56,14 @@ ShellRoot {
     ExtensionsManager {
         id: extensionsManager
     }
+
+    // Placeholders reserved for parallel agent branches — SUPER+U/I/O/N
+    // (hyprland.nix) already IPC-call these targets and confirm-fail
+    // gracefully today. Uncomment each block once its branch lands.
+    // ClipboardTransform { id: clipboardTransform } // qubi/clipboard
+    // ScreenContext { id: screenContext } // qubi/screenctx
+    // VoiceOverlay { id: voiceOverlay } // qubi/voice
+    // NotesCapture { id: notesCapture } // qubi/notes
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
     // but untested against a real Wayland session; the only trigger is

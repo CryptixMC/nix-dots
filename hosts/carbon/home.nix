@@ -19,6 +19,7 @@
     ../../modules/home-manager/apps/opencode.nix
     ../../modules/home-manager/apps/voice.nix
     ../../modules/style/stylix.nix
+    # ../../modules/home-manager/apps/qubi-mcp.nix # qubi/mcp branch
   ];
 
   nixpkgs.config.allowUnfree = true;

@@ -31,7 +31,7 @@ Living roadmap for the Quickshell desktop (bar, launcher, greeter, theme system)
   - [x] Brightness sysfs read confirmed safe under the `greeter` user — world-readable, no ACL issue ever existed
   - [x] Lock screen v1 built — `WlSessionLock` + real PAM (password/fingerprint), **deliberately not wired to any trigger yet** ([§5](#5-lock-screen))
 - **Fingerprint / PAM** — architectural ceiling, prior art, security note; `pam_fingwit` confirmed not packaged in nixpkgs, not chased further ([§2](#2-fingerprint--pam))
-- **AI Workstation** — Goose + eGPU-aware Ollama model routing ([§7](#7-ai-workstation))
+- **AI Workstation** — Qubi + eGPU-aware Ollama model routing ([§7](#7-ai-workstation))
   - [x] Phase 1a: eGPU hotplug hardening — kernel pin, undock-during-game guard, dead-config cleanup, headless ROCm compute verified live
   - [x] Phase 1b: Goose + Ollama model-routing plumbing — shared state file, dock/undock sync into `config.yaml`, gaming-time VRAM eviction, all live-tested end to end
   - [ ] `goose configure` + OpenRouter/Anthropic credentials — not run yet, blocks Goose actually routing anywhere but Ollama
@@ -166,7 +166,7 @@ Goal: one system-level assistant (Goose, local Ollama + cloud fallback) that's a
 - **Root cause: a crashed removal leaves ROCm/KFD compute dead, not just the udev events.** `rocminfo` post-crash showed *zero* GPU agents despite `amdgpu` being cleanly bound with a valid BAR — display/PCI-level recovery is cosmetic, compute is gone until reboot. This is also why a model actively loaded at the moment of removal leaves an **unkillable orphaned `llama-server` process** (survives both `systemctl restart` and a full `systemctl stop` of `ollama.service`, despite correct `KillMode=control-group`) — it's genuinely stuck on a kernel-level wait for hardware that vanished.
 - Practical upshot: "reboot after any surprise/crashed eGPU removal" is a hard requirement for this whole automation stack to be trustworthy, not a nice-to-have. Not yet turned into an automated health check (e.g. comparing `rocminfo` agent count against `lspci` GPU presence) — worth doing before leaning on this further.
 
-### Phase 1b — Goose + Ollama model routing — built
+### Phase 1b — Qubi + Ollama model routing — built
 - `modules/nixos/apps/ai-workstation.nix` (new): `/run/ai-workstation/state.json` (tmpfs, re-derived every boot — no impermanence exists in this repo so nothing else needed persisting), `ai-workstation-{dock,undock}-sync.service` oneshots with hardcoded `llmfit`-derived model tags (`qwen2.5-coder:7b` undocked, `qwen3.6:latest` docked — see file comments for why the docked pick overrides `llmfit`'s own sparse database), scoped NOPASSWD sudo rules mirroring the existing `egpu-eject` pattern.
 - `modules/home-manager/apps/goose.nix` (new): `goose-cli`, `llmfit`, and a wrapped `goose-desktop` (`symlinkJoin`+`makeWrapper`, same idiom as `zed.nix`) that runs state-sync before every launch. Ships `goose-state-sync` (rewrites `~/.config/goose/config.yaml`'s `GOOSE_PROVIDER`/`GOOSE_MODEL` in place) and `ai-workstation-gaming-{start,stop}`.
 - Hooked into `amd.nix`'s existing `egpu-bar-fix`/`egpu-eject` scripts (fire-and-forget, `--no-block`) and the `SUPER+G` keybind (`ai-workstation-gaming-start && gamescope ... ; ai-workstation-gaming-stop`), reusing the same eGPU detection rather than building a second one.
@@ -183,7 +183,7 @@ None of these showed up in `nix flake check` or `nixos-rebuild build` — only l
 
 `goose configure` resolved: Ollama selected, host `localhost` accepted, `qwen3.6:latest` set via direct `config.yaml` edit (not through the wizard's known-models picker, which never accepts it — see above).
 
-### Goose capability upgrade — built (2026-09-12)
+### Qubi capability upgrade — built (2026-09-12)
 
 Goal: make Goose capable enough to actually take over the remaining work below — subagent delegation, real browser automation, desktop-state access — using the already-proven `qwen3.6:latest` (Ollama, docked) as the driving model.
 
@@ -193,7 +193,7 @@ Goal: make Goose capable enough to actually take over the remaining work below �
 - `computercontroller` (already enabled) turned out to be **document processing (DOCX/PDF/XLSX), not desktop/mouse/keyboard control** — a wrong assumption caught by actually listing its tools in a live session rather than trusting its one-line description. Real "desktop control" for this setup is just `Developer.shell` (already enabled, full command execution) plus whatever CLI tools are already on the system (`hyprctl`, `grim`, etc.) — no extra extension needed.
 - `Summon.delegate()` (subagent dispatch) and `Orchestrator` (session management) syntax confirmed via a live `list_functions` call, not assumed from the one-line extension descriptions.
 
-### Found and fixed along the way (Goose capability upgrade)
+### Found and fixed along the way (Qubi capability upgrade)
 - Non-interactively testing Goose (`goose run -t "..."`) against `qwen3.6:latest` is **slow enough to make scripted verification impractical** — a simple browser-navigation round trip took several minutes end to end (36B MoE model, 35%/65% CPU/GPU split per `ollama ps`, plus `code_execution` mode's own overhead of writing/running code against the tool namespaces rather than plain function-calling). Background-task completion notifications also fired before the underlying process had actually exited — repeatedly, not just once. Don't trust "completed" as proof output has stopped changing; check the process list (`ps -eo pid,etime,cmd | grep "goose run"`) every time.
 - `goose run -t "..."` (without `-s`/`--interactive`) is genuinely single-shot: if the model responds with a clarifying question instead of acting, the process just exits — there's no one to answer it. The first full handoff attempt hit exactly this: the model read both context docs, correctly restated every rule, then asked to have the file contents pasted again instead of just re-reading them itself, and the session ended right there. Fix: the handoff prompt must explicitly forbid this ("you already have file read access, never ask me to paste file contents, just read them and proceed").
 - **Goose's `claude-code` and `claude-acp` providers hand the entire tool loop to Claude Code's own native tools (`Read`/`Write`/`Bash`/`Agent`/etc.) — Goose's own extensions (`Summon`, `Orchestrator`, `Playwright`, `Developer`) are only available when a plain LLM provider (`ollama`, `openai`, raw `anthropic`) drives Goose's own tool-calling loop.** Confirmed by two separate live tests: both providers correctly refused to fabricate a `Summon.delegate` call it didn't actually have, and used their own native tool instead. This means Claude-as-driver and Goose-native-subagent-delegation are mutually exclusive within one session — there's no way to get both at once.
@@ -265,7 +265,7 @@ Picked up from a lost session that left the "genuinely reliable local primary dr
   - Practical takeaway: with both root causes fixed, tool-calling *correctness* looks solved for `qwen2.5-coder:14b` — the remaining constraint is pure CPU-inference latency (cold model loads can exceed a few minutes), not agentic reliability. A real daily-driver setup should keep the model warm (Ollama's keep-alive) and expect first-call latency after any idle period.
 - **Decision**: `qwen2.5-coder:14b` via `goose run --no-profile --with-builtin developer` (or the equivalent minimal-extension config wired permanently into `~/.config/goose/config.yaml`) is the recommended fully-local coding driver going forward. The 7B undocked default in `ai-workstation.nix` was never actually the bottleneck — the two root causes above were. Rewiring `ai-workstation.nix`'s undocked model tag and Goose's default extension set to match this finding permanently is a natural fast-follow, not done this pass (kept CLI-manual to conserve session budget — see below).
 
-### Making Goose a real Claude-Code-style driver: recipe, wrapper, and a genuine CPU speed finding (2026-09-13)
+### Making Qubi a real Claude-Code-style driver: recipe, wrapper, and a genuine CPU speed finding (2026-09-13)
 
 Follow-up same day, once the driver was picked: the ask was to make Goose realistically *take over* coding/diagnostic work, not just pass toy tests. Two real, load-bearing pieces came out of this, plus one honest limit that isn't fixable from software.
 

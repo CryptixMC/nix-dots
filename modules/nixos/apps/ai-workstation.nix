@@ -15,7 +15,7 @@ let
   # and tool-calling-reliable, which qwen2.5-coder never was at any speed.
   # This drives the chat overlay/general-assistant role when undocked — CPU
   # inference has no "fits in VRAM" speedup to chase, so there's no reason
-  # to split from goose-code's own undocked coding pick (same model, see
+  # to split from qubi-code's own undocked coding pick (same model, see
   # modules/home-manager/apps/goose.nix's gooseCode).
   undockedModel = "qwen3-coder:latest";
 
@@ -30,7 +30,7 @@ let
   # a genuine reversal of qwen3:4b's original-session rejection, which was
   # measured against the since-fixed 15K-token bloated config, not a real
   # model limitation. This value drives the chat overlay's default docked
-  # model (general chat/assistant role) — NOT goose-code's docked planner,
+  # model (general chat/assistant role) — NOT qubi-code's docked planner,
   # which keeps qwen3.6:latest deliberately (planning benefits from more
   # reasoning depth more than chat needs raw speed; see goose.nix).
   dockedModel = "qwen3:4b";
@@ -44,7 +44,7 @@ let
     pkgs.bash
   ];
 
-  # goose-state-sync is provided by modules/home-manager/apps/goose.nix's
+  # qubi-state-sync is provided by modules/home-manager/apps/goose.nix's
   # home.packages, landing on the user's normal profile PATH — referenced
   # by bare name here (via a login shell for PATH resolution) rather than
   # stitched across the NixOS/home-manager module boundary by store path,
@@ -60,17 +60,53 @@ let
       "${model}" "$(date -Iseconds)" > /run/ai-workstation/state.json
     log "wrote state=${state} model=${model}"
 
-    if runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" bash -lc "goose-state-sync"; then
-      log "goose-state-sync succeeded"
+    if runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" bash -lc "qubi-state-sync"; then
+      log "qubi-state-sync succeeded"
     else
-      log "goose-state-sync failed or not yet installed — state file is still correct, desktop notification may not have fired"
+      log "qubi-state-sync failed or not yet installed — state file is still correct, desktop notification may not have fired"
     fi
+  '';
+  # Suspend can catch ROCm/KFD mid-inference; resuming with a model still
+  # "loaded" against hardware that just went through a full power-state
+  # transition is the same shape of risk as the surprise-eGPU-removal
+  # dead-KFD state documented in TODO.md §7 (Phase 1a "Found and fixed
+  # along the way"). Evicting before suspend costs nothing (the model just
+  # reloads into VRAM on next use) and removes the risk entirely.
+  suspendEvictScript = pkgs.writeShellScript "ai-workstation-suspend-evict" ''
+    PATH=${
+      lib.makeBinPath [
+        pkgs.ollama
+        pkgs.coreutils
+      ]
+    }:$PATH
+    log() { echo "[ai-workstation-suspend-evict] $*"; logger -t ai-workstation-suspend-evict "$*"; }
+
+    loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
+    if [ -z "$loaded" ]; then
+      log "no loaded models — nothing to evict"
+      exit 0
+    fi
+
+    echo "$loaded" | while read -r model; do
+      log "evicting $model before suspend"
+      ollama stop "$model" 2>/dev/null || true
+    done
   '';
 in
 {
   systemd.tmpfiles.rules = [
     "d /run/ai-workstation 0755 cryptix users -"
   ];
+
+  systemd.services.ai-workstation-suspend-evict = {
+    description = "Evict loaded Ollama models before suspend (avoids KFD corruption on resume)";
+    before = [ "sleep.target" ];
+    wantedBy = [ "sleep.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = suspendEvictScript;
+    };
+  };
 
   # Triggered by an added line in egpu-bar-fix.service's success branch
   # (modules/nixos/hardware/amd.nix) — not by its own udev rule, reusing
@@ -95,7 +131,7 @@ in
   # Reconciles state at boot — dock/undock-sync above only ever fire on a
   # udev hotplug event (amd.nix's egpu-bar-fix/egpu-eject), so a boot with
   # no hotplug event (the common case: the eGPU's presence doesn't change
-  # across a reboot) left goose-state-sync never re-run, silently keeping
+  # across a reboot) left qubi-state-sync never re-run, silently keeping
   # config.yaml on whatever state a prior session last wrote. Same
   # lspci-based detection ai-workstation-gaming-stop already uses.
   systemd.services.ai-workstation-boot-sync = {

@@ -4,7 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../../theme"
 
-// Chat overlay talking to Goose over a persistent `goose acp` JSON-RPC
+// Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
 // session (GooseAcpSession.qml) — shown/hidden via IPC from a Hyprland
 // keybind (same convention as Launcher.qml/ThemeState.qml — see
 // hyprland.nix). Backend is GooseAcpSession.qml (see its own header
@@ -147,7 +147,7 @@ PanelWindow {
 
         function onSessionFailed(message) {
             console.warn("GooseAcpSession failed:", message);
-            ChatState.appendMessage("assistant", `(goose acp error: ${message})`);
+            ChatState.appendMessage("assistant", `(qubi error: ${message})`);
         }
     }
 
@@ -241,7 +241,7 @@ PanelWindow {
                 Text {
                     id: titleLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Goose"
+                    text: "Qubi"
                     color: Theme.color.fg
                     font.family: Theme.font.family
                     font.pixelSize: Theme.font.sizeBase
@@ -538,7 +538,7 @@ PanelWindow {
 
                     Text {
                         width: parent.width
-                        text: `goose wants to: ${permissionBanner.visible ? (ChatState.pendingPermission.params?.toolCall?.title ?? "run a tool") : ""}`
+                        text: `qubi wants to: ${permissionBanner.visible ? (ChatState.pendingPermission.params?.toolCall?.title ?? "run a tool") : ""}`
                         wrapMode: Text.Wrap
                         color: Theme.color.fg
                         font.family: Theme.font.family
@@ -605,7 +605,7 @@ PanelWindow {
                             leftMargin: Theme.spacing.launcherRowInset
                             verticalCenter: parent.verticalCenter
                         }
-                        text: !GooseAcpSession.sessionReady ? "starting goose…" : GooseAcpSession.busy ? "goose is thinking…" : "message goose…"
+                        text: !GooseAcpSession.sessionReady ? "starting qubi…" : GooseAcpSession.busy ? "qubi is thinking…" : "message qubi…"
                         color: Theme.color.launcherPlaceholderFg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase

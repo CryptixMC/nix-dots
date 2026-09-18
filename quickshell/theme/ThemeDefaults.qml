@@ -40,7 +40,15 @@ QtObject {
             modelbrowserCardWidth: 200, modelbrowserCardHeight: 120, modelbrowserCardGap: 12,
             modelbrowserGridPad: 4, modelbrowserProgressHeight: 6,
             chatPanelWidth: 440, chatHeaderHeight: 44, chatCloseSize: 24,
-            chatBubbleMaxWidth: 340, chatComposerHeight: 44, chatSendSize: 32
+            chatBubbleMaxWidth: 340, chatComposerHeight: 44, chatSendSize: 32,
+            // Reserved for parallel agent branches — placeholder values only,
+            // each branch should replace these with its own real layout
+            // constants rather than repurpose them as-is.
+            clipboardPanelWidth: 320, clipboardRowHeight: 34,
+            screenctxPanelWidth: 320, screenctxRowHeight: 34,
+            voicePanelWidth: 320, voiceRowHeight: 34,
+            notesPanelWidth: 320, notesRowHeight: 34,
+            comparePanelWidth: 640, compareColumnGap: 12
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {
