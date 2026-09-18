@@ -125,7 +125,14 @@ redirect to a file instead of piping when the exit code matters.
   `~/Documents/Vault` but has no established capture-folder convention to guess at; see
   DECISIONS.md).
 - 4c `research-agent.yaml` recipe chains mcp-searxng + mcp-server-fetch + notes-capture.
-  Validated with a real `goose recipe validate` run (not just eyeballed).
+  Validated with a real `goose recipe validate` run (not just eyeballed). **All three component
+  MCP servers individually tested for real, later in the night**: `mcp-searxng` against the real
+  local SearXNG instance (confirmed reachable, `curl 127.0.0.1:8888/search?...` returns real
+  results) — a genuine `searxng_web_search` tool call returned real search results for "nixos
+  flakes"; `mcp-server-fetch` genuinely fetched `https://nixos.org` and returned real page
+  content; `notes-capture` already verified in 4b. Only the LLM-driven orchestration of the full
+  chain (search → fetch → synthesize → capture, as one autonomous run) remains untested — that
+  needs real inference, blocked by BLOCKERS.md item 1.
 - 4d Four `.agents/skills/*/SKILL.md` files (nix-dots-conventions, quickshell-qml-patterns,
   egpu-dock-undock, game-log-discovery), each grounded in facts already gathered this session.
   Confirmed real discovery via `goose skills list` (pure filesystem scan, no inference needed) —
