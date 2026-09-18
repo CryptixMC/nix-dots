@@ -195,6 +195,22 @@ let
       ${../../../goose_bridge.py}
   '';
 
+  # Both MCP servers below are hand-rolled stdio JSON-RPC (stdlib only, no
+  # MCP SDK dependency) rather than using an MCP framework package — kept
+  # deliberately minimal, matching goose_bridge.py's own "dumb relay, no
+  # framework" precedent in this repo, and protocol-verified live via a
+  # hand-written JSON-RPC probe the same way GooseAcpSession.qml's ACP
+  # handling was originally derived (see mcp-servers/ for the scripts).
+  askUserMcp = pkgs.writeShellScriptBin "qubi-ask-user-mcp" ''
+    set -euo pipefail
+    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/ask_user.py}
+  '';
+
+  notesCaptureMcp = pkgs.writeShellScriptBin "qubi-notes-capture-mcp" ''
+    set -euo pipefail
+    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/notes_capture.py}
+  '';
+
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
     set -euo pipefail
     for arg in "$@"; do
@@ -443,6 +459,34 @@ let
         bundled = false;
         timeout = 60;
       };
+      # Enabled by default (unlike the opt-in ones above) -- these are
+      # Phase 4's actual deliverables, meant to be reachable from any
+      # session without a manual enable step. ask-user's own 300s internal
+      # timeout (mcp-servers/ask_user.py) already bounds worst-case latency
+      # if nothing answers, so there's no extra timeout tax on sessions that
+      # never call it.
+      ask-user = {
+        enabled = true;
+        type = "stdio";
+        name = "ask-user";
+        display_name = "Ask User";
+        description = "Ask the human a multiple-choice or free-text question and block for a real answer via an on-screen dialog";
+        cmd = "${askUserMcp}/bin/qubi-ask-user-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 310;
+      };
+      notes-capture = {
+        enabled = true;
+        type = "stdio";
+        name = "notes-capture";
+        display_name = "Notes Capture";
+        description = "Append a structured note (title, summary, links, tags) to the capture inbox";
+        cmd = "${notesCaptureMcp}/bin/qubi-notes-capture-mcp";
+        args = [ ];
+        bundled = false;
+        timeout = 60;
+      };
     };
     providers = {
       ollama = {
@@ -653,6 +697,74 @@ let
           command: "qml-lint-repo"
       on_failure: "git checkout -- ."
       timeout_seconds: 900
+  '';
+
+  # Phase 4c: "research this and file it" — chains the two opt-in-disabled
+  # search/fetch extensions with notes-capture (always-on, see the main
+  # extensions block above). Recipes declare their own extensions list
+  # independent of the main config's enabled flags (same pattern
+  # codingAgentRecipe/mobileGuiAgentRecipe already establish), so
+  # mcp-searxng/mcp-server-fetch being disabled by default globally doesn't
+  # block them here. Invoke via `goose run --recipe
+  # ~/.config/goose/recipes/research-agent.yaml --params topic="..."`.
+  researchAgentRecipe = ''
+    version: 1.0.0
+    title: "Research and Capture"
+    description: "Searches the local SearXNG instance and fetches real pages to research a topic, then files a structured summary via notes-capture."
+    instructions: |
+      You are a research agent. Given a topic or question, do real research
+      and file a structured note about what you found -- do not answer from
+      memory alone and do not skip the capture step.
+
+      Process:
+      1. Use searxng_web_search (or equivalent) to find several real,
+         relevant sources for the topic. Do not fabricate URLs -- only use
+         URLs a real search result actually returned.
+      2. Fetch at least 2-3 of the most relevant results with your fetch
+         tool and read their real content. Do not summarize a page you
+         didn't actually fetch.
+      3. Synthesize what you found into a concise summary, noting where
+         sources disagree or something is unconfirmed.
+      4. Call capture_note with a clear title, your summary, the real
+         source URLs as links, and a few relevant tags. This is the
+         required last step -- research that was never captured is
+         incomplete, regardless of how good your final answer text is.
+
+      You are running fully non-interactively -- no one is watching this
+      session. Never end your turn asking whether to proceed; do the
+      research and capture it, then stop.
+    prompt: "{{ topic }}"
+    parameters:
+      - key: topic
+        input_type: string
+        requirement: required
+        description: "The topic or question to research"
+    extensions:
+      - type: stdio
+        name: mcp-searxng
+        display_name: Web Search
+        cmd: ${mcpSearxngWrapped}/bin/mcp-searxng-wrapped
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: mcp-server-fetch
+        display_name: Fetch
+        cmd: ${pkgs.mcp-server-fetch}/bin/mcp-server-fetch
+        args: []
+        bundled: false
+        timeout: 60
+      - type: stdio
+        name: notes-capture
+        display_name: Notes Capture
+        cmd: ${notesCaptureMcp}/bin/qubi-notes-capture-mcp
+        args: []
+        bundled: false
+        timeout: 60
+    settings:
+      goose_provider: ollama
+      goose_model: qwen3.6:latest
+      max_tokens: 4096
   '';
 
   # A one-off variant of codingAgentRecipe with real browser control added
@@ -963,6 +1075,7 @@ in
 
   home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
   home.file.".config/goose/recipes/mobile-gui-agent.yaml".text = mobileGuiAgentRecipe;
+  home.file.".config/goose/recipes/research-agent.yaml".text = researchAgentRecipe;
 
   # Global counterpart to this repo's own AGENTS.md (repo root) — covers
   # a goose session invoked from outside this repo's directory, which the

@@ -93,3 +93,21 @@ prose — generous for "a paragraph or a few," which is this feature's actual us
 Rejected as unnecessary complexity for a feature whose whole point is quick snippets, not documents.
 **To change it:** `ClipboardState.qml`'s `maxChars` property.
 **Confidence:** medium.
+
+## Notes-capture target: `.agents/inbox.md`, NOT the real Obsidian vault
+**Decided:** `notes-capture` appends to `~/nix-dots/.agents/inbox.md`, not
+`~/Documents/Vault` (the real, actively-used Obsidian vault I found — confirmed real via its
+`.claude`/`.claudian` dirs, as opposed to `~/Documents/ProtonSyncTestVault`, which is clearly just
+a test vault: minimal content, nothing but a README, untouched since July).
+**Why:** The task's own instructions say to default to `.agents/inbox.md` if the vault target is
+ambiguous, and it genuinely is — the real vault has no established inbox/daily-notes/capture
+folder convention (just a stray `Untitled.md` and `testing.html` at its root). Auto-writing into
+someone's actual personal knowledge vault with a folder structure they never chose is a much
+worse mistake to make wrong than under-delivering into a repo-local scratch file — this is
+explicitly flagged **low confidence**, not a considered final answer.
+**Alternatives:** Write into `~/Documents/Vault/Inbox/` or `~/Documents/Vault/Qubi Captures.md`
+directly.
+**To change it:** `mcp-servers/notes_capture.py`'s `VAULT_PATH` constant — point it at
+`~/Documents/Vault/<wherever you actually want captures to land>`.
+**Confidence:** low — this is exactly the kind of subjective-preference call flagged as something
+only Liam can make; flagging prominently rather than guessing his vault's organization.

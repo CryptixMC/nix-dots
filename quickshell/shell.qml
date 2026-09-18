@@ -12,6 +12,7 @@ import "modules/extensions"
 import "modules/lock"
 import "modules/wallpaper"
 import "modules/clipboard"
+import "modules/askuser"
 // import "modules/screenctx"
 // import "modules/voice"
 // import "modules/notes"
@@ -61,6 +62,7 @@ ShellRoot {
     // (hyprland.nix) already IPC-call these targets and confirm-fail
     // gracefully today. Uncomment each block once its branch lands.
     ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
+    AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
     // ScreenContext { id: screenContext } // qubi/screenctx
     // VoiceOverlay { id: voiceOverlay } // qubi/voice
     // NotesCapture { id: notesCapture } // qubi/notes
