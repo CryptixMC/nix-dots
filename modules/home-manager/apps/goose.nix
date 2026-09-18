@@ -254,6 +254,51 @@ let
     exec ${pkgs.nh}/bin/nh "$@"
   '';
 
+  # Blocks `git commit`/`git push`/`git merge` inside any Goose-driven
+  # session (CLI wrappers below AND Goose Desktop) -- a hard backstop, not
+  # a mode setting the model has to remember to respect. Root-caused live
+  # (2026-09-18, a real Goose Desktop session, `goose_mode: auto`,
+  # provider ollama/qwen3-coder:latest, session "Quickshell UI redesign"
+  # in sessions.db): asked to "discuss" a plan first, the model instead
+  # went straight to editing files with no pause; told explicitly "I will
+  # confirm what to merge to main", it merged AND pushed to origin/main on
+  # its own three separate times across the session, never once showing a
+  # diff for approval first. GOOSE_MODE=smart_approve (see gooseConfig
+  # below) is the primary fix, but its "sensitive tool call" classifier is
+  # Goose's own internal heuristic, not something this repo controls or
+  # can verify classifies git commit/push as sensitive -- this guard makes
+  # the block unconditional regardless of mode or model behavior, same
+  # rationale as gooseNhGuard just above. Read-only git (status/diff/log/
+  # branch/show/checkout for inspection) stays fully available -- the
+  # model can still explore and report back, it just can't act
+  # irreversibly without a human literally typing the command themselves.
+  gooseGitGuard = pkgs.writeShellScriptBin "git" ''
+    set -euo pipefail
+    # Only the actual subcommand (the first positional arg) is checked --
+    # not every arg -- so this doesn't false-positive on e.g.
+    # `git log --grep=commit` or `git diff -- commit.txt`. Does NOT handle
+    # `git -C dir commit` (a global flag taking its own value before the
+    # subcommand) -- every real invocation observed in the actual incident
+    # transcript was plain (`git commit -m ...`, `git push origin main`),
+    # so this is a real, accepted, documented gap rather than a silently
+    # incomplete parser -- revisit if a `-C`/`-c`-prefixed bypass is ever
+    # seen in practice.
+    subcommand=""
+    for arg in "$@"; do
+      case "$arg" in
+        -*) continue ;;
+        *) subcommand="$arg"; break ;;
+      esac
+    done
+    case "$subcommand" in
+      commit|push|merge)
+        echo "[goose-guard] 'git $subcommand' is blocked inside a Goose-driven session (Desktop or a qubi-* wrapper) -- report the diff/plan and wait for the user to run it themselves, or ask them explicitly via ask_user first." >&2
+        exit 1
+        ;;
+    esac
+    exec ${pkgs.git}/bin/git "$@"
+  '';
+
   # Backward-compat aliases for the pre-rebrand wrapper names — kept for
   # muscle memory, each just execs its renamed Qubi counterpart.
   qubiAliases = [
@@ -574,6 +619,29 @@ let
     # Thinking-off has no downside for casual/voice chat regardless of
     # which model is active, so this stays off unconditionally.
     GOOSE_LOCAL_ENABLE_THINKING = false;
+    # Was unset (Goose's own internal default is "auto" -- confirmed live
+    # via a real session/new call: availableModes lists auto/approve/
+    # smart_approve/chat, and every session this repo has ever created
+    # without an explicit override, Desktop included, came back
+    # goose_mode: "auto"). "auto" grants blanket permission to every tool
+    # call forever, no exceptions -- root-caused live as the direct cause
+    # of a real incident (2026-09-18, Goose Desktop, session "Quickshell
+    # UI redesign" in sessions.db): asked to discuss a plan first, it
+    # edited files immediately with no pause; told explicitly "I will
+    # confirm what to merge", it committed AND pushed to origin/main three
+    # separate times with no approval step, ever. smart_approve ("ask only
+    # for sensitive tool calls") is the safer default for every
+    # Desktop/qubi-* session that doesn't explicitly override it --
+    # GooseAcpSession.qml/GooseAcpPane.qml's own explicit
+    # `"GOOSE_MODE": "auto"` for the interactive, human-supervised chat
+    # overlay/compare pane still wins there (Process.environment overrides
+    # the inherited env, confirmed elsewhere in this repo), so this change
+    # only affects the *unsupervised* surfaces where nobody's watching
+    # every turn in real time. gooseGitGuard (above) is the hard backstop
+    # for git specifically, since smart_approve's "sensitive" classifier
+    # is Goose's own internal heuristic, not something this repo can
+    # verify actually flags git commit/push.
+    GOOSE_MODE = "smart_approve";
   };
 
   gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
@@ -596,6 +664,7 @@ let
     nativeBuildInputs = [ pkgs.makeWrapper ];
     postBuild = ''
       wrapProgram $out/bin/goose-desktop \
+        --prefix PATH : ${gooseGitGuard}/bin \
         --run '${gooseStateSync}/bin/qubi-state-sync || true'
     '';
   };
@@ -999,10 +1068,12 @@ let
     ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set performance 2>/dev/null || true
     trap '${pkgs.power-profiles-daemon}/bin/powerprofilesctl set "$PREV_PROFILE" 2>/dev/null || true' EXIT
 
-    # Shadows `nh` with gooseNhGuard for every process this session spawns
-    # (the developer extension's shell tool inherits this PATH) — refuses
-    # `nh ... switch` without touching the interactive shell's own PATH.
-    export PATH=${gooseNhGuard}/bin:$PATH
+    # Shadows `nh` (blocks `switch`) and `git` (blocks commit/push/merge)
+    # for every process this session spawns (the developer extension's
+    # shell tool inherits this PATH) — neither touches the interactive
+    # shell's own PATH. See gooseGitGuard's own comment for the real
+    # incident that motivated the git guard specifically.
+    export PATH=${gooseNhGuard}/bin:${gooseGitGuard}/bin:$PATH
 
     # GOOSE_MAX_TOKENS: the confirmed-real fix for "Tool arguments for
     # shell ... were truncated because the model reached its output token
@@ -1036,6 +1107,7 @@ let
   gooseClaude = pkgs.writeShellScriptBin "qubi-claude" ''
     set -uo pipefail
 
+    export PATH=${gooseGitGuard}/bin:$PATH
     export GOOSE_MAX_TOKENS=4096
 
     ${pkgs.goose-cli}/bin/goose run \
@@ -1057,6 +1129,7 @@ let
   goosePlan = pkgs.writeShellScriptBin "qubi-plan" ''
     set -uo pipefail
 
+    export PATH=${gooseGitGuard}/bin:$PATH
     export GOOSE_PLANNER_PROVIDER=ollama
 
     if ${pkgs.pciutils}/bin/lspci -d 1002:73bf 2>/dev/null | grep -q .; then
@@ -1088,6 +1161,7 @@ let
   # which this chat/lookup role never used anyway.
   gooseChat = pkgs.writeShellScriptBin "qubi-chat" ''
     set -uo pipefail
+    export PATH=${gooseGitGuard}/bin:$PATH
     export GOOSE_LOCAL_ENABLE_THINKING=false
     exec ${pkgs.goose-cli}/bin/goose session --provider ollama --model qwen3:4b
   '';
