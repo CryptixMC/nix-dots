@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "nixos": {
+      "type": "stdio",
+      "command": "/home/cryptix/.local/state/qubi-mcp/mcp-nixos/bin/mcp-nixos",
+      "args": [],
+      "env": {}
+    },
+    "nix-lsp": {
+      "type": "stdio",
+      "command": "/home/cryptix/.local/state/qubi-mcp/mcp-language-server/bin/mcp-language-server",
+      "args": [
+        "-lsp",
+        "/home/cryptix/.local/state/qubi-mcp/nixd/bin/nixd",
+        "-workspace",
+        "/home/cryptix/nix-dots"
+      ],
+      "env": {}
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "/home/cryptix/.local/state/qubi-mcp/context7-mcp/bin/context7-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}

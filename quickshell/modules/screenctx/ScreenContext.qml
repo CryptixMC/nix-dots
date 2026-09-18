@@ -77,12 +77,13 @@ PanelWindow {
                 }
                 root._route = state === "gaming" ? "ocr-gaming" : state === "docked" ? "vision" : "ocr";
                 ScreenState.route = root._route;
-                // The capturing overlay itself only shows for the
-                // non-gaming routes -- gaming stays completely silent
-                // until a desktop notification at the very end, never
-                // stealing focus from a fullscreen game.
-                if (root._route !== "ocr-gaming")
-                    ScreenState.visible = true;
+                // Deliberately NOT setting ScreenState.visible here --
+                // this window must stay fully invisible while hyprshot's
+                // own slurp region-select is active, or its centered box
+                // sits on screen in the way of the selection (confirmed
+                // live: a real, reported bug). Only becomes visible once
+                // there's an actual result to show (checkCaptureProcess,
+                // once past the capture step).
                 captureProcess.running = true;
             }
         }
@@ -116,6 +117,14 @@ PanelWindow {
                     return;
                 }
                 ScreenState.phase = "processing";
+                // Only becomes visible now -- past the actual screen
+                // capture, showing "processing"/"result"/"error", never
+                // during the capture itself (see the comment above on why).
+                // Gaming stays fully silent throughout, still -- no
+                // overlay at all, only a clipboard-copy + notification at
+                // the end, never stealing focus from a fullscreen game.
+                if (root._route !== "ocr-gaming")
+                    ScreenState.visible = true;
                 if (root._route === "vision")
                     b64Process.running = true;
                 else
