@@ -19,6 +19,7 @@ Row {
         barWindow: root.barWindow
     }
 
+    QubiStatus {}
     Network {}
     Battery {}
     Backlight {}
