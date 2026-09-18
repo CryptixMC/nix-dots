@@ -511,16 +511,22 @@ let
         # qwen3:4b (2026-09-17 /goal speed target pick: 81.0 tok/s, 3/3 on
         # structured goose-bench tasks) was reverted 2026-09-18 after live
         # ACP testing found it genuinely unreliable on unstructured chat
-        # input: given the literal text "test" with the default extension
-        # set, it either hallucinated an unrelated file-write action or
-        # hung for 40+ seconds producing zero response — reproduced twice.
-        # qwen3.6:latest with thinking disabled passed the identical "test"
-        # prompt cleanly 3/3 times (14.5s-26.7s, sane acknowledgement each
-        # time) — slower than qwen3:4b's benchmark number but the only one
-        # of the two that's actually reliable for ad-hoc chat, which is
-        # this key's whole job. Coding still explicitly overrides this in
-        # codingAgentRecipe below (qwen3-coder:latest).
-        model = "qwen3.6:latest";
+        # input (hallucinated a file-write action / hung 40+s on a bare
+        # "test" prompt, reproduced twice) in favor of qwen3.6:latest
+        # (23GB, reliable but slow to cold-load and ~3x slower to
+        # generate). Reverted back to qwen3:4b the same night, live, on
+        # direct user instruction after actually using qwen3.6 as the
+        # default and finding the load/generation time genuinely too slow
+        # in practice — explicitly choosing speed over that measured
+        # reliability margin, not an oversight. Also matches
+        # ai-workstation.nix's dockedModel, which was qwen3:4b already
+        # and had silently drifted inconsistent with this key. If ad-hoc
+        # chat reliability regresses (hallucinated actions, hangs), that's
+        # the known, accepted trade-off — see the git history on this
+        # line for the qwen3.6 alternative and why it was tried. Coding
+        # still explicitly overrides this in codingAgentRecipe below
+        # (qwen3-coder:latest).
+        model = "qwen3:4b";
         configured = true;
       };
       "claude-code" = {
@@ -535,11 +541,10 @@ let
     GOOSE_TOOLSHIM_OLLAMA_MODEL = "qwen2.5-coder:7b";
     GOOSE_TOOLSHIM = false;
     GOOSE_PROVIDER = "ollama";
-    GOOSE_MODEL = "qwen3.6:latest";
-    # See the model-choice comment above the "ollama" provider entry —
-    # thinking-off is required for qwen3.6 to be usable as an ad-hoc chat
-    # default (measured 14.5-26.7s per reply either way; thinking-on adds
-    # real latency on top with no correctness benefit for casual chat).
+    GOOSE_MODEL = "qwen3:4b";
+    # See the model-choice comment above the "ollama" provider entry.
+    # Thinking-off has no downside for casual/voice chat regardless of
+    # which model is active, so this stays off unconditionally.
     GOOSE_LOCAL_ENABLE_THINKING = false;
   };
 
