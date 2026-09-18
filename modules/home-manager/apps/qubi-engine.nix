@@ -25,6 +25,16 @@ let
     exec ${pythonEnv}/bin/python3 ${../../../engine/qubi_config.py} "$@"
   '';
 
+  # Phase 7b -- shells out to `ollama list`, so needs it on PATH; PYTHONPATH
+  # gets it engine/qubi_config.py's own declared-roster reading (same
+  # "reads the real ~/.config/qubi/config.json, not a hardcoded copy"
+  # discipline as everything else here).
+  qubiModelsCli = pkgs.writeShellScriptBin "qubi-models" ''
+    export PATH=${pkgs.ollama}/bin:$PATH
+    export PYTHONPATH=${../../../engine}:$PYTHONPATH
+    exec ${pythonEnv}/bin/python3 ${../../../engine/qubi_models.py} "$@"
+  '';
+
   # QUBI_PY: engine/qubi_engine.py's build_tier_config_dir shells out to
   # this same interpreter (via the escalate extension's `cmd`) when
   # synthesizing the light tier's config -- see that function's own
@@ -42,6 +52,7 @@ in
   home.packages = [
     qubiConfigCli
     qubiEngineCli
+    qubiModelsCli
   ];
 
   # Writes ~/.config/qubi/config.json ONLY if it doesn't already exist --
