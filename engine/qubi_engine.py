@@ -25,6 +25,7 @@ import subprocess
 import time
 
 import websockets
+import yaml
 from websockets.exceptions import ConnectionClosed
 
 import qubi_config
@@ -61,8 +62,15 @@ def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None):
     deliberately never added to the real ~/.config/goose/config.yaml so it
     can never leak into the heavy/claude tiers by accident.
     """
+    # yaml.safe_load, not json.load: confirmed live that this file is
+    # genuine block-style YAML, not the flow-style/JSON-compatible content
+    # it happened to be early in this build -- a real runtime write from
+    # Goose itself (e.g. an interactive `/model` change persisting back to
+    # disk, confirmed via a live `providers.claude-code.model` value this
+    # session never set) can turn it into real YAML at any time. JSON is a
+    # syntactic subset of YAML, so this reads either form correctly.
     with open(BASE_GOOSE_CONFIG) as f:
-        base = json.load(f)
+        base = yaml.safe_load(f)
 
     cfg = dict(base)
     # extra_extensions: gaming-only additions (Phase 5d -- light tier gets

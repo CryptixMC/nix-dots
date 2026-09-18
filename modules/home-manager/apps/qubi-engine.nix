@@ -11,15 +11,37 @@ let
   # there's no risk of one of them silently running against a bare
   # system python3 that lacks it (goose.nix's own gooseMobileBridge comment
   # already flagged this exact trap for goose_bridge.py).
-  pythonEnv = pkgs.python3.withPackages (p: [ p.websockets ]);
+  # pyyaml: ~/.config/goose/config.yaml is real block-style YAML, not the
+  # JSON it happened to look like early in this build -- confirmed live
+  # the hard way (engine crashed with a JSONDecodeError the first time
+  # this file picked up genuinely non-flow-style content, e.g.
+  # `providers.claude-code.model: Sonnet:5`, real runtime state Goose
+  # itself had written back via a live `/model` change). JSON is a
+  # syntactic subset of YAML, so this also transparently keeps working if
+  # the file ever DOES happen to be flow-style/JSON-compatible again.
+  pythonEnv = pkgs.python3.withPackages (p: [ p.websockets p.pyyaml ]);
 
   qubiConfigCli = pkgs.writeShellScriptBin "qubi-config" ''
     exec ${pythonEnv}/bin/python3 ${../../../engine/qubi_config.py} "$@"
+  '';
+
+  # QUBI_PY: engine/qubi_engine.py's build_tier_config_dir shells out to
+  # this same interpreter (via the escalate extension's `cmd`) when
+  # synthesizing the light tier's config -- see that function's own
+  # comment. Passed as an env var rather than hardcoded so the escalate
+  # tool always runs under the SAME python (with the same package set)
+  # the engine itself runs under, not whatever bare `python3` happens to
+  # resolve to on PATH at that moment.
+  qubiEngineCli = pkgs.writeShellScriptBin "qubi-engine" ''
+    export QUBI_PY="${pythonEnv}/bin/python3"
+    cd ${../../../engine}
+    exec ${pythonEnv}/bin/python3 -u qubi_engine.py
   '';
 in
 {
   home.packages = [
     qubiConfigCli
+    qubiEngineCli
   ];
 
   # Writes ~/.config/qubi/config.json ONLY if it doesn't already exist --
@@ -36,4 +58,26 @@ in
   home.activation.qubiConfigInit = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     run ${qubiConfigCli}/bin/qubi-config init
   '';
+
+  # Replaces qubi-bridge.service (goose_bridge.py's old dumb single-
+  # process relay) -- same WebSocket port (8765), same "always on for
+  # mobile" role, but now backed by the real multi-tier engine instead of
+  # one bare `goose acp` process. Restart=on-failure (not "always" -- a
+  # crash-looping engine shouldn't hammer Ollama in a tight restart loop)
+  # and After=graphical-session.target since it needs a live Hyprland
+  # session for the same reasons goose-state-sync's own notify path does
+  # (though the engine itself doesn't call hyprctl directly, its warm-up
+  # Ollama call and tier processes assume a real user session is up).
+  systemd.user.services.qubi-engine = {
+    Unit = {
+      Description = "Qubi engine: persistent multi-tier goose acp router (unix socket + websocket)";
+      After = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${qubiEngineCli}/bin/qubi-engine";
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 }
