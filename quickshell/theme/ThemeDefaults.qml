@@ -47,6 +47,11 @@ QtObject {
             clipboardPanelWidth: 320, clipboardRowHeight: 34,
             screenctxPanelWidth: 320, screenctxRowHeight: 34,
             voicePanelWidth: 320, voiceRowHeight: 34,
+            // Sized generously so the waveform's max possible bar height
+            // (see VoiceOverlay.qml's amplitude formula) can never exceed
+            // these bounds -- the previous single-blob design's real bug
+            // was a radius formula that could exceed its own canvas size.
+            voiceWaveformWidth: 420, voiceWaveformHeight: 200,
             notesPanelWidth: 320, notesRowHeight: 34,
             comparePanelWidth: 640, compareColumnGap: 12
         },
