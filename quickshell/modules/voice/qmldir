@@ -1,0 +1,2 @@
+singleton VoiceState 1.0 VoiceState.qml
+VoiceOverlay 1.0 VoiceOverlay.qml

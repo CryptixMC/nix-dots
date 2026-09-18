@@ -1,3 +1,6 @@
 singleton ChatState 1.0 ChatState.qml
 singleton GooseAcpSession 1.0 GooseAcpSession.qml
+singleton ChatCompareState 1.0 ChatCompareState.qml
 ChatOverlay 1.0 ChatOverlay.qml
+GooseAcpPane 1.0 GooseAcpPane.qml
+ChatCompare 1.0 ChatCompare.qml

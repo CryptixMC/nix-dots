@@ -1,7 +1,7 @@
-import QtQuick
-import QtQml
-import Quickshell
-import Quickshell.Io
+import QtQuick 2.15
+import QtQml 2.15
+import Quickshell 1.0
+import Quickshell.Io 1.0
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"
@@ -11,6 +11,11 @@ import "modules/modelbrowser"
 import "modules/extensions"
 import "modules/lock"
 import "modules/wallpaper"
+import "modules/clipboard"
+import "modules/askuser"
+import "modules/screenctx"
+import "modules/voice"
+import "modules/notes"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -41,6 +46,10 @@ ShellRoot {
         id: chatOverlay
     }
 
+    ChatCompare {
+        id: chatCompare
+    }
+
     SessionsPicker {
         id: sessionsPicker
     }
@@ -53,10 +62,16 @@ ShellRoot {
         id: extensionsManager
     }
 
+    ClipboardTransform { id: clipboardTransform }
+    AskUserDialog { id: askUserDialog }
+    ScreenContext { id: screenContext }
+    VoiceOverlay { id: voiceOverlay }
+    NotesCapture { id: notesCapture }
+
     // Deliberately no keybind — LockService (modules/lock/) is complete
     // but untested against a real Wayland session; the only trigger is
     // this manual IPC call (`quickshell ipc call lock lock`), run by hand
-    // once someone's ready to verify the unlock path actually works
+    // once someone's ready to verify the unlock path works
     // before wiring in a real keybind/idle-timeout. See TODO.md §5.
     IpcHandler {
         target: "lock"
@@ -71,10 +86,6 @@ ShellRoot {
         Wallpaper {
             screen: modelData
         }
-    }
-
-    Variants {
-        model: Quickshell.screens
 
         Bar {
             screen: modelData

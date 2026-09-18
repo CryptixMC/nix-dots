@@ -276,13 +276,13 @@ Item {
         acpProcess.running = false;
     }
 
-    // Lets goose-state-sync (a root-context systemd oneshot on dock-undock)
+    // Lets qubi-state-sync (a root-context systemd oneshot on dock-undock)
     // trigger a live model switch without touching config.yaml, via
-    // `quickshell ipc -p ~/nix-dots/quickshell call goose-model switchModel
+    // `quickshell ipc -p ~/nix-dots/quickshell call qubi-model switchModel
     // <provider> <model>` — same IpcHandler convention ChatOverlay.qml
     // already uses for its "chat"/toggle target.
     IpcHandler {
-        target: "goose-model"
+        target: "qubi-model"
         function switchModel(provider: string, model: string): void {
             root.switchModel(provider, model);
         }

@@ -4,7 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../../theme"
 
-// Chat overlay talking to Goose over a persistent `goose acp` JSON-RPC
+// Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
 // session (GooseAcpSession.qml) — shown/hidden via IPC from a Hyprland
 // keybind (same convention as Launcher.qml/ThemeState.qml — see
 // hyprland.nix). Backend is GooseAcpSession.qml (see its own header
@@ -59,6 +59,14 @@ PanelWindow {
         right: true
     }
     exclusiveZone: 0
+    // Without this, the bar's own exclusive zone (reserved top-of-screen
+    // space) shrinks this window's usable area from underneath it, so a
+    // panel anchored top+bottom (touching both screen edges, unlike a
+    // smaller centered dialog) ends up taller than the actually-available
+    // space and its bottom edge hangs off-screen -- confirmed as a real,
+    // reported bug. `Ignore` makes this window's geometry the true full
+    // screen regardless of what other layer-shell surfaces reserve.
+    WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     color: "transparent"
 
@@ -100,6 +108,13 @@ PanelWindow {
         function toggle(): void {
             ChatState.toggle();
         }
+        // SUPER+SHIFT+D (already reserved in hyprland.nix, calls
+        // `chat compare`) -- ChatCompare.qml is its own file/overlay with
+        // two independent GooseAcpPane processes, not part of this
+        // singleton's own session.
+        function compare(): void {
+            ChatCompareState.toggle();
+        }
     }
 
     Connections {
@@ -114,8 +129,14 @@ PanelWindow {
             // for models that actually emit reasoning tokens (confirmed
             // live: qwen2.5-coder never does, others might). Rendered as
             // its own muted "thought" bubble rather than folded into the
-            // reply text.
-            ChatState.appendMessage("thought", text);
+            // reply text. Streamed into a single bubble the same way
+            // onMessageChunk streams the reply -- these chunks arrive in
+            // small pieces, and appendMessage-per-chunk was confirmed live
+            // to render one bubble per word instead of one growing bubble.
+            if (ChatState.streamingThoughtIndex < 0)
+                ChatState.streamingThoughtIndex = ChatState.appendMessage("thought", text);
+            else
+                ChatState.appendToStreamingMessage(text, ChatState.streamingThoughtIndex);
         }
 
         function onToolCall(call) {
@@ -131,6 +152,7 @@ PanelWindow {
 
         function onTurnComplete(result) {
             ChatState.streamingIndex = -1;
+            ChatState.streamingThoughtIndex = -1;
             if (result.stopReason === "error")
                 ChatState.appendMessage("assistant", `(error: ${JSON.stringify(result.error)})`);
             const next = ChatState.dequeue();
@@ -147,7 +169,7 @@ PanelWindow {
 
         function onSessionFailed(message) {
             console.warn("GooseAcpSession failed:", message);
-            ChatState.appendMessage("assistant", `(goose acp error: ${message})`);
+            ChatState.appendMessage("assistant", `(qubi error: ${message})`);
         }
     }
 
@@ -241,7 +263,7 @@ PanelWindow {
                 Text {
                     id: titleLabel
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Goose"
+                    text: "Qubi"
                     color: Theme.color.fg
                     font.family: Theme.font.family
                     font.pixelSize: Theme.font.sizeBase
@@ -279,6 +301,7 @@ PanelWindow {
             }
 
             Flow {
+                id: statusPillsRow
                 width: parent.width
                 spacing: Theme.spacing.themePillGap
 
@@ -427,7 +450,14 @@ PanelWindow {
             ListView {
                 id: messageList
                 width: parent.width
-                height: parent.height - headerRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
+                // statusPillsRow (mode/model/subagent) was missing from this
+                // subtraction entirely -- a real, reported bug: the whole
+                // column silently overflowed the panel's bottom edge by
+                // exactly that row's height, cropping the input bar and
+                // send button off-screen. Every other sibling in `content`
+                // was already accounted for here; this one just didn't
+                // have an id to reference until now.
+                height: parent.height - headerRow.height - parent.spacing - statusPillsRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
                 clip: true
                 model: ChatState.messages
                 spacing: Theme.spacing.launcherContentGap / 2
@@ -446,6 +476,13 @@ PanelWindow {
                     readonly property bool isTool: modelData.role === "tool"
                     readonly property bool isThought: modelData.role === "thought"
                     readonly property bool isMuted: isTool || isThought
+                    // Thought bubbles default collapsed -- reasoning traces
+                    // are often long and are context for "what is it doing",
+                    // not something to read by default. Local to this
+                    // delegate instance (not persisted in ChatState) since
+                    // it's pure UI-display state, same as every other
+                    // ephemeral hover/expand flag in this file.
+                    property bool thoughtExpanded: false
 
                     width: messageList.width
                     height: bubble.height
@@ -469,13 +506,29 @@ PanelWindow {
                                 top: parent.top
                                 margins: Theme.spacing.launcherRowInset
                             }
-                            text: row.isTool ? row.modelData.text : row.isThought ? `thinking: ${row.modelData.text}` : row.modelData.text
+                            text: {
+                                if (row.isTool)
+                                    return row.modelData.text;
+                                if (row.isThought) {
+                                    const collapsedPreview = row.modelData.text.length > 60 ? row.modelData.text.slice(0, 60) + "…" : row.modelData.text;
+                                    const glyph = row.thoughtExpanded ? "▾" : "▸";
+                                    return `${glyph} thinking: ${row.thoughtExpanded ? row.modelData.text : collapsedPreview}`;
+                                }
+                                return row.modelData.text;
+                            }
                             wrapMode: Text.Wrap
                             color: row.isMuted ? Theme.color.launcherPlaceholderFg : Theme.color.fg
                             font.family: Theme.font.family
                             font.pixelSize: row.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
                             font.italic: row.isMuted
                             textFormat: row.isMuted ? Text.PlainText : Text.MarkdownText
+
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: row.isThought
+                                cursorShape: row.isThought ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: row.thoughtExpanded = !row.thoughtExpanded
+                            }
                         }
 
                         Row {
@@ -538,7 +591,7 @@ PanelWindow {
 
                     Text {
                         width: parent.width
-                        text: `goose wants to: ${permissionBanner.visible ? (ChatState.pendingPermission.params?.toolCall?.title ?? "run a tool") : ""}`
+                        text: `qubi wants to: ${permissionBanner.visible ? (ChatState.pendingPermission.params?.toolCall?.title ?? "run a tool") : ""}`
                         wrapMode: Text.Wrap
                         color: Theme.color.fg
                         font.family: Theme.font.family
@@ -605,7 +658,7 @@ PanelWindow {
                             leftMargin: Theme.spacing.launcherRowInset
                             verticalCenter: parent.verticalCenter
                         }
-                        text: !GooseAcpSession.sessionReady ? "starting goose…" : GooseAcpSession.busy ? "goose is thinking…" : "message goose…"
+                        text: !GooseAcpSession.sessionReady ? "starting qubi…" : GooseAcpSession.busy ? "qubi is thinking…" : "message qubi…"
                         color: Theme.color.launcherPlaceholderFg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase
@@ -664,6 +717,7 @@ PanelWindow {
                         color: Theme.color.fg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase
+                        verticalAlignment: TextInput.AlignVCenter
 
                         Keys.onEscapePressed: ChatState.hide()
                         onAccepted: root.sendFromInput()
