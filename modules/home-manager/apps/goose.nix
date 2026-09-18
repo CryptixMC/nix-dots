@@ -335,8 +335,14 @@ let
         display_name = "Scheduler";
         bundled = true;
       };
+      # Enabled by default (unlike the other platform extensions above) --
+      # Phase 4d's .agents/skills/ only does anything if a session actually
+      # has this on. Confirmed live via `goose skills list` (no inference
+      # needed, pure filesystem discovery) that Goose additively discovers
+      # project-local .agents/skills/<name>/SKILL.md from CWD alongside the
+      # global ~/.agents/skills/ ones already on this machine.
       skills = {
-        enabled = false;
+        enabled = true;
         type = "platform";
         name = "skills";
         description = "Discover and provide skill instructions from filesystem and builtins";
