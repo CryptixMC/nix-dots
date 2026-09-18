@@ -178,9 +178,35 @@ dependency), IPC toggle, no crash. NOT live-tested: the actual push-to-talk flow
 + real Space keypress) and the whisper/piper model downloads (deliberately not triggered — would
 be an uncontrolled multi-hundred-MB download mid-session).
 
-## Phase 8-9
-Not started yet. See TaskList (TaskCreate #8-#9) for the live checklist — kept in sync with this
-file's section headers.
+## Phase 8 — Mobile bridge rework — DONE (fan-out fixed, Serve blocked on browser auth)
+Fixed the real bug: `goose_bridge.py` now holds ONE shared `goose acp` process for its whole
+lifetime, broadcasting to every connected WebSocket client instead of spawning one process per
+client. **Live-verified with two real simultaneous clients** — sent a request from client A,
+confirmed both A and B received the byte-identical broadcast response; also verified client-drop
+resilience and confirmed via logs the process starts exactly once across multiple connect/
+disconnect cycles. Tested against the *actual* pre-existing live `qubi-bridge.service` (discovered
+it was already running — home-manager switch happened once earlier tonight before this session
+"woke up" — stopped it, tested my rewrite on the real port, restored the original after).
+
+Investigated whether desktop+mobile could share one TRUE live session via `goose serve`'s native
+HTTP surface — confirmed the surface is real (POST+SSE with `Acp-Connection-Id`, live-verified)
+but found no live-fan-out/subscribe capability, and rearchitecting `GooseAcpSession.qml` to depend
+on it was judged too risky against an already-proven-live desktop feature. Documented as a
+deliberate scope decision, not an oversight — see DECISIONS.md/MOBILE_GUI_PLAN.md.
+
+**Blocked on a genuine interactive-auth step**: `tailscale serve` requires a one-time browser
+approval at a URL it prints (`login.tailscale.com/f/serve?node=...`) — confirmed live, this is
+Tailscale's own tenant-wide Serve gate, not something scriptable. Built and ready:
+`qubi-tailscale-serve` systemd service with the exact commands, documented prominently in
+BLOCKERS.md. Made `mobile_gui.html`'s WebSocket URL derive from `location.protocol`/`host` instead
+of a hardcoded IP so it doesn't break the moment Serve goes live.
+
+PWA theming: found the color scheme already exactly matched `themes/ultraviolet/base16.yaml`
+(verified byte-for-byte) from earlier work — fixed the one real gap, font-family (was plain
+sans-serif, now tries the desktop's actual JetBrainsMono Nerd Font Mono first).
+
+## Phase 9
+Not started yet. See TaskList (TaskCreate #9) for the live checklist.
 
 ## Environment notes for future-me
 - `hyprctl` needs clean env (`env -i ...`) from this Bash tool — see Phase 0.
