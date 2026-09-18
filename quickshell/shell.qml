@@ -14,7 +14,7 @@ import "modules/wallpaper"
 import "modules/clipboard"
 import "modules/askuser"
 import "modules/screenctx"
-// import "modules/voice"
+import "modules/voice"
 import "modules/notes"
 
 ShellRoot {
@@ -67,7 +67,7 @@ ShellRoot {
     ClipboardTransform { id: clipboardTransform } // built + staging-validated 2026-09-18
     AskUserDialog { id: askUserDialog } // built + staging-validated 2026-09-18, surfaces mcp-servers/ask_user.py
     ScreenContext { id: screenContext } // built + staging-validated 2026-09-18
-    // VoiceOverlay { id: voiceOverlay } // qubi/voice
+    VoiceOverlay { id: voiceOverlay } // built + staging-validated 2026-09-18
     NotesCapture { id: notesCapture } // built + staging-validated 2026-09-18
 
     // Deliberately no keybind — LockService (modules/lock/) is complete
