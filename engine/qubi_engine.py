@@ -21,6 +21,7 @@ process, request ids remapped so concurrent clients can't collide) or a
 import asyncio
 import json
 import os
+import re
 import subprocess
 import time
 
@@ -139,6 +140,20 @@ class TierProcess:
         if model:
             env["GOOSE_MODEL"] = model
         env["GOOSE_LOCAL_ENABLE_THINKING"] = "false"
+        # Real, live-confirmed bug fix (Phase 9 acceptance-suite testing):
+        # without a cap, a local model that doesn't honor escalate.py's own
+        # "stop here and wait" instruction can keep generating for 4+
+        # minutes after already calling the escalate tool -- and because
+        # this single goose acp process serializes ALL sessions on this
+        # tier (confirmed live: a completely unrelated session's plain
+        # session/new blocked 200+s behind another session's still-running
+        # turn), one rambling turn blocks the entire tier for everyone,
+        # not just its own session. goose.nix's own CLI wrappers
+        # (qubi-code, qubi-claude) already set this for exactly this
+        # reason ("Tool arguments ... were truncated" was the original
+        # motivating bug there) -- the engine's tier processes never
+        # inherited it. Same value, same rationale, now here too.
+        env["GOOSE_MAX_TOKENS"] = "4096"
         log(f"{self.name}: spawning goose acp (provider={self.tier_cfg['provider']} model={model or '(default)'})")
         t0 = time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
@@ -530,18 +545,31 @@ class Engine:
         b16_path = os.path.join(theme_dir, "base16.yaml")
         manifest_path = os.path.join(theme_dir, "theme.json")
         if os.path.exists(b16_path):
-            # base16.yaml in this repo is plain `key: "#hex"` lines (no
-            # nested structure) -- confirmed by ThemeDefaults.qml's own
-            # b16.base00-style flat access. A tiny line parser avoids
-            # pulling in a YAML dependency for one flat key:value file.
+            # base16.yaml in this repo is plain `key: "hex"  # trailing
+            # comment` lines (no nested structure, no leading "#" on the
+            # hex itself) -- confirmed by reading the real file. A tiny
+            # line parser avoids pulling in a YAML dependency for one flat
+            # key:value file, but has to extract the *quoted* value
+            # specifically rather than just splitting on ":" -- every real
+            # line here has a trailing `# role description` comment, and a
+            # bare .strip('"') only strips a quote character sitting at
+            # the very start/end of the whole remainder, so it silently
+            # left the comment text glued onto the value (confirmed live:
+            # a mobile_gui.html theme application rendered a literal
+            # `#050505"   # app background` as a CSS color before this
+            # fix) instead of raising -- the exact kind of bug this
+            # session's own discipline is to catch by testing live rather
+            # than trusting a function compiled without error.
             base16 = {}
             with open(b16_path) as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#") or ":" not in line:
                         continue
-                    k, _, v = line.partition(":")
-                    base16[k.strip()] = v.strip().strip('"').strip("'")
+                    k, _, rest = line.partition(":")
+                    m = re.search(r'"([^"]*)"', rest) or re.search(r"'([^']*)'", rest)
+                    if m:
+                        base16[k.strip()] = m.group(1)
             tokens["base16"] = base16
         if os.path.exists(manifest_path):
             with open(manifest_path) as f:
