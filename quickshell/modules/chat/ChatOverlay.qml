@@ -129,8 +129,14 @@ PanelWindow {
             // for models that actually emit reasoning tokens (confirmed
             // live: qwen2.5-coder never does, others might). Rendered as
             // its own muted "thought" bubble rather than folded into the
-            // reply text.
-            ChatState.appendMessage("thought", text);
+            // reply text. Streamed into a single bubble the same way
+            // onMessageChunk streams the reply -- these chunks arrive in
+            // small pieces, and appendMessage-per-chunk was confirmed live
+            // to render one bubble per word instead of one growing bubble.
+            if (ChatState.streamingThoughtIndex < 0)
+                ChatState.streamingThoughtIndex = ChatState.appendMessage("thought", text);
+            else
+                ChatState.appendToStreamingMessage(text, ChatState.streamingThoughtIndex);
         }
 
         function onToolCall(call) {
@@ -146,6 +152,7 @@ PanelWindow {
 
         function onTurnComplete(result) {
             ChatState.streamingIndex = -1;
+            ChatState.streamingThoughtIndex = -1;
             if (result.stopReason === "error")
                 ChatState.appendMessage("assistant", `(error: ${JSON.stringify(result.error)})`);
             const next = ChatState.dequeue();
@@ -710,6 +717,7 @@ PanelWindow {
                         color: Theme.color.fg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase
+                        verticalAlignment: TextInput.AlignVCenter
 
                         Keys.onEscapePressed: ChatState.hide()
                         onAccepted: root.sendFromInput()

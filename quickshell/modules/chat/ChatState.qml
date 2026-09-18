@@ -30,6 +30,13 @@ QtObject {
     // pendingQueue below and ChatOverlay.qml's _startTurn().
     property int streamingIndex: -1
 
+    // Same pattern as streamingIndex, but for "thought" bubbles: ACP
+    // delivers reasoning content as many small chunks, and without this
+    // each chunk was landing as its own brand-new bubble via appendMessage
+    // (confirmed live: thinking text rendered one word per line). Reset
+    // alongside streamingIndex in onTurnComplete.
+    property int streamingThoughtIndex: -1
+
     // Messages sent while a turn is already in flight queue here instead
     // of being dropped or blocked — drained one at a time as each prior
     // turn's turnComplete fires (see ChatOverlay.qml).
@@ -59,13 +66,14 @@ QtObject {
     // text) by reassigning the whole array — required for QML change
     // notification, same discipline as UsageStore.qml/ThemeState.qml's own
     // array/object reassignment pattern.
-    function appendToStreamingMessage(text) {
-        if (root.streamingIndex < 0 || root.streamingIndex >= root.messages.length)
+    function appendToStreamingMessage(text, index) {
+        const idx = index ?? root.streamingIndex;
+        if (idx < 0 || idx >= root.messages.length)
             return;
         const copy = root.messages.slice();
-        const target = Object.assign({}, copy[root.streamingIndex]);
+        const target = Object.assign({}, copy[idx]);
         target.text = (target.text ?? "") + text;
-        copy[root.streamingIndex] = target;
+        copy[idx] = target;
         root.messages = copy;
     }
 
