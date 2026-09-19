@@ -173,7 +173,32 @@ default:
 | | docked (eGPU) | undocked (CPU) |
 |---|---|---|
 | `qwen3:4b` generation | 81 tok/s | **5.3-10.8 tok/s** (see note) |
-| trivial turn ("Say exactly: pong") | a few seconds | **3m34s / 1544 tokens** |
+| one generation pass, trivial prompt | a few seconds | **~3.5 min / ~1550 tokens** |
+
+Be careful reading that second row: it is **one pass**, not a whole
+turn. Measured twice on "Say exactly: pong. Nothing else." — 1544 and
+1587 tokens, both stopping on their own rather than hitting any cap.
+Goose then starts a *second* pass with the full conversation re-fed
+(1679-token prompt, logged as a cache miss, so all of it re-evaluated on
+CPU). An end-to-end undocked turn is therefore meaningfully longer than
+3.5 minutes; I did not manage to sit through a complete one to put a
+real number on it, so treat 3.5 min as a floor rather than a figure.
+
+Two things noticed while measuring that make the wait worse than the raw
+numbers suggest, both pre-existing and neither undocked-specific:
+
+- **No incremental streaming reaches the client.** A probe attached for
+  150s accumulated zero text while Ollama was visibly generating 900+
+  tokens; the only `session/update` notifications were
+  `available_commands_update` and `session_info_update` at the start.
+  The reply appears to arrive whole at the end. Docked that is a few
+  seconds and invisible; undocked it means the chat overlay sits on
+  "thinking…" for minutes with no feedback at all.
+- **A turn keeps running after its client disconnects**, and the tier
+  serializes, so an abandoned turn blocks the next one. Watched a fresh
+  session sit queued for ~4 minutes behind a killed probe's turn. Same
+  single-flight behaviour as blocker #1, just far more visible at CPU
+  speed.
 
 (Light-tier startup *was* 19-60s undocked and is now 4.2s cold — that
 one turned out to be a real bug, not CPU slowness: the Ollama warm-up
