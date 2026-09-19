@@ -392,17 +392,16 @@ in
           # the same overlay.
           (mkExecBind "${mainMod} + D" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
           (mkExecBind "${mainMod} + K" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
-          # Chat session-history picker (quickshell/modules/sessions/) —
-          # browse/resume past goose sessions, same IPC-toggle convention.
-          (mkExecBind "${mainMod} + H" "quickshell ipc -p ~/nix-dots/quickshell call sessions toggle")
-          # Model browser / "Cookbook" (quickshell/modules/modelbrowser/) —
-          # browse llmfit-ranked Ollama models, pull one with a progress
-          # bar. Same IPC-toggle convention.
-          (mkExecBind "${mainMod} + B" "quickshell ipc -p ~/nix-dots/quickshell call modelbrowser toggle")
-          # Extensions/MCP manager (quickshell/modules/extensions/) — list
-          # and toggle config.yaml's registered extensions. Same
-          # IPC-toggle convention.
-          (mkExecBind "${mainMod} + X" "quickshell ipc -p ~/nix-dots/quickshell call extensions toggle")
+          # SUPER+H (session history), SUPER+B (model browser) and
+          # SUPER+X (MCP/extensions manager) were removed deliberately:
+          # all three are now reachable from inside the chat overlay
+          # itself (hamburger button, and the status bar's MCP and tier
+          # readouts), so SUPER+D is the single entry point. The overlays
+          # are still instantiated in shell.qml and their IpcHandler
+          # targets still exist, so
+          #   quickshell ipc -p ~/nix-dots/quickshell call sessions toggle
+          # remains a working manual escape hatch if a keybind is ever
+          # wanted back.
           # Reserved for parallel agent branches (not built yet — confirmed
           # each target/function fails gracefully today, "Target not
           # found."/"Function not found.", exit 0):
@@ -413,8 +412,9 @@ in
           (mkExecBind "${mainMod} + U" "quickshell ipc -p ~/nix-dots/quickshell call clipboard transform")
           # screen-context capture (quickshell/modules/screenctx/).
           (mkExecBind "${mainMod} + I" "quickshell ipc -p ~/nix-dots/quickshell call screenctx capture")
-          # voice conversation mode (quickshell/modules/voice/).
-          (mkExecBind "${mainMod} + O" "quickshell ipc -p ~/nix-dots/quickshell call voice toggle")
+          # voice conversation mode: now the chat composer's conversation
+          # button (and /voice), so SUPER+O is gone for the same reason as
+          # H/B/X above. The `voice` IPC target is unchanged.
           # research -> TODO capture (quickshell/modules/notes/).
           (mkExecBind "${mainMod} + N" "quickshell ipc -p ~/nix-dots/quickshell call notes capture")
           # side-by-side model comparison, a new function on the existing
