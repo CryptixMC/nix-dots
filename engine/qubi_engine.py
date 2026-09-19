@@ -558,8 +558,62 @@ class Engine:
             await reply({"subscribed": sid})
         elif method == "qubi/set_tier":
             await self._set_tier(client, params.get("session"), params.get("tier"), reply)
+        elif method == "qubi/extensions":
+            await reply(self._read_extensions())
+        elif method == "qubi/session_usage":
+            await reply(await self._read_session_usage(params.get("session")))
         else:
             await reply(error={"code": -32601, "message": f"unknown qubi method {method}"})
+
+    def _read_extensions(self):
+        """Enabled-extension count + names, straight from goose's own
+        config.yaml. Exists because a browser client (mobile_gui.html) has
+        no filesystem access to read this the way the desktop QML client
+        does (a direct `yq`/`cat` Process) -- this engine runs on the same
+        host as the config file, so it can just read it and answer over
+        the wire. Reuses the real yaml.safe_load already required for
+        _read_theme-adjacent config reading (not JSON.parse/cat, which
+        broke once before -- see qubi_engine.py's own history) rather than
+        adding a second parsing path.
+        """
+        try:
+            with open(BASE_GOOSE_CONFIG) as f:
+                cfg = yaml.safe_load(f) or {}
+        except (FileNotFoundError, yaml.YAMLError):
+            return {"enabledCount": 0, "extensions": []}
+        extensions = cfg.get("extensions") or {}
+        enabled = [
+            {"key": k, "name": e.get("display_name") or e.get("name") or k}
+            for k, e in extensions.items() if isinstance(e, dict) and e.get("enabled") is True
+        ]
+        enabled.sort(key=lambda e: e["name"])
+        return {"enabledCount": len(enabled), "extensions": enabled}
+
+    async def _read_session_usage(self, session_id):
+        """total_tokens/accumulated_total_tokens for a session, straight
+        from goose's sessions.db. Only needed for the INITIAL number on a
+        resumed session -- session/load's own result carries no usage
+        field (confirmed live), unlike session/prompt's result, which
+        already includes real usage data per turn and needs no help here.
+        Same sqlite3 -json subprocess pattern _full_session_list already
+        uses, just a single narrower query.
+        """
+        if not session_id:
+            return {"totalTokens": 0, "accumulatedTotalTokens": 0}
+        db_path = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sqlite3", "-json", db_path,
+                f"SELECT COALESCE(total_tokens, 0) AS totalTokens, "
+                f"COALESCE(accumulated_total_tokens, 0) AS accumulatedTotalTokens "
+                f"FROM sessions WHERE id = '{session_id}'",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await proc.communicate()
+            rows = json.loads(out.decode() or "[]")
+        except Exception:
+            rows = []
+        return rows[0] if rows else {"totalTokens": 0, "accumulatedTotalTokens": 0}
 
     def _read_theme(self, name):
         theme_dir = os.path.join(REPO_ROOT, "themes", name)
