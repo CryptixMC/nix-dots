@@ -37,7 +37,20 @@ SOCKET_PATH = os.path.join(RUNTIME_DIR, "qubi", "engine.sock")
 TIERCONF_DIR = os.path.join(RUNTIME_DIR, "qubi", "tierconf")
 BASE_GOOSE_CONFIG = os.path.expanduser("~/.config/goose/config.yaml")
 
-GAMING_STATE_FILE = "/run/ai-workstation/state.json"
+# Written by modules/nixos/apps/ai-workstation.nix on every dock/undock/
+# gaming transition (and reconciled at boot by ai-workstation-boot-sync).
+# `state` is one of docked / undocked / gaming. Despite this engine
+# originally only caring about the gaming value, the file is not
+# gaming-specific -- see _read_hw_state below.
+HW_STATE_FILE = "/run/ai-workstation/state.json"
+
+# The two states with no GPU available for local inference. `gaming` means
+# the eGPU is present but deliberately reserved for the game (Phase 5b);
+# `undocked` means there is physically no eGPU at all. They differ in what
+# else changes (see _hw_watch_loop) but they agree on the one thing that
+# picks a model tag: inference lands on the CPU, so a tier's `cpu_model`
+# is the correct tag rather than its GPU-tuned `model`.
+CPU_ONLY_STATES = ("gaming", "undocked")
 
 
 def log(*a):
@@ -126,6 +139,22 @@ class TierProcess:
         self._pending = {}  # internal_id -> asyncio.Future
         self.last_activity = time.monotonic()
         self._reader_task = None
+        # Per-tier overridable, so a future tier on much faster or much
+        # slower hardware doesn't have to share these. See the long comment
+        # in ensure_started for why one value can't cover both states.
+        #
+        # 2048 rather than something tighter: measured undocked, a trivial
+        # prompt ("Say exactly: pong") already draws ~1500 tokens out of
+        # qwen3:4b, because it narrates its reasoning as ordinary content
+        # no matter what -- GOOSE_LOCAL_ENABLE_THINKING=false and Ollama's
+        # own `think: false` only move that text out of the `thinking`
+        # field and into the visible answer, and qwen3's `/no_think` prompt
+        # switch merely halves it (196 -> 104 tokens on the same prompt).
+        # So a cap under ~1500 would truncate *typical* replies rather than
+        # only runaway ones. 2048 bounds the worst case to roughly 5
+        # minutes instead of 9+ while leaving normal turns intact.
+        self.gpu_max_tokens = tier_cfg.get("max_tokens", 4096)
+        self.cpu_max_tokens = tier_cfg.get("cpu_max_tokens", 2048)
 
     async def ensure_started(self, cpu_override=False, extra_extensions=None):
         if self.proc is not None and self.proc.returncode is None:
@@ -153,8 +182,22 @@ class TierProcess:
         # reason ("Tool arguments ... were truncated" was the original
         # motivating bug there) -- the engine's tier processes never
         # inherited it. Same value, same rationale, now here too.
-        env["GOOSE_MAX_TOKENS"] = "4096"
-        log(f"{self.name}: spawning goose acp (provider={self.tier_cfg['provider']} model={model or '(default)'})")
+        #
+        # The cap is in TOKENS but the thing it exists to bound is SECONDS,
+        # and the conversion rate between them is generation speed -- so a
+        # single number can't bound both hardware states. Measured on this
+        # box: qwen3:4b runs 81 tok/s on the docked eGPU (4096 tokens =>
+        # ~50s worst case, which is what this value was chosen against) but
+        # only ~7.4 tok/s CPU-only, degrading as the KV cache grows (4096
+        # tokens => 9+ minutes). Confirmed live while undocked: "Say
+        # exactly: pong. Nothing else." on the light tier generated 1544
+        # tokens over 3m34s and stopped on its own -- comfortably under
+        # 4096, so the cap never engaged at all and the turn simply ran to
+        # completion. A GPU-calibrated ceiling is no ceiling on CPU.
+        max_tokens = self.cpu_max_tokens if cpu_override else self.gpu_max_tokens
+        env["GOOSE_MAX_TOKENS"] = str(max_tokens)
+        log(f"{self.name}: spawning goose acp (provider={self.tier_cfg['provider']} "
+            f"model={model or '(default)'} max_tokens={max_tokens})")
         t0 = time.monotonic()
         self.proc = await asyncio.create_subprocess_exec(
             "goose", "acp",
@@ -310,25 +353,52 @@ class Engine:
             self.tiers[name] = TierProcess(name, cfg["tiers"][name], self._on_tier_notification)
         self.sessions = {}  # session_id -> Session
         self.clients = set()
-        self.gaming = False
+        # Raw hardware state string, not a bool: `gaming` and `undocked`
+        # both mean "CPU-only" but differ in everything else, and collapsing
+        # them to one flag early is what made this engine blind to undocking
+        # in the first place.
+        self.hw_state = "docked"
 
     # -- lifecycle --------------------------------------------------------
 
-    def _read_gaming_state(self):
+    @property
+    def gaming(self):
+        return self.hw_state == "gaming"
+
+    @property
+    def cpu_only(self):
+        """True whenever local inference has no GPU to land on.
+
+        Undocked was previously indistinguishable from docked here, so the
+        light tier kept running its GPU-tuned tag (`qwen3:4b`) with no eGPU
+        present -- Ollama silently fell back to CPU, which works, but skips
+        the `qwen3:4b-cpu` tag that exists precisely to pin `num_gpu 0`
+        rather than leave it to a fallback.
+        """
+        return self.hw_state in CPU_ONLY_STATES
+
+    def _read_hw_state(self):
         try:
-            with open(GAMING_STATE_FILE) as f:
-                return json.load(f).get("state") == "gaming"
-        except (FileNotFoundError, json.JSONDecodeError):
-            return False
+            with open(HW_STATE_FILE) as f:
+                state = json.load(f).get("state")
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            # No state file yet (or a torn write racing ai-workstation's
+            # own `> state.json`): assume docked, matching this engine's
+            # behaviour before it knew about dock state at all.
+            return "docked"
+        return state if state in ("docked", "undocked", "gaming") else "docked"
 
     async def start(self):
         os.makedirs(os.path.dirname(SOCKET_PATH), exist_ok=True)
-        # Determine real gaming state BEFORE the first spawn, not just on
+        # Determine real hardware state BEFORE the first spawn, not just on
         # the next 2s watch-loop tick -- an engine cold-started while
-        # already gaming (e.g. engine crashed and restarted mid-session)
-        # must come up on the cpu tag immediately, not spawn on GPU and
-        # then immediately churn a second restart 2s later.
-        self.gaming = self._read_gaming_state()
+        # already gaming or already undocked (e.g. it crashed and restarted
+        # mid-session, or simply booted with the eGPU unplugged) must come
+        # up on the cpu tag immediately, not spawn on GPU and then
+        # immediately churn a second restart 2s later.
+        self.hw_state = self._read_hw_state()
+        log(f"hardware state at startup: {self.hw_state}"
+            f"{' (CPU-only inference)' if self.cpu_only else ''}")
         t0 = time.monotonic()
         # Warm-up is a DIRECT Ollama call, not a full ACP turn. Confirmed
         # live (Phase 0's finding, reproduced here the first time this
@@ -343,16 +413,29 @@ class Engine:
         # turn would.
         light_cfg = self.cfg["tiers"]["light"]
         try:
-            await self._ollama_warm(light_cfg["cpu_model"] if self.gaming else light_cfg["model"],
+            await self._ollama_warm(light_cfg["cpu_model"] if self.cpu_only else light_cfg["model"],
                                     light_cfg["keep_alive"])
             log(f"light tier model warm in Ollama after {(time.monotonic() - t0) * 1000:.0f}ms")
         except Exception as e:
             log(f"ollama warm-up call failed (non-fatal, first real prompt will just be slower): {e}")
-        gaming_extras = ["mcp-searxng"] if (self.gaming and self.cfg.get("gaming", {}).get("searxng_on_light")) else None
-        await self.tiers["light"].ensure_started(cpu_override=self.gaming, extra_extensions=gaming_extras)
+        await self.tiers["light"].ensure_started(cpu_override=self.cpu_only,
+                                                 extra_extensions=self._light_extras())
         log(f"light tier fully ready (process+model) in {(time.monotonic() - t0) * 1000:.0f}ms total")
         asyncio.create_task(self._idle_reap_loop())
-        asyncio.create_task(self._gaming_watch_loop())
+        asyncio.create_task(self._hw_watch_loop())
+
+    def _light_extras(self):
+        """Gaming-only additions to the light tier's extension list.
+
+        Gated on `gaming`, NOT on `cpu_only`: the rationale (Phase 5d) is
+        that game questions are usually web questions and a web lookup
+        costs the game's own GPU/CPU nothing. Undocked shares the CPU-only
+        model tag but none of that reasoning -- and undocked is exactly
+        when an extra always-on stdio MCP server is least welcome.
+        """
+        if self.gaming and self.cfg.get("gaming", {}).get("searxng_on_light"):
+            return ["mcp-searxng"]
+        return None
 
     async def _ollama_warm(self, model, keep_alive):
         import urllib.request
@@ -363,13 +446,28 @@ class Engine:
         # duration strings like "8m"), so normalize just this one case
         # rather than special-casing the schema.
         ka = -1 if keep_alive == "-1" else keep_alive
+        # num_predict=1 is the whole point and was missing: this call exists
+        # to force the weights resident, which is the load + prompt-eval
+        # phase, and the comment above has always said it should happen
+        # "without paying for a full reasoning pass" -- but with no cap
+        # Ollama generated a complete reply to "hi" every time. On the GPU
+        # that is ~2s and invisible. Undocked it is not: qwen3:4b answers
+        # "hi" with several hundred tokens of narration at ~6 tok/s, which
+        # measured here as 300+ tokens and still going ~50s into engine
+        # startup -- i.e. the warm-up call, not the weight load, was the
+        # dominant term in undocked startup time. One token proves the
+        # model is resident just as well as five hundred do.
         body = json.dumps({"model": model, "prompt": "hi", "stream": False,
-                           "keep_alive": ka}).encode()
+                           "keep_alive": ka, "options": {"num_predict": 1}}).encode()
         req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=body,
                                      headers={"Content-Type": "application/json"})
 
         def _do():
-            with urllib.request.urlopen(req, timeout=60) as r:
+            # Generous relative to the one token it now asks for: the cost
+            # here is the cold weight load, and reading ~4GB off disk into
+            # RAM undocked is itself tens of seconds. Timing out would only
+            # make the first real prompt slower, so err long.
+            with urllib.request.urlopen(req, timeout=180) as r:
                 r.read()
         await asyncio.get_running_loop().run_in_executor(None, _do)
 
@@ -467,7 +565,7 @@ class Engine:
         for c in list(sess.subscribers):
             await c.send(notif)
 
-    # -- idle reaping (Phase 7a) + gaming watch (Phase 5b) ----------------
+    # -- idle reaping (Phase 7a) + hardware-state watch (Phase 5b) --------
 
     async def _idle_reap_loop(self):
         while True:
@@ -479,30 +577,43 @@ class Engine:
                     log(f"{name}: idle {idle_s}s+, reaping")
                     await t.stop()
 
-    async def _gaming_watch_loop(self):
+    async def _hw_watch_loop(self):
         while True:
             await asyncio.sleep(2)
-            now_gaming = self._read_gaming_state()
-            if now_gaming == self.gaming:
+            new_state = self._read_hw_state()
+            if new_state == self.hw_state:
                 continue
-            self.gaming = now_gaming
-            log(f"gaming state changed -> {'GAMING (CPU only)' if now_gaming else 'normal'}")
+            was_cpu_only = self.cpu_only
+            was_extras = self._light_extras()
+            self.hw_state = new_state
+            log(f"hardware state changed -> {new_state}"
+                f"{' (CPU-only inference)' if self.cpu_only else ''}")
             # Heavy tier is simply unavailable while gaming (Phase 5b) --
             # reap it now rather than waiting for its idle timer so it
-            # can't be holding VRAM/CPU share mid-game.
-            if now_gaming:
+            # can't be holding VRAM/CPU share mid-game. Gated on `gaming`
+            # specifically, not on cpu_only: undocked, heavy is slow but
+            # still legitimately usable (qwen3-coder:latest on CPU is the
+            # documented undocked coding pick, see ai-workstation.nix), so
+            # there is nothing to protect it from and no reason to kill it.
+            if self.gaming:
                 await self.tiers["heavy"].stop()
-            # Restart the light tier under the new model (cpu tag while
-            # gaming, normal GPU tag otherwise) -- any session currently
-            # bound to light survives via session/load, same mechanism as
-            # a manual tier switch. While gaming, light also gets searxng
-            # (Phase 5d): game questions are usually web questions, and a
-            # web lookup costs the game's own GPU/CPU nothing.
+            # Only bounce the light tier if something it was actually
+            # spawned with changed. undocked <-> gaming moves between two
+            # CPU-only states where the model tag is identical, so without
+            # this check a transition that changes neither the tag nor the
+            # extension list would still drop every bound session's process
+            # for nothing. Both inputs are compared, not just the tag:
+            # undocked -> gaming keeps cpu_only True but does add searxng.
+            if self.cpu_only == was_cpu_only and self._light_extras() == was_extras:
+                continue
+            # Restart the light tier under the new model tag -- any session
+            # currently bound to light survives via session/load, same
+            # mechanism as a manual tier switch.
             light = self.tiers["light"]
             bound_sessions = [s for s in self.sessions.values() if s.tier == "light"]
             await light.stop()
-            gaming_extras = ["mcp-searxng"] if (now_gaming and self.cfg.get("gaming", {}).get("searxng_on_light")) else None
-            await light.ensure_started(cpu_override=now_gaming, extra_extensions=gaming_extras)
+            await light.ensure_started(cpu_override=self.cpu_only,
+                                       extra_extensions=self._light_extras())
             for sess in bound_sessions:
                 try:
                     await light.call("session/load", {"sessionId": sess.id, "cwd": REPO_ROOT, "mcpServers": []})
@@ -532,13 +643,19 @@ class Engine:
 
         if method == "qubi/status":
             await reply({
+                # `gaming` kept for existing clients that read it; `state`
+                # and `cpuOnly` are the finer-grained truth (a client that
+                # only looks at `gaming` cannot tell undocked from docked,
+                # which is exactly the blind spot this engine had).
                 "gaming": self.gaming,
+                "state": self.hw_state,
+                "cpuOnly": self.cpu_only,
                 "tiers": {
                     n: {
                         "running": t.proc is not None and t.proc.returncode is None,
                         "ready": t.ready.is_set(),
                         "starting": t.starting,
-                        "model": t.tier_cfg["cpu_model"] if (n == "light" and self.gaming) else t.tier_cfg["model"],
+                        "model": t.tier_cfg["cpu_model"] if (n == "light" and self.cpu_only) else t.tier_cfg["model"],
                     }
                     for n, t in self.tiers.items()
                 },
@@ -687,7 +804,8 @@ class Engine:
             await reply(error={"code": -32602, "message": f"unknown tier {target_tier}"})
             return
         target = self.tiers[target_tier]
-        await target.ensure_started(cpu_override=(target_tier == "light" and self.gaming))
+        await target.ensure_started(cpu_override=(target_tier == "light" and self.cpu_only),
+                                    extra_extensions=self._light_extras() if target_tier == "light" else None)
         try:
             await target.call("session/load", {"sessionId": session_id, "cwd": REPO_ROOT, "mcpServers": []})
         except Exception as e:

@@ -300,12 +300,37 @@ let
       fi
     fi
 
+    # Stage 4.5: bring ollama back, CPU-only. Stage 1 stopped it purely to
+    # get ROCm to drop its DRM handles before the unbind — that job is done
+    # by now, and leaving it stopped is what actually broke qubi undocked:
+    # nothing else in this repo ever started it again (the only other
+    # `systemctl ... ollama.service` start is egpu-bar-fix's, on the DOCK
+    # path), so every local qubi tier sat with no backend until the next
+    # reboot or re-dock.
+    #
+    # Gated on $ok, deliberately. On the success path the card is unbound
+    # and its Thunderbolt tunnel deauthorized, so ollama-rocm finds no GPU
+    # and comes up CPU-only — exactly what's wanted undocked. On the
+    # failure path the unbind timed out, which is the documented entry
+    # point to the dead-KFD state (see the egpu-dock-undock skill): amdgpu
+    # still looks bound with a valid BAR while ROCm/KFD is dead underneath,
+    # and pointing ollama-rocm at it is precisely how you get an
+    # unkillable D-state llama-server that survives `systemctl stop` and
+    # needs a full reboot. Leaving it stopped there is the safe end state,
+    # and matches the "do NOT unplug, go look" posture of the notify below.
+    if [ "$ok" = "1" ]; then
+      log "restarting ollama.service (CPU-only while undocked)"
+      systemctl restart ollama.service 2>/dev/null || true
+    else
+      log "eject failed — leaving ollama.service stopped rather than risking a wedged runner on a half-detached GPU"
+    fi
+
     # Stage 5: notify last, gated on success, so the user is never told
     # it's safe to unplug when it isn't.
     if [ "$ok" = "1" ]; then
       hyprctl_user notify -1 5000 "rgb(a6e3a1)" "eGPU deauthorized — safe to unplug"
     else
-      hyprctl_user notify -1 8000 "rgb(f38ba8)" "eGPU eject failed — do NOT unplug, check journalctl -t egpu-eject"
+      hyprctl_user notify -1 8000 "rgb(f38ba8)" "eGPU eject failed — do NOT unplug, qubi's local models stay offline, check journalctl -t egpu-eject"
     fi
   '';
 

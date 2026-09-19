@@ -160,6 +160,75 @@ change models mid-conversation. Not fixed tonight — this needs a real UI
 decision, not a silent code patch. Full technical detail: `PROGRESS.md`,
 Phase 8a.
 
+## 5. Undocked, the light tier is slow enough that the model choice needs revisiting
+
+**What I found**: three real undocked bugs are now fixed (ollama never
+being restarted after an eject; the engine having no concept of
+"undocked" at all; undock silently switching the live chat session to
+the heavy tier — see the `fix qubi undocked` commit). With all three
+fixed the undocked path *works*, but measured live on this box it is
+still slow enough to be worth a deliberate decision rather than a silent
+default:
+
+| | docked (eGPU) | undocked (CPU) |
+|---|---|---|
+| `qwen3:4b` generation | 81 tok/s | **5.3-10.8 tok/s** (see note) |
+| trivial turn ("Say exactly: pong") | a few seconds | **3m34s / 1544 tokens** |
+
+(Light-tier startup *was* 19-60s undocked and is now 4.2s cold — that
+one turned out to be a real bug, not CPU slowness: the Ollama warm-up
+call generated a full reply instead of one token and blew its own 60s
+timeout every time. Fixed, not a blocker.)
+
+The CPU figure is a range because it is strongly load-dependent, which
+matters for expectation-setting: 10.8 tok/s was measured on a quiet
+system, 5.3 tok/s with an ordinary desktop session running (Discord
+alone was taking ~40% of a core). It also degrades within a single long
+generation as the KV cache grows. Assume the low end in practice.
+
+Worth recording since it was checked and is easy to assume otherwise:
+the `cpu_model` tag is **not** responsible for any of the slowness. A
+controlled A/B on identical prompt/seed/length measured `qwen3:4b` at
+5.37 tok/s and `qwen3:4b-cpu` at 5.25 tok/s — the `num_gpu 0` pin costs
+nothing, it just makes explicit what Ollama would fall back to anyway.
+
+The token count is the surprising part and it is *not* a config bug.
+qwen3:4b narrates its reasoning as ordinary visible content no matter
+what: `GOOSE_LOCAL_ENABLE_THINKING=false` is set by the engine, and
+Ollama's own `think: false` was tested directly — both only move that
+text out of the `thinking` field and into the answer. qwen3's documented
+`/no_think` prompt switch merely halves it (196 -> 104 tokens on the
+same prompt) and the model then narrates *about* the switch ("there is a
+note `/no_think` which we should ignore"). So ~1500 tokens for a trivial
+prompt is simply what this model does; on the GPU that is a few seconds
+and nobody notices, on CPU it is three and a half minutes.
+
+Mitigated but not solved: `GOOSE_MAX_TOKENS` is now hardware-scaled
+(4096 docked, 2048 CPU-only), which bounds the *worst* case to ~5 min
+instead of 9+. It cannot fix the typical case, because the typical case
+is already ~1500 tokens — capping below that would truncate normal
+replies rather than runaway ones.
+
+**What this blocks**: nothing hard — undocked qubi answers correctly,
+just slowly. But "ask a quick question on battery" is not really viable
+at these numbers, and the light tier's model is currently hardcoded to
+`qwen3:4b` in `~/.config/qubi/config.json` regardless of dock state.
+
+**What you need to do**: this is a model-roster call, not a code patch,
+which is why it is written up rather than fixed. The engine already has
+the mechanism — each tier carries a separate `cpu_model` tag and the
+engine now selects it correctly whenever the state is undocked or
+gaming, so pointing the light tier at a different *model* when on CPU is
+a one-line config change (`tiers.light.cpu_model`). The open question is
+what to point it at. Worth noting the two candidates already measured in
+this repo disagree with each other: `ai-workstation.nix`'s own
+`undockedModel` comment picked `qwen3-coder:latest` for exactly this
+role after CPU-only testing (5/6 real tasks, 71-928s — slow but
+tool-call-reliable), while the light tier was later set to `qwen3:4b`
+for docked speed (81 tok/s) without anyone re-measuring it on CPU. A
+terser small model, or a `-cpu` Modelfile variant with a system prompt
+that suppresses the narration, are the other obvious directions.
+
 ---
 
 *Night 1's blockers (dead-KFD reboot requirement, Tailscale Serve admin
