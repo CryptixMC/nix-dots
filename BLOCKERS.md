@@ -5,7 +5,22 @@ Night 1 (2026-09-18) blockers are archived at
 `docs/history/BLOCKERS-2026-09-18.md`. This file now covers night 2
 (`qubi/engine` branch) only.
 
-## 1. A rambling escalate turn can block an entire tier for everyone (fix written, not yet live)
+## ~~1. A rambling escalate turn can block an entire tier for everyone~~ — RESOLVED, live-verified
+
+**Fixed and confirmed live** (`nh home switch` + `systemctl --user
+restart qubi-engine.service`, both run). Re-tested the exact scenario
+below against the real, now-running engine: the same escalate-triggering
+prompt still produced a correct escalate call (~41s, normal range), and
+a totally unrelated `session/new` sent immediately afterward — which
+previously took 200+ seconds and timed out — now returns in **0.05s**.
+`GOOSE_MAX_TOKENS=4096` genuinely fixed the root cause: bounding
+generation length means the turn actually terminates instead of the
+model rambling for minutes, so the tier's single-flight `goose acp`
+process frees up almost immediately. Original write-up kept below for
+the record.
+
+<details>
+<summary>Original finding (now resolved)</summary>
 
 **What I found**: building and live-running Phase 9's acceptance suite
 (`qubi-bench acceptance --tier light`) surfaced a real, severe bug —
@@ -51,6 +66,8 @@ tokens before ever calling the tool, not just rambling after it) —
 `qubi-bench`'s own output JSON (`~/.local/share/qubi-bench/acceptance-
 light.json`) records the real per-case `ttft_ms` and `completed` flags
 needed to tell those two failure modes apart.
+
+</details>
 
 ## 2. gpt-oss:20b / devstral:24b isolated retest blocked by model-store permissions
 
