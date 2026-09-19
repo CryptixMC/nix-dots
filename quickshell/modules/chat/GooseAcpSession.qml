@@ -186,6 +186,12 @@ Item {
         });
     }
 
+    // Public entry point for starting a fresh conversation on demand
+    // (the composer's /new command). Same call the initial connect makes.
+    function newSession() {
+        root._newSession();
+    }
+
     function _newSession() {
         _call("session/new", {
             cwd: root.defaultCwd,

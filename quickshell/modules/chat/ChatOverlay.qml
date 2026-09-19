@@ -102,6 +102,50 @@ PanelWindow {
         GooseAcpSession.setTier(GooseAcpSession.sessionId, tier, () => {});
     }
 
+    // Splits a message into alternating prose / fenced-code segments so
+    // code can get its own styling and a copy button. Qt's built-in
+    // MarkdownText renders fences as undifferentiated body text, and
+    // there is no code-block styling to configure -- hence splitting by
+    // hand and rendering the two kinds separately.
+    //
+    // A fence that never closes is deliberately rendered as prose: a
+    // streaming reply is briefly mid-block on almost every turn, and
+    // promoting that to a code block would make the bubble flicker
+    // between two layouts as the text arrives.
+    function splitSegments(src) {
+        const lines = (src ?? "").split("\n");
+        const segs = [];
+        let buf = [];
+        let inCode = false;
+        let lang = "";
+        for (const line of lines) {
+            // Regex rather than trimStart(): confirmed live that this
+            // QML JS engine has no String.prototype.trimStart, and the
+            // resulting TypeError took the whole delegate down.
+            if (/^\s*```/.test(line)) {
+                if (!inCode) {
+                    if (buf.length > 0)
+                        segs.push({ code: false, lang: "", text: buf.join("\n") });
+                    buf = [];
+                    inCode = true;
+                    lang = line.trim().slice(3).trim();
+                } else {
+                    segs.push({ code: true, lang: lang, text: buf.join("\n") });
+                    buf = [];
+                    inCode = false;
+                    lang = "";
+                }
+                continue;
+            }
+            buf.push(line);
+        }
+        if (buf.length > 0) {
+            const tail = inCode ? "```" + lang + "\n" + buf.join("\n") : buf.join("\n");
+            segs.push({ code: false, lang: "", text: tail });
+        }
+        return segs.filter(s => s.code || s.text.trim().length > 0);
+    }
+
     Shortcut {
         sequence: "Escape"
         onActivated: ChatState.hide()
@@ -246,7 +290,62 @@ PanelWindow {
         });
     }
 
+    // Slash commands, so the things that used to need their own keybind
+    // are reachable without leaving the composer.
+    readonly property var slashCommands: [
+        { name: "/new", help: "start a fresh conversation" },
+        { name: "/history", help: "browse past sessions" },
+        { name: "/model", help: "switch tier (light/heavy/claude)" },
+        { name: "/mode", help: "cycle permission mode" },
+        { name: "/mcp", help: "manage MCP extensions" },
+        { name: "/voice", help: "voice conversation mode" },
+        { name: "/clear", help: "clear this transcript" }
+    ]
+
+    // Only offered while the text is still just the command being typed --
+    // a message that merely mentions a slash later on isn't a command.
+    readonly property var slashMatches: {
+        const t = chatInput.text;
+        if (!t.startsWith("/") || t.includes("\n") || t.includes(" "))
+            return [];
+        return root.slashCommands.filter(c => c.name.startsWith(t));
+    }
+
+    function runSlash(name) {
+        chatInput.text = "";
+        switch (name) {
+        case "/new":
+            ChatState.clear();
+            GooseAcpSession.newSession();
+            break;
+        case "/history":
+            SessionsState.toggle();
+            break;
+        case "/model":
+            root.tierPickerOpen = true;
+            break;
+        case "/mode":
+            root.cycleMode();
+            break;
+        case "/mcp":
+            ExtensionsState.toggle();
+            break;
+        case "/voice":
+            VoiceState.visible = !VoiceState.visible;
+            break;
+        case "/clear":
+            ChatState.clear();
+            break;
+        }
+    }
+
     function sendFromInput() {
+        const t = chatInput.text.trim();
+        // An exact command runs instead of being sent to the model.
+        if (t.startsWith("/") && root.slashCommands.some(c => c.name === t)) {
+            root.runSlash(t);
+            return;
+        }
         root.send(chatInput.text);
         chatInput.text = "";
     }
@@ -402,9 +501,9 @@ PanelWindow {
                 delegate: Item {
                     id: row
                     required property var modelData
-                    readonly property bool isUser: modelData.role === "user"
-                    readonly property bool isTool: modelData.role === "tool"
-                    readonly property bool isThought: modelData.role === "thought"
+                    readonly property bool isUser: modelData?.role === "user"
+                    readonly property bool isTool: modelData?.role === "tool"
+                    readonly property bool isThought: modelData?.role === "thought"
                     readonly property bool isMuted: isTool || isThought
                     // Thought bubbles default collapsed -- reasoning traces
                     // are often long and are context for "what is it doing",
@@ -417,10 +516,23 @@ PanelWindow {
                     width: messageList.width
                     height: bubble.height
 
+                    // Muted rows (tool notices, thinking traces) stay a
+                    // single plain Text -- they never contain code worth
+                    // styling and are collapsed by default anyway.
+                    // Defensive on modelData: a delegate can be evaluated
+                    // mid-model-reassignment (ChatState swaps the whole
+                    // messages array on every append), and an undefined
+                    // modelData here threw and blanked the bubble.
+                    readonly property var segments: (row.isMuted || !row.modelData) ? [] : root.splitSegments(row.modelData.text)
+                    readonly property bool hasCode: (row.segments ?? []).some(s => s.code)
+
                     Rectangle {
                         id: bubble
-                        width: Math.min(text.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
-                        height: text.implicitHeight + (row.isMuted ? Theme.spacing.launcherRowInset : meta.height + Theme.spacing.launcherRowInset)
+                        // A bubble containing code takes the full width --
+                        // code lines shouldn't be re-wrapped to hug the
+                        // longest prose line.
+                        width: row.hasCode ? Theme.spacing.chatBubbleMaxWidth : Math.min(body.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
+                        height: body.implicitHeight + (row.isMuted ? Theme.spacing.launcherRowInset : meta.height + Theme.spacing.launcherRowInset)
                         anchors {
                             right: row.isUser ? parent.right : undefined
                             left: row.isUser ? undefined : parent.left
@@ -428,36 +540,132 @@ PanelWindow {
                         radius: Theme.radius.input
                         color: row.isMuted ? "transparent" : (row.isUser ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg)
 
-                        Text {
-                            id: text
+                        Column {
+                            id: body
                             anchors {
                                 left: parent.left
                                 right: parent.right
                                 top: parent.top
                                 margins: Theme.spacing.launcherRowInset
                             }
-                            text: {
-                                if (row.isTool)
-                                    return row.modelData.text;
-                                if (row.isThought) {
+                            spacing: Theme.spacing.launcherContentGap / 2
+
+                            // Muted branch: one plain, collapsible line.
+                            Text {
+                                visible: row.isMuted
+                                width: parent.width
+                                text: {
+                                    if (!row.isMuted)
+                                        return "";
+                                    if (row.isTool)
+                                        return row.modelData.text;
                                     const collapsedPreview = row.modelData.text.length > 60 ? row.modelData.text.slice(0, 60) + "…" : row.modelData.text;
                                     const glyph = row.thoughtExpanded ? "▾" : "▸";
                                     return `${glyph} thinking: ${row.thoughtExpanded ? row.modelData.text : collapsedPreview}`;
                                 }
-                                return row.modelData.text;
-                            }
-                            wrapMode: Text.Wrap
-                            color: row.isMuted ? Theme.color.launcherPlaceholderFg : Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: row.isMuted ? Theme.font.sizeSmall : Theme.font.sizeBase
-                            font.italic: row.isMuted
-                            textFormat: row.isMuted ? Text.PlainText : Text.MarkdownText
+                                wrapMode: Text.Wrap
+                                color: Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                                font.italic: true
+                                textFormat: Text.PlainText
 
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: row.isThought
-                                cursorShape: row.isThought ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: row.thoughtExpanded = !row.thoughtExpanded
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: row.isThought
+                                    cursorShape: row.isThought ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: row.thoughtExpanded = !row.thoughtExpanded
+                                }
+                            }
+
+                            Repeater {
+                                model: row.segments
+
+                                delegate: Loader {
+                                    required property var modelData
+                                    width: body.width
+                                    sourceComponent: modelData.code ? codeSegment : proseSegment
+
+                                    Component {
+                                        id: proseSegment
+                                        Text {
+                                            width: body.width
+                                            text: modelData.text
+                                            wrapMode: Text.Wrap
+                                            color: Theme.color.fg
+                                            font.family: Theme.font.family
+                                            font.pixelSize: Theme.font.sizeBase
+                                            textFormat: Text.MarkdownText
+                                        }
+                                    }
+
+                                    Component {
+                                        id: codeSegment
+                                        Rectangle {
+                                            width: body.width
+                                            height: codeText.implicitHeight + codeHeader.height + Theme.spacing.launcherInputTextInset * 2
+                                            radius: Theme.radius.input
+                                            // The whole shell is already a
+                                            // mono font, so a code block
+                                            // needs a surface, not a
+                                            // typeface change.
+                                            color: Theme.color.launcherBg
+                                            border.width: Theme.spacing.borderHairline
+                                            border.color: Theme.color.launcherBorder
+
+                                            Item {
+                                                id: codeHeader
+                                                anchors {
+                                                    left: parent.left
+                                                    right: parent.right
+                                                    top: parent.top
+                                                    margins: Theme.spacing.launcherInputTextInset
+                                                }
+                                                height: Theme.font.sizeSmall + 4
+
+                                                Text {
+                                                    anchors.left: parent.left
+                                                    text: modelData.lang.length > 0 ? modelData.lang : "code"
+                                                    color: Theme.color.launcherPlaceholderFg
+                                                    font.family: Theme.font.family
+                                                    font.pixelSize: Theme.font.sizeSmall
+                                                }
+
+                                                Text {
+                                                    anchors.right: parent.right
+                                                    text: "copy"
+                                                    color: copyCodeArea.containsMouse ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
+                                                    font.family: Theme.font.family
+                                                    font.pixelSize: Theme.font.sizeSmall
+
+                                                    MouseArea {
+                                                        id: copyCodeArea
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        onClicked: root.copyToClipboard(modelData.text)
+                                                    }
+                                                }
+                                            }
+
+                                            Text {
+                                                id: codeText
+                                                anchors {
+                                                    left: parent.left
+                                                    right: parent.right
+                                                    top: codeHeader.bottom
+                                                    leftMargin: Theme.spacing.launcherInputTextInset
+                                                    rightMargin: Theme.spacing.launcherInputTextInset
+                                                }
+                                                text: modelData.text
+                                                wrapMode: Text.Wrap
+                                                color: Theme.color.fg
+                                                font.family: Theme.font.family
+                                                font.pixelSize: Theme.font.sizeSmall
+                                                textFormat: Text.PlainText
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -466,7 +674,7 @@ PanelWindow {
                             visible: !row.isMuted
                             anchors {
                                 left: parent.left
-                                top: text.bottom
+                                top: body.bottom
                                 margins: Theme.spacing.launcherRowInset
                             }
                             height: visible ? implicitHeight : 0
@@ -652,6 +860,74 @@ PanelWindow {
                                         ChatState.pendingEscalation = null;
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Slash-command suggestions, floating above the composer.
+            Rectangle {
+                id: slashPopup
+                visible: root.slashMatches.length > 0
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    bottom: turnActions.top
+                    bottomMargin: Theme.spacing.launcherContentGap / 2
+                }
+                height: visible ? slashColumn.implicitHeight + Theme.spacing.launcherContentGap : 0
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.launcherInputBorder
+
+                Column {
+                    id: slashColumn
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                    }
+
+                    Repeater {
+                        model: root.slashMatches
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: parent.width
+                            height: Theme.spacing.launcherRowHeight
+                            color: slashRowArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                            Text {
+                                anchors {
+                                    left: parent.left
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: Theme.spacing.launcherRowInset
+                                }
+                                text: parent.modelData.name
+                                color: Theme.color.accentPurple
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            Text {
+                                anchors {
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    rightMargin: Theme.spacing.launcherRowInset
+                                }
+                                text: parent.modelData.help
+                                color: Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            MouseArea {
+                                id: slashRowArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: root.runSlash(parent.modelData.name)
                             }
                         }
                     }
