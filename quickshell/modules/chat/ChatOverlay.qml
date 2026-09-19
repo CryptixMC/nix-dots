@@ -112,6 +112,41 @@ PanelWindow {
     // streaming reply is briefly mid-block on almost every turn, and
     // promoting that to a code block would make the bubble flicker
     // between two layouts as the text arrives.
+    // A whole fenced block on one line (```lang content```, no newlines)
+    // is real, observed model output -- not hypothetical: caught live on
+    // the mobile client tonight (a "just answer with the number" turn
+    // replied with exactly "```python42```" on one line) and this file
+    // has the identical bug, since it's the same algorithm. Fed a
+    // self-contained single-line block, the line-based state machine
+    // below treats the whole line as an opening fence marker (swallowing
+    // everything after the first ``` -- including the closing ``` --
+    // into `lang`), never finds a matching close, and the reply silently
+    // renders as nothing. Checked and stripped out first, before the
+    // multi-line state machine ever sees the line.
+    //
+    // Two patterns, not one: a single greedy \S* is genuinely ambiguous
+    // against "```python42```" -- it happily consumes the whole
+    // "python42" as the language name and leaves content empty, since
+    // nothing marks where the tag ends and content begins. WITH_LANG
+    // requires real whitespace between them (\s+ can't match without an
+    // actual space, so it never misfires on the ambiguous case); BARE is
+    // the fallback with no separator at all, treating the whole interior
+    // as content rather than guessing at a language -- a compact reply
+    // renders its real text instead of vanishing into a mislabelled
+    // empty block.
+    readonly property var _singleLineFenceWithLang: /^\s*```(\S+)\s+([\s\S]*?)```\s*$/
+    readonly property var _singleLineFenceBare: /^\s*```([\s\S]*?)```\s*$/
+
+    function _matchSingleLineFence(line) {
+        let m = line.match(root._singleLineFenceWithLang);
+        if (m)
+            return { lang: m[1], text: m[2] };
+        m = line.match(root._singleLineFenceBare);
+        if (m)
+            return { lang: "", text: m[1] };
+        return null;
+    }
+
     function splitSegments(src) {
         const lines = (src ?? "").split("\n");
         const segs = [];
@@ -119,6 +154,16 @@ PanelWindow {
         let inCode = false;
         let lang = "";
         for (const line of lines) {
+            if (!inCode) {
+                const single = root._matchSingleLineFence(line);
+                if (single) {
+                    if (buf.length > 0)
+                        segs.push({ code: false, lang: "", text: buf.join("\n") });
+                    buf = [];
+                    segs.push({ code: true, lang: single.lang, text: single.text });
+                    continue;
+                }
+            }
             // Regex rather than trimStart(): confirmed live that this
             // QML JS engine has no String.prototype.trimStart, and the
             // resulting TypeError took the whole delegate down.
