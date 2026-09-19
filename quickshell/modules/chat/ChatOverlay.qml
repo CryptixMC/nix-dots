@@ -8,6 +8,7 @@ import Quickshell.Wayland
 // mirrors an established, working pattern in this shell.
 import "../sessions"
 import "../extensions"
+import "../voice"
 import "../../theme"
 
 // Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
@@ -639,7 +640,59 @@ PanelWindow {
                 }
             }
 
+            // Turn actions live on their own line above the composer now.
+            // They used to float inside the text field, which forced a
+            // hardcoded 60px right margin on the input to stop the two
+            // overlapping -- and that margin was wrong as soon as the
+            // labels changed width.
             Row {
+                id: turnActions
+                anchors {
+                    bottom: inputBox.top
+                    right: parent.right
+                    bottomMargin: height > 0 ? Theme.spacing.launcherContentGap / 2 : 0
+                }
+                height: (regenButton.visible || stopButton.visible) ? Theme.font.sizeSmall + 4 : 0
+                spacing: Theme.spacing.launcherContentGap
+
+                Text {
+                    id: regenButton
+                    visible: !GooseAcpSession.busy && ChatState.messages.length > 0
+                    text: "regenerate"
+                    color: Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    font.underline: regenArea.containsMouse
+
+                    MouseArea {
+                        id: regenArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.regenerate()
+                    }
+                }
+
+                Text {
+                    id: stopButton
+                    visible: GooseAcpSession.busy
+                    text: "stop"
+                    color: Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    font.underline: stopArea.containsMouse
+
+                    MouseArea {
+                        id: stopArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: GooseAcpSession.cancel()
+                    }
+                }
+            }
+
+            // Composer. Grows with the text up to a cap, then pins to the
+            // newest line so what you're typing stays visible.
+            Item {
                 id: inputBox
                 anchors {
                     bottom: statusBar.top
@@ -647,24 +700,37 @@ PanelWindow {
                     right: parent.right
                     bottomMargin: Theme.spacing.launcherContentGap
                 }
-                height: Theme.spacing.chatComposerHeight
-                spacing: Theme.spacing.themePillGap
+                height: textFieldBg.height
+
+                readonly property int minHeight: Theme.spacing.chatComposerHeight
+                readonly property int maxHeight: Theme.spacing.chatComposerMaxHeight
 
                 Rectangle {
                     id: textFieldBg
-                    width: parent.width - sendButton.width - parent.spacing
-                    height: parent.height
+                    anchors {
+                        left: parent.left
+                        right: buttonRow.left
+                        rightMargin: Theme.spacing.themePillGap
+                        bottom: parent.bottom
+                    }
+                    // Driven only by the text's own content height, never
+                    // by anything that depends back on this height -- an
+                    // Item's height defaults to its implicitHeight, so a
+                    // two-way binding here would be a real loop.
+                    height: Math.max(inputBox.minHeight, Math.min(inputBox.maxHeight, chatInput.implicitHeight + Theme.spacing.launcherInputTextInset * 2))
                     radius: Theme.radius.input
                     color: Theme.color.launcherInputBg
                     border.width: Theme.spacing.borderHairline
                     border.color: GooseAcpSession.busy ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+                    clip: true
 
                     Text {
                         visible: chatInput.text.length === 0
                         anchors {
                             left: parent.left
-                            leftMargin: Theme.spacing.launcherRowInset
-                            verticalCenter: parent.verticalCenter
+                            leftMargin: Theme.spacing.launcherInputTextInset
+                            top: parent.top
+                            topMargin: Theme.spacing.launcherInputTextInset
                         }
                         text: !GooseAcpSession.sessionReady ? "starting qubi…" : GooseAcpSession.busy ? "qubi is thinking…" : "message qubi…"
                         color: Theme.color.launcherPlaceholderFg
@@ -672,88 +738,167 @@ PanelWindow {
                         font.pixelSize: Theme.font.sizeBase
                     }
 
-                    Row {
-                        anchors {
-                            right: parent.right
-                            rightMargin: Theme.spacing.launcherRowInset
-                            verticalCenter: parent.verticalCenter
-                        }
-                        spacing: Theme.spacing.launcherContentGap
-
-                        Text {
-                            visible: !GooseAcpSession.busy && ChatState.messages.length > 0
-                            text: "regenerate"
-                            color: Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                            font.underline: regenArea.containsMouse
-
-                            MouseArea {
-                                id: regenArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: root.regenerate()
-                            }
-                        }
-
-                        Text {
-                            id: stopButton
-                            visible: GooseAcpSession.busy
-                            text: "stop"
-                            color: Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                            font.underline: stopArea.containsMouse
-
-                            MouseArea {
-                                id: stopArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: GooseAcpSession.cancel()
-                            }
-                        }
-                    }
-
-                    TextInput {
+                    // TextEdit, not TextInput: multiline with wrapping, the
+                    // same plain-QtQuick pattern NotesCapture.qml already
+                    // uses (no QtQuick.Controls dependency needed).
+                    TextEdit {
                         id: chatInput
                         anchors {
-                            fill: parent
+                            left: parent.left
+                            right: parent.right
                             leftMargin: Theme.spacing.launcherInputTextInset
-                            rightMargin: Theme.spacing.launcherInputTextInset + (stopButton.visible || regenArea.containsMouse ? 60 : 0)
+                            rightMargin: Theme.spacing.launcherInputTextInset
                         }
-                        clip: true
+                        // Scrolls to the newest line once the box has hit
+                        // its cap, instead of growing off the top edge.
+                        y: Math.min(Theme.spacing.launcherInputTextInset, textFieldBg.height - Theme.spacing.launcherInputTextInset - implicitHeight)
+                        height: implicitHeight
+                        wrapMode: TextEdit.Wrap
                         color: Theme.color.fg
                         font.family: Theme.font.family
                         font.pixelSize: Theme.font.sizeBase
-                        verticalAlignment: TextInput.AlignVCenter
 
                         Keys.onEscapePressed: ChatState.hide()
-                        onAccepted: root.sendFromInput()
+
+                        // Enter sends, Shift+Enter inserts a newline --
+                        // TextEdit has no onAccepted, so this is handled
+                        // explicitly rather than inherited from TextInput.
+                        Keys.onReturnPressed: event => {
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                chatInput.insert(chatInput.cursorPosition, "\n");
+                                event.accepted = true;
+                                return;
+                            }
+                            root.sendFromInput();
+                            event.accepted = true;
+                        }
+                        Keys.onEnterPressed: event => {
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                chatInput.insert(chatInput.cursorPosition, "\n");
+                                event.accepted = true;
+                                return;
+                            }
+                            root.sendFromInput();
+                            event.accepted = true;
+                        }
                     }
                 }
 
-                Rectangle {
-                    id: sendButton
-                    width: Theme.spacing.chatSendSize
-                    height: Theme.spacing.chatSendSize
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: height / 2
-                    color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+                // Bottom-aligned so the buttons stay put as the field grows.
+                Row {
+                    id: buttonRow
+                    anchors {
+                        right: parent.right
+                        bottom: parent.bottom
+                        bottomMargin: (inputBox.minHeight - Theme.spacing.chatSendSize) / 2
+                    }
+                    spacing: Theme.spacing.themePillGap / 2
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "↑"
-                        color: chatInput.text.length > 0 ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
-                        font.bold: true
+                    // Hold to talk: records while held, transcribes on
+                    // release into the composer for review. Deliberately
+                    // does NOT send -- see PushToTalk.qml.
+                    Rectangle {
+                        id: micButton
+                        width: Theme.spacing.chatSendSize
+                        height: Theme.spacing.chatSendSize
+                        radius: Theme.radius.input
+                        color: pushToTalk.recording ? Theme.color.accentPink : (micArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent")
+                        border.width: Theme.spacing.borderHairline
+                        border.color: pushToTalk.recording ? Theme.color.accentPink : Theme.color.launcherInputBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰍬"
+                            renderType: Text.NativeRendering
+                            color: pushToTalk.recording ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeBase
+                        }
+
+                        MouseArea {
+                            id: micArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onPressed: pushToTalk.start()
+                            onReleased: pushToTalk.stop()
+                            // A press that ends with the pointer dragged off
+                            // the button fires onCanceled, not onReleased --
+                            // without this the recorder would keep running
+                            // with no visible indication.
+                            onCanceled: pushToTalk.stop()
+                        }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.sendFromInput()
+                    // Full spoken conversation mode (the old SUPER+O).
+                    Rectangle {
+                        id: convoButton
+                        width: Theme.spacing.chatSendSize
+                        height: Theme.spacing.chatSendSize
+                        radius: Theme.radius.input
+                        color: convoArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                        border.width: Theme.spacing.borderHairline
+                        border.color: Theme.color.launcherInputBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰍩"
+                            renderType: Text.NativeRendering
+                            color: Theme.color.launcherPlaceholderFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeBase
+                        }
+
+                        MouseArea {
+                            id: convoArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            // VoiceState has no toggle() of its own -- the
+                            // voice IpcHandler flips `visible` directly,
+                            // so do the same rather than inventing an API.
+                            onClicked: VoiceState.visible = !VoiceState.visible
+                        }
+                    }
+
+                    Rectangle {
+                        id: sendButton
+                        width: Theme.spacing.chatSendSize
+                        height: Theme.spacing.chatSendSize
+                        radius: Theme.radius.input
+                        color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBg
+                        border.width: Theme.spacing.borderHairline
+                        border.color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⏎"
+                            color: chatInput.text.length > 0 ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeBase
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: root.sendFromInput()
+                        }
+                    }
+                }
+
+                // Hold-to-talk recorder. Lives here (not in VoiceOverlay)
+                // because its result goes into the composer rather than
+                // straight to the model.
+                PushToTalk {
+                    id: pushToTalk
+                    onTranscribed: text => {
+                        if (text.length === 0)
+                            return;
+                        // Imperative insert, never a declarative binding on
+                        // `text` -- TextEdit assigns text on every keystroke,
+                        // which would break such a binding permanently.
+                        if (chatInput.text.length > 0 && !chatInput.text.endsWith(" "))
+                            chatInput.insert(chatInput.length, " ");
+                        chatInput.insert(chatInput.length, text);
+                        chatInput.forceActiveFocus();
                     }
                 }
             }

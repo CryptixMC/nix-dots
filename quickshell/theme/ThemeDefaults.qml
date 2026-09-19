@@ -45,6 +45,9 @@ QtObject {
             // the tier/model/token readout. Shorter than a row since it's
             // sizeSmall text only, no touch target.
             chatStatusHeight: 20, chatTierPickerWidth: 220,
+            // Composer grows with the text up to this cap (~5 lines),
+            // then pins to the newest line rather than growing further.
+            chatComposerMaxHeight: 140,
             // Reserved for parallel agent branches — placeholder values only,
             // each branch should replace these with its own real layout
             // constants rather than repurpose them as-is.
