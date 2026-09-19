@@ -2,6 +2,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+// Sibling-module singletons reached from the header/status bar. The
+// reverse direction already exists (sessions/ and voice/ both import
+// "../chat"), and bar/ <-> notifications/ is likewise mutual, so this
+// mirrors an established, working pattern in this shell.
+import "../sessions"
 import "../../theme"
 
 // Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
@@ -263,7 +268,11 @@ PanelWindow {
                 margins: Theme.spacing.launcherContentInset
             }
 
-            Row {
+            // An Item with three anchored children rather than a Row with a
+            // computed-width spacer -- same reasoning as the panel's own
+            // layout above, and it lets the title sit truly centred
+            // regardless of how wide the two side buttons are.
+            Item {
                 id: headerRow
                 anchors {
                     top: parent.top
@@ -272,9 +281,40 @@ PanelWindow {
                 }
                 height: Theme.spacing.chatHeaderHeight
 
+                Rectangle {
+                    id: historyButton
+                    width: Theme.spacing.chatCloseSize
+                    height: Theme.spacing.chatCloseSize
+                    anchors {
+                        left: parent.left
+                        verticalCenter: parent.verticalCenter
+                    }
+                    radius: height / 2
+                    color: historyArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "☰"
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+                    }
+
+                    MouseArea {
+                        id: historyArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        // Reuses the existing full-screen SessionsPicker
+                        // rather than reimplementing an in-panel drawer --
+                        // it already does list/refresh/resume + history
+                        // replay correctly (SessionsPicker.qml).
+                        onClicked: SessionsState.toggle()
+                    }
+                }
+
                 Text {
                     id: titleLabel
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.centerIn: parent
                     text: "Qubi"
                     color: Theme.color.fg
                     font.family: Theme.font.family
@@ -282,16 +322,14 @@ PanelWindow {
                     font.bold: true
                 }
 
-                Item {
-                    width: parent.width - titleLabel.width - closeButton.width
-                    height: 1
-                }
-
                 Rectangle {
                     id: closeButton
                     width: Theme.spacing.chatCloseSize
                     height: Theme.spacing.chatCloseSize
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors {
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                    }
                     radius: height / 2
                     color: closeArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
 
