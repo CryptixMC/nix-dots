@@ -159,9 +159,27 @@ PanelWindow {
             ChatState.streamingThoughtIndex = -1;
             if (result.stopReason === "error")
                 ChatState.appendMessage("assistant", `(error: ${JSON.stringify(result.error)})`);
+            // Skip past everything this turn just wrote to the db. Those
+            // messages are already on screen from the live stream, so
+            // without this the next poll would append the whole exchange a
+            // second time. Also refreshes the token counters.
+            sessionSync.adopt();
             const next = ChatState.dequeue();
             if (next !== undefined)
                 root._startTurn(next);
+        }
+
+        function onHistoryLoaded() {
+            // ACP's replay is unreliable -- some sessions come back with
+            // their full history, others with nothing despite having real
+            // messages stored. When it replayed nothing, rebuild the
+            // conversation from sessions.db instead of resuming to a blank
+            // panel. Guarded on the count so a working replay is never
+            // duplicated.
+            if (GooseAcpSession.historyReplayCount === 0)
+                sessionSync.backfill();
+            else
+                sessionSync.adopt();
         }
 
         function onPermissionRequested(request) {
@@ -887,6 +905,22 @@ PanelWindow {
                 // Hold-to-talk recorder. Lives here (not in VoiceOverlay)
                 // because its result goes into the composer rather than
                 // straight to the model.
+                // Picks up turns written to goose's sessions.db by another
+                // client (Goose Desktop). Polls only while the panel is
+                // open AND no local turn is in flight -- a local turn's
+                // messages arrive on the live ACP stream and are also
+                // written to the db, so syncing during one would render
+                // every message twice.
+                SessionSync {
+                    id: sessionSync
+                    sessionId: GooseAcpSession.sessionId
+                    onExternalMessages: entries => ChatState.appendMessages(entries)
+                    onTokensUpdated: (total, accumulated) => {
+                        ChatState.tokensTotal = total;
+                        ChatState.tokensAccumulated = accumulated;
+                    }
+                }
+
                 PushToTalk {
                     id: pushToTalk
                     onTranscribed: text => {
@@ -1035,6 +1069,29 @@ PanelWindow {
             // Keeps the MCP count honest without needing the manager
             // overlay to have been opened first.
             ExtensionsState.refresh();
+        }
+        root._updatePolling();
+    }
+
+    // Poll only while the panel is actually open and no local turn is
+    // running. Closed: no background subprocess cost at all. Busy: the
+    // live ACP stream is already delivering this turn, and the db rows it
+    // writes would duplicate it.
+    function _updatePolling() {
+        sessionSync.setPolling(ChatState.visible && !GooseAcpSession.busy);
+    }
+
+    Connections {
+        target: ChatState
+        function onVisibleChanged() {
+            root._updatePolling();
+        }
+    }
+
+    Connections {
+        target: GooseAcpSession
+        function onBusyChanged() {
+            root._updatePolling();
         }
     }
 }

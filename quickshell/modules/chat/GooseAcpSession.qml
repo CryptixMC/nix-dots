@@ -105,6 +105,12 @@ Item {
     // authority (it reports this on every qubi/session_status push); the
     // "light" default matches qubi_engine.py's own _new_session_on("light").
     property string currentTier: "light"
+    // How many history turns the last session/load actually replayed.
+    // Measured because the replay is NOT dependable: against the live
+    // engine, some sessions replay their history and others -- including
+    // ones with real messages in the db -- replay nothing and resume to a
+    // blank panel. A consumer can use this to fall back to the database.
+    property int historyReplayCount: 0
 
     function _send(obj) {
         acpSocket.write(JSON.stringify(obj) + "\n");
@@ -247,6 +253,7 @@ Item {
     function loadSession(sessionId, callback, emitHistory) {
         root.sessionReady = false;
         root._loadingHistory = true;
+        root.historyReplayCount = 0;
         root._emitHistoryReplay = emitHistory ?? true;
         _call("session/load", {
             sessionId: sessionId,
@@ -254,8 +261,8 @@ Item {
             mcpServers: []
         }, (result, error) => {
             root._loadingHistory = false;
-            root.historyLoaded();
             if (error) {
+                root.historyLoaded();
                 root.sessionFailed(`session/load failed: ${JSON.stringify(error)}`);
                 if (callback)
                     callback(error);
@@ -272,6 +279,13 @@ Item {
             if (_model0)
                 root._currentModel = _model0.currentValue;
             root.sessionReady = true;
+            // Emitted only now, AFTER sessionId and the rest of the
+            // session state are current. It used to fire first, which
+            // meant any handler asking "which session just loaded?" got
+            // the PREVIOUS one -- harmless for the buffer-flush consumer
+            // that existed then, but wrong for anything that acts on the
+            // resumed session (the db backfill reads exactly this id).
+            root.historyLoaded();
             if (callback)
                 callback(null);
         });
@@ -470,11 +484,15 @@ Item {
                         // replay (a live turn never echoes the caller's own
                         // message back) — each event is one complete past
                         // turn, not a delta.
-                        if (root._loadingHistory && root._emitHistoryReplay)
-                            root.historyMessage("user", upd.content.text);
+                        if (root._loadingHistory) {
+                            root.historyReplayCount++;
+                            if (root._emitHistoryReplay)
+                                root.historyMessage("user", upd.content.text);
+                        }
                         break;
                     case "agent_message_chunk":
                         if (root._loadingHistory) {
+                            root.historyReplayCount++;
                             if (root._emitHistoryReplay)
                                 root.historyMessage("assistant", upd.content.text);
                         } else

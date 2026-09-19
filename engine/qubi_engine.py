@@ -421,6 +421,28 @@ class Engine:
             sess.last_activity = time.monotonic()
         await self._broadcast_to_session(sid, obj)
 
+    async def _broadcast_session_created(self, session_id, exclude=None):
+        """Announce a newly created session to every other client.
+
+        Deliberately fans out over self.clients rather than a session's
+        subscriber set: the whole point is reaching clients that do NOT
+        know this session exists yet, so there is nobody subscribed to
+        target. A client that cares can follow up with qubi/subscribe.
+        """
+        sess = self.sessions.get(session_id)
+        notif = {
+            "jsonrpc": "2.0",
+            "method": "qubi/session_created",
+            "params": {
+                "session": session_id,
+                "tier": sess.tier if sess else "light",
+            },
+        }
+        for c in list(self.clients):
+            if c is exclude:
+                continue
+            await c.send(notif)
+
     async def _broadcast_to_session(self, session_id, obj):
         sess = self.sessions.get(session_id)
         targets = sess.subscribers if sess else self.clients
@@ -660,6 +682,12 @@ class Engine:
             client.subscriptions.add(sid)
             self.sessions[sid].subscribers.add(client)
             await client.send({"jsonrpc": "2.0", "id": req_id, "result": r["result"]})
+            # Tell every OTHER connected client a session now exists.
+            # Nothing else in the engine ever announces this -- broadcasts
+            # are strictly subscriber-scoped and a brand-new session has
+            # exactly one subscriber, so before this a second client could
+            # only discover it by polling qubi/session_list.
+            await self._broadcast_session_created(sid, exclude=client)
             return
 
         if method == "session/prompt":
@@ -684,6 +712,21 @@ class Engine:
         tier_name = sess.tier if sess else "light"
         try:
             r = await self.tiers[tier_name].call(method, params)
+            # session/load resumes a session the engine may know nothing
+            # about (a DB row from a terminal run, or from before a
+            # restart). Registering the caller as a subscriber here is
+            # what makes a RESUMED session push notifications at all --
+            # without it the client got nothing until it happened to send
+            # its own first prompt, because only session/new and
+            # session/prompt ever added a subscriber. Vivify a Session for
+            # the id if needed, exactly as qubi/subscribe already does.
+            if method == "session/load" and sid and not r.get("error"):
+                if sess is None:
+                    sess = Session(sid, tier_name)
+                    self.sessions[sid] = sess
+                sess.subscribers.add(client)
+                client.subscriptions.add(sid)
+                log(f"session {sid}: client subscribed via session/load")
             await client.send({"jsonrpc": "2.0", "id": req_id, "result": r.get("result"), "error": r.get("error")} if r.get("error") else {"jsonrpc": "2.0", "id": req_id, "result": r.get("result")})
         except Exception as e:
             await client.send({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": str(e)}})
