@@ -196,22 +196,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-quickshell-pin": {
-      "locked": {
-        "lastModified": 1787814960,
-        "narHash": "sha256-PYZq1qzCJXC2zGI0mH07vrZBsw6DRBAOX0jN1pPtqOQ=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "c27cdad491a991b11ed731760aa2ef8db0cb0410",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "c27cdad491a991b11ed731760aa2ef8db0cb0410",
-        "type": "github"
-      }
-    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1785454630,
@@ -258,7 +242,6 @@
         "claude-desktop": "claude-desktop",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-quickshell-pin": "nixpkgs-quickshell-pin",
         "stylix": "stylix",
         "zen-browser": "zen-browser"
       }
