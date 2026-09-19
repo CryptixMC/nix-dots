@@ -9,9 +9,9 @@ import "../../theme"
 // Structural template is SessionsPicker.qml (centered PanelWindow,
 // Overlay layer, click-outside/Escape close, list on the left).
 //
-// Reads config.yaml directly (it's valid JSON despite the .yaml
-// extension — lib.generators.toYAML's flow-style output for this shape
-// happens to be JSON-compatible, confirmed live). Writes go through
+// Reading config.yaml now lives in ExtensionsState (so the chat panel's
+// MCP indicator can show a count without this overlay ever being
+// opened); this file just renders and writes. Writes go through
 // `yq -i`, the same mechanism qubi-state-sync already uses for other
 // config.yaml fields — config.yaml itself stays the single source of
 // truth, this UI is just a friendlier way to edit it than hand-editing
@@ -36,8 +36,7 @@ PanelWindow {
     color: "transparent"
 
     function refresh() {
-        ExtensionsState.loading = true;
-        readProcess.running = true;
+        ExtensionsState.refresh();
     }
 
     function toggleExtension(key, currentlyEnabled) {
@@ -59,37 +58,6 @@ PanelWindow {
         target: "extensions"
         function toggle(): void {
             ExtensionsState.toggle();
-        }
-    }
-
-    Process {
-        id: readProcess
-        command: ["cat", root.configPath]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const parsed = JSON.parse(text);
-                    const extObj = parsed.extensions ?? {};
-                    ExtensionsState.extensions = Object.keys(extObj).sort().map(key => {
-                        const e = extObj[key];
-                        return {
-                            key: key,
-                            name: e.name ?? key,
-                            display_name: e.display_name ?? e.name ?? key,
-                            type: e.type ?? "",
-                            enabled: e.enabled === true,
-                            description: e.description ?? "",
-                            cmd: e.cmd ?? ""
-                        };
-                    });
-                    ExtensionsState.loading = false;
-                } catch (e) {
-                    ExtensionsState.loading = false;
-                    ExtensionsState.extensions = [];
-                    console.warn("Failed to parse config.yaml:", e);
-                }
-            }
         }
     }
 

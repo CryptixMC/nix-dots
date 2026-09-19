@@ -41,6 +41,10 @@ QtObject {
             modelbrowserGridPad: 4, modelbrowserProgressHeight: 6,
             chatPanelWidth: 440, chatHeaderHeight: 44, chatCloseSize: 24,
             chatBubbleMaxWidth: 340, chatComposerHeight: 44, chatSendSize: 32,
+            // chatStatusHeight: the bottom bar carrying the MCP count and
+            // the tier/model/token readout. Shorter than a row since it's
+            // sizeSmall text only, no touch target.
+            chatStatusHeight: 20, chatTierPickerWidth: 220,
             // Reserved for parallel agent branches — placeholder values only,
             // each branch should replace these with its own real layout
             // constants rather than repurpose them as-is.

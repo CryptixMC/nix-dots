@@ -96,6 +96,15 @@ Item {
     // the one real engine capability that exists for it (qubi/set_tier)
     // instead of guessing tier names from config.json's shape.
     property var _tierModels: ({})
+    // tierName -> model name, the inverse of _tierModels above. Drives the
+    // chat status bar's "light · qwen3:4b" readout so it names the model
+    // the engine is really running for this tier rather than echoing a
+    // client-side guess.
+    property var tierModels: ({})
+    // Which tier this session is actually bound to. The engine is the
+    // authority (it reports this on every qubi/session_status push); the
+    // "light" default matches qubi_engine.py's own _new_session_on("light").
+    property string currentTier: "light"
 
     function _send(obj) {
         acpSocket.write(JSON.stringify(obj) + "\n");
@@ -136,9 +145,13 @@ Item {
             if (error || !result)
                 return;
             const map = {};
-            for (const tierName in result.tiers ?? {})
+            const byTier = {};
+            for (const tierName in result.tiers ?? {}) {
                 map[result.tiers[tierName].model] = tierName;
+                byTier[tierName] = result.tiers[tierName].model;
+            }
             root._tierModels = map;
+            root.tierModels = byTier;
         });
     }
 
@@ -336,6 +349,12 @@ Item {
                     callback(error);
                 return;
             }
+            // Reflect it immediately rather than waiting for the engine's
+            // next qubi/session_status push -- set_tier only resolves
+            // after a real session/load onto the target tier, so by this
+            // point the switch has genuinely happened.
+            if (sessionId === root.sessionId)
+                root.currentTier = tier;
             if (callback)
                 callback(null);
         });
@@ -427,6 +446,13 @@ Item {
                 // `goose acp` process, only by qubi-engine itself
                 // (qubi_engine.py's _push_status / escalation-offer path).
                 if (obj.method === "qubi/session_status") {
+                    // Only adopt the tier when the push is about OUR
+                    // session -- the engine fans these out per-subscriber,
+                    // but once this client subscribes to other sessions
+                    // (live-sync) an unrelated session's tier must not
+                    // overwrite the status bar.
+                    if (obj.params.session === root.sessionId && obj.params.tier)
+                        root.currentTier = obj.params.tier;
                     root.qubiSessionStatus(obj.params);
                     return;
                 }

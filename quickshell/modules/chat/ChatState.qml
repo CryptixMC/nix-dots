@@ -28,6 +28,13 @@ QtObject {
     // never sent by a bare `goose acp` process (Phase 8a).
     property var pendingEscalation: null
 
+    // Live token usage for the open session, read from goose's own
+    // sessions.db (its `sessions` table really does populate
+    // total_tokens/accumulated_total_tokens -- verified against real acp
+    // rows). 0 means "not measured yet", not "zero tokens used".
+    property int tokensTotal: 0
+    property int tokensAccumulated: 0
+
     // Index into `messages` of the assistant bubble currently being
     // streamed into, or -1 if no turn is in flight. Tracked explicitly
     // (not "whichever message is last") because a queued user message can
@@ -121,6 +128,13 @@ QtObject {
         messages = [];
         pendingQueue = [];
         streamingIndex = -1;
+        streamingThoughtIndex = -1;
         pendingPermission = null;
+        // Was missing: a stale escalation offer from the previous
+        // conversation would otherwise stay on screen after switching
+        // sessions, and answering it would act on a session no longer open.
+        pendingEscalation = null;
+        tokensTotal = 0;
+        tokensAccumulated = 0;
     }
 }

@@ -7,6 +7,7 @@ import Quickshell.Wayland
 // "../chat"), and bar/ <-> notifications/ is likewise mutual, so this
 // mirrors an established, working pattern in this shell.
 import "../sessions"
+import "../extensions"
 import "../../theme"
 
 // Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
@@ -641,9 +642,10 @@ PanelWindow {
             Row {
                 id: inputBox
                 anchors {
-                    bottom: parent.bottom
+                    bottom: statusBar.top
                     left: parent.left
                     right: parent.right
+                    bottomMargin: Theme.spacing.launcherContentGap
                 }
                 height: Theme.spacing.chatComposerHeight
                 spacing: Theme.spacing.themePillGap
@@ -755,11 +757,139 @@ PanelWindow {
                     }
                 }
             }
+
+            // Status bar: what's loaded and what it's costing, in the same
+            // places Claude Code puts them -- tooling on the left, model
+            // and usage on the right. Replaces the old round pills that
+            // sat above the conversation.
+            Item {
+                id: statusBar
+                anchors {
+                    bottom: parent.bottom
+                    left: parent.left
+                    right: parent.right
+                }
+                height: Theme.spacing.chatStatusHeight
+
+                Text {
+                    id: mcpLabel
+                    anchors {
+                        left: parent.left
+                        verticalCenter: parent.verticalCenter
+                    }
+                    text: `⚙ ${ExtensionsState.enabledCount} MCP`
+                    color: mcpArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+
+                    MouseArea {
+                        id: mcpArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: ExtensionsState.toggle()
+                    }
+                }
+
+                // tier · model · tokens. The tier (not a free model name)
+                // is the real unit of choice here -- the engine owns one
+                // process per tier and has no per-request model override.
+                Text {
+                    id: tierLabel
+                    anchors {
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                    }
+                    text: {
+                        const tier = GooseAcpSession.currentTier;
+                        const model = GooseAcpSession.tierModels[tier] ?? "";
+                        const tokens = ChatState.tokensTotal;
+                        const tokenPart = tokens > 0 ? ` · ${tokens >= 1000 ? (tokens / 1000).toFixed(1) + "k" : tokens}` : "";
+                        return `${tier}${model.length > 0 ? " · " + model : ""}${tokenPart}`;
+                    }
+                    color: tierArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+
+                    MouseArea {
+                        id: tierArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.tierPickerOpen = !root.tierPickerOpen
+                    }
+                }
+            }
+
+            // Tier picker, floating above the status bar rather than
+            // pushing the conversation around (the old inline picker
+            // columns resized the whole panel when opened).
+            Rectangle {
+                id: tierPicker
+                visible: root.tierPickerOpen
+                anchors {
+                    right: parent.right
+                    bottom: statusBar.top
+                    bottomMargin: Theme.spacing.launcherContentGap / 2
+                }
+                width: Theme.spacing.chatTierPickerWidth
+                height: tierColumn.implicitHeight + Theme.spacing.launcherContentGap
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.launcherInputBorder
+
+                Column {
+                    id: tierColumn
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                    }
+
+                    Repeater {
+                        // Exactly the three tiers qubi/set_tier accepts --
+                        // see qubi_engine.py's own tier table. Not derived
+                        // from configOptions, which lists models that
+                        // cannot actually be switched to.
+                        model: ["light", "heavy", "claude"]
+
+                        delegate: Rectangle {
+                            required property string modelData
+                            width: parent.width
+                            height: Theme.spacing.launcherRowHeight
+                            color: modelData === GooseAcpSession.currentTier ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                            Text {
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: Theme.spacing.launcherRowInset
+                                    rightMargin: Theme.spacing.launcherRowInset
+                                }
+                                text: `${parent.modelData} · ${GooseAcpSession.tierModels[parent.modelData] ?? "?"}`
+                                elide: Text.ElideRight
+                                color: Theme.color.fg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.switchTier(parent.modelData)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     onVisibleChanged: {
-        if (visible)
+        if (visible) {
             chatInput.forceActiveFocus();
+            // Keeps the MCP count honest without needing the manager
+            // overlay to have been opened first.
+            ExtensionsState.refresh();
+        }
     }
 }
