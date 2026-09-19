@@ -74,8 +74,12 @@ PanelWindow {
 
     readonly property var modelConfigOption: (GooseAcpSession.configOptions ?? []).find(c => c.id === "model") ?? null
     readonly property var providerConfigOption: (GooseAcpSession.configOptions ?? []).find(c => c.id === "provider") ?? null
-    property bool modelPickerOpen: false
-    property bool subagentPickerOpen: false
+    // Tier picker (light/heavy/claude), opened from the bottom-right status
+    // item. Replaced the old free-model picker: the engine owns each tier's
+    // process now and exposes no per-request model override, so only a
+    // whole-tier switch actually does anything (see GooseAcpSession's own
+    // switchModel comment and BLOCKERS.md #4).
+    property bool tierPickerOpen: false
 
     function cycleMode() {
         const modes = GooseAcpSession.availableModes;
@@ -86,16 +90,9 @@ PanelWindow {
         GooseAcpSession.setMode(next.id);
     }
 
-    function switchModel(modelValue) {
-        const provider = root.providerConfigOption?.currentValue ?? "ollama";
-        root.modelPickerOpen = false;
-        GooseAcpSession.switchModel(provider, modelValue, () => {});
-    }
-
-    function switchSubagentModel(modelValue) {
-        const provider = root.providerConfigOption?.currentValue ?? "ollama";
-        root.subagentPickerOpen = false;
-        GooseAcpSession.switchSubagentModel(provider, modelValue, () => {});
+    function switchTier(tier) {
+        root.tierPickerOpen = false;
+        GooseAcpSession.setTier(GooseAcpSession.sessionId, tier, () => {});
     }
 
     Shortcut {
@@ -254,17 +251,25 @@ PanelWindow {
             // backdrop behind this panel to accidentally click through to.
         }
 
-        Column {
+        // Three anchored bands rather than a Column: header pinned to the
+        // top, the composer/banner stack pinned to the bottom, and the
+        // message list filling everything between them. See messageList's
+        // own comment for why the previous Column + computed-height design
+        // was replaced.
+        Item {
             id: content
             anchors {
                 fill: parent
                 margins: Theme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
 
             Row {
                 id: headerRow
-                width: parent.width
+                anchors {
+                    top: parent.top
+                    left: parent.left
+                    right: parent.right
+                }
                 height: Theme.spacing.chatHeaderHeight
 
                 Text {
@@ -307,164 +312,24 @@ PanelWindow {
                 }
             }
 
-            Flow {
-                id: statusPillsRow
-                width: parent.width
-                spacing: Theme.spacing.themePillGap
-
-                Rectangle {
-                    width: modeLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: Theme.spacing.themePillHeight
-                    radius: height / 2
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: Theme.color.launcherInputBorder
-
-                    Text {
-                        id: modeLabel
-                        anchors.centerIn: parent
-                        text: `mode: ${GooseAcpSession.currentModeId}`
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.cycleMode()
-                    }
-                }
-
-                Rectangle {
-                    width: modelLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: Theme.spacing.themePillHeight
-                    radius: height / 2
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: Theme.color.launcherInputBorder
-
-                    Text {
-                        id: modelLabel
-                        anchors.centerIn: parent
-                        text: `model: ${root.modelConfigOption?.currentValue ?? "?"}`
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.modelPickerOpen = !root.modelPickerOpen
-                    }
-                }
-
-                Rectangle {
-                    width: subagentLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                    height: Theme.spacing.themePillHeight
-                    radius: height / 2
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: Theme.color.launcherInputBorder
-
-                    Text {
-                        id: subagentLabel
-                        anchors.centerIn: parent
-                        text: `subagent: ${GooseAcpSession.subagentModel || "none"}`
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.subagentPickerOpen = !root.subagentPickerOpen
-                    }
-                }
-            }
-
-            Column {
-                id: modelPickerColumn
-                visible: root.modelPickerOpen
-                width: parent.width
-                spacing: Theme.spacing.themePillGap / 2
-
-                Repeater {
-                    model: root.modelConfigOption?.options ?? []
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: parent.width
-                        height: Theme.spacing.launcherRowHeight
-                        radius: Theme.radius.input
-                        color: modelData.value === root.modelConfigOption?.currentValue ? Theme.color.launcherItemSelectedBg : "transparent"
-
-                        Text {
-                            anchors {
-                                left: parent.left
-                                verticalCenter: parent.verticalCenter
-                                margins: Theme.spacing.launcherRowInset
-                            }
-                            text: modelData.name
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: root.switchModel(modelData.value)
-                        }
-                    }
-                }
-            }
-
-            Column {
-                id: subagentPickerColumn
-                visible: root.subagentPickerOpen
-                width: parent.width
-                spacing: Theme.spacing.themePillGap / 2
-
-                Repeater {
-                    model: root.modelConfigOption?.options ?? []
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: parent.width
-                        height: Theme.spacing.launcherRowHeight
-                        radius: Theme.radius.input
-                        color: modelData.value === GooseAcpSession.subagentModel ? Theme.color.launcherItemSelectedBg : "transparent"
-
-                        Text {
-                            anchors {
-                                left: parent.left
-                                verticalCenter: parent.verticalCenter
-                                margins: Theme.spacing.launcherRowInset
-                            }
-                            text: modelData.name
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: root.switchSubagentModel(modelData.value)
-                        }
-                    }
-                }
-            }
-
+            // Fills whatever vertical space the header and the bottom stack
+            // leave over. This used to be a hand-written subtraction naming
+            // every sibling, which silently broke TWICE when a new sibling
+            // was added without being added to the formula -- first
+            // statusPillsRow (cropping the composer off the bottom edge),
+            // then escalationBanner. Anchoring to the neighbours' own edges
+            // means the geometry tracks itself and that whole class of bug
+            // is structurally impossible.
             ListView {
                 id: messageList
-                width: parent.width
-                // statusPillsRow (mode/model/subagent) was missing from this
-                // subtraction entirely -- a real, reported bug: the whole
-                // column silently overflowed the panel's bottom edge by
-                // exactly that row's height, cropping the input bar and
-                // send button off-screen. Every other sibling in `content`
-                // was already accounted for here; this one just didn't
-                // have an id to reference until now.
-                height: parent.height - headerRow.height - parent.spacing - statusPillsRow.height - parent.spacing - (modelPickerColumn.visible ? modelPickerColumn.height + parent.spacing : 0) - (subagentPickerColumn.visible ? subagentPickerColumn.height + parent.spacing : 0) - (permissionBanner.visible ? permissionBanner.height + parent.spacing : 0) - inputBox.height - parent.spacing
+                anchors {
+                    top: headerRow.bottom
+                    bottom: permissionBanner.top
+                    left: parent.left
+                    right: parent.right
+                    topMargin: Theme.spacing.launcherContentGap
+                    bottomMargin: Theme.spacing.launcherContentGap
+                }
                 clip: true
                 model: ChatState.messages
                 spacing: Theme.spacing.launcherContentGap / 2
@@ -578,7 +443,16 @@ PanelWindow {
             Rectangle {
                 id: permissionBanner
                 visible: ChatState.pendingPermission !== null
-                width: parent.width
+                anchors {
+                    bottom: escalationBanner.top
+                    left: parent.left
+                    right: parent.right
+                    // Collapses to zero gap when hidden, so an inactive
+                    // banner costs no vertical space at all (height is
+                    // already 0 below; without this the margin would
+                    // still push the message list up).
+                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                }
                 height: visible ? implicitHeight : 0
                 implicitHeight: permissionColumn.implicitHeight + Theme.spacing.launcherContentGap
                 radius: Theme.radius.input
@@ -650,7 +524,12 @@ PanelWindow {
             Rectangle {
                 id: escalationBanner
                 visible: ChatState.pendingEscalation !== null
-                width: parent.width
+                anchors {
+                    bottom: inputBox.top
+                    left: parent.left
+                    right: parent.right
+                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                }
                 height: visible ? implicitHeight : 0
                 implicitHeight: escalationColumn.implicitHeight + Theme.spacing.launcherContentGap
                 radius: Theme.radius.input
@@ -723,7 +602,11 @@ PanelWindow {
 
             Row {
                 id: inputBox
-                width: parent.width
+                anchors {
+                    bottom: parent.bottom
+                    left: parent.left
+                    right: parent.right
+                }
                 height: Theme.spacing.chatComposerHeight
                 spacing: Theme.spacing.themePillGap
 
