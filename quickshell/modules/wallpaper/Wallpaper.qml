@@ -32,7 +32,13 @@ PanelWindow {
         left: true
         right: true
     }
-    exclusiveZone: 0
+    // -1, not 0: on wlr-layer-shell, 0 means "reserve nothing for myself"
+    // but still *respect* everyone else's exclusive zone, which made the
+    // wallpaper start 26px down (0 26 1920 1174) — the bar's own reserved
+    // strip — leaving bare compositor black behind the semi-transparent
+    // bar. -1 is the protocol's "ignore other surfaces' exclusive zones
+    // and give me the whole output", which is what a wallpaper wants.
+    exclusiveZone: -1
     WlrLayershell.layer: WlrLayer.Background
     WlrLayershell.namespace: "quickshell:wallpaper"
     color: "black"
@@ -67,33 +73,49 @@ PanelWindow {
         cache: true
     }
 
-    ShaderEffectSource {
-        id: shaderSource
-        sourceItem: baseImage
-        hideSource: root.wp.engine === "shader"
-        live: true
-        visible: false
-    }
-
-    ShaderEffect {
-        id: shaderOverlay
+    // The whole shader pipeline lives behind a Loader so a static/gif theme
+    // pays nothing for it. Previously ShaderEffectSource sat here
+    // unconditionally with `live: true` (ungated, unlike its sibling
+    // hideSource/visible bindings), which kept a full-screen RGBA FBO
+    // allocated per monitor on every theme, and the always-present
+    // ShaderEffect with an empty fragmentShader fell back to Qt's default
+    // shader — which samples a uniform named `source` this element doesn't
+    // declare, logging "ShaderEffect: 'source' does not have a matching
+    // property" on every reload.
+    Loader {
         anchors.fill: parent
-        visible: root.wp.engine === "shader"
+        active: root.wp.engine === "shader"
+        visible: active
 
-        property variant baseSource: shaderSource
-        property real time: 0
-        property vector3d colorMauve: Qt.vector3d(0xcb / 255, 0xa6 / 255, 0xf7 / 255)
-        property vector3d colorLavender: Qt.vector3d(0xb4 / 255, 0xbe / 255, 0xfe / 255)
-        property vector3d colorBlue: Qt.vector3d(0x89 / 255, 0xb4 / 255, 0xfa / 255)
-        property real intensity: 1.3
+        sourceComponent: Item {
+            ShaderEffectSource {
+                id: shaderSource
+                sourceItem: baseImage
+                hideSource: true
+                live: true
+                visible: false
+            }
 
-        fragmentShader: root.wp.engine === "shader" ? `file://${root.wp.dir}/${root.wp.shader}.qsb` : ""
+            ShaderEffect {
+                id: shaderOverlay
+                anchors.fill: parent
 
-        Timer {
-            interval: 16
-            running: shaderOverlay.visible && root.shouldAnimate
-            repeat: true
-            onTriggered: shaderOverlay.time += interval / 1000
+                property variant baseSource: shaderSource
+                property real time: 0
+                property vector3d colorMauve: Qt.vector3d(0xcb / 255, 0xa6 / 255, 0xf7 / 255)
+                property vector3d colorLavender: Qt.vector3d(0xb4 / 255, 0xbe / 255, 0xfe / 255)
+                property vector3d colorBlue: Qt.vector3d(0x89 / 255, 0xb4 / 255, 0xfa / 255)
+                property real intensity: 1.3
+
+                fragmentShader: `file://${root.wp.dir}/${root.wp.shader}.qsb`
+
+                Timer {
+                    interval: 16
+                    running: root.shouldAnimate
+                    repeat: true
+                    onTriggered: shaderOverlay.time += interval / 1000
+                }
+            }
         }
     }
 }

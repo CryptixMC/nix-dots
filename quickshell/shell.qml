@@ -83,12 +83,23 @@ ShellRoot {
         }
     }
 
+    // Two SEPARATE Variants blocks, deliberately — `Variants.delegate` is
+    // its default property and is a single QQmlComponent pointer, NOT a
+    // list (confirmed against quickshell-core.qmltypes). Putting Wallpaper
+    // and Bar inside one Variants silently makes the second overwrite the
+    // first, with no warning and a clean config load: that is exactly how
+    // the wallpaper disappeared (Hyprland's background layer was empty
+    // while the bar rendered fine). Never merge these two blocks.
     Variants {
         model: Quickshell.screens
 
         Wallpaper {
             screen: modelData
         }
+    }
+
+    Variants {
+        model: Quickshell.screens
 
         Bar {
             screen: modelData
