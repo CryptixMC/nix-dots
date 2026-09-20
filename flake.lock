@@ -244,11 +244,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789932708,
-        "narHash": "sha256-2+RTgiZHftfjM/U65ef4daooalL794KiX3HHm17RyIg=",
+        "lastModified": 1789935396,
+        "narHash": "sha256-TmYEEFTtXS3fj0stPA5PQoQt/+iShBSqIITz5wiEmY4=",
         "ref": "refs/heads/main",
-        "rev": "57cb4959ac129dc414b5caa8b0d69c6fe512f050",
-        "revCount": 60,
+        "rev": "42886d84e50d46939ae3c15f5d14fbb50cbe182b",
+        "revCount": 61,
         "type": "git",
         "url": "ssh://git@github.com/CryptixMC/qubi"
       },
