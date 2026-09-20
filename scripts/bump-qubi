@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pull the latest qubi, point the flake input at it, and stage both the
+# submodule gitlink and flake.lock together so they never drift -- see
+# scripts/check-qubi-sync.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+branch="${1:-main}"
+
+git -C quickshell/modules/qubi checkout --quiet "$branch"
+git -C quickshell/modules/qubi pull --quiet --ff-only origin "$branch"
+new_rev=$(git -C quickshell/modules/qubi rev-parse HEAD)
+
+nix flake update qubi
+
+locked=$(nix eval --impure --raw --expr \
+  '(builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.qubi.locked.rev')
+if [[ "$locked" != "$new_rev" ]]; then
+  echo "bump-qubi: submodule is at $new_rev but flake.lock resolved to $locked" >&2
+  echo "(qubi's default branch on the remote may differ from '$branch')" >&2
+  exit 1
+fi
+
+git add quickshell/modules/qubi flake.lock
+echo "staged qubi bump to $new_rev -- review with 'git diff --cached' and commit"
