@@ -1,7 +1,16 @@
 { lib, pkgs, ... }:
 let
-  inherit (lib.generators) mkLuaInline;
-  toLua = lib.generators.toLua { };
+  # See lib/hyprBinds.nix for the hl.dsp.*/mkLuaInline mechanics and why
+  # config sections can't go through this same path (settings.config.*
+  # instead) -- also recorded in the hyprland-lua-configtype-pitfall memory.
+  hyprBinds = import ../../../lib/hyprBinds.nix { inherit lib; };
+  inherit (hyprBinds)
+    dsp
+    toLua
+    exec
+    mkBind
+    mkExecBind
+    ;
 
   mainMod = "SUPER"; # Sets "Windows" key as main modifier
   terminal = "ghostty";
@@ -10,41 +19,7 @@ let
   editor = "zeditor";
   browser = "zen-twilight";
 
-  # Home Manager's Lua backend maps each top-level `settings.<name>` key to
-  # one `hl.<name>(...)` call (list values -> one call per element; `_args`
-  # -> multi-argument call instead of a single table arg). Real dispatcher
-  # calls (hl.dsp.*) can't be expressed as plain Nix data, so they're
-  # injected as raw Lua source via lib.generators.mkLuaInline. Function/field
-  # names below are taken from Hyprland's own example config
-  # (https://github.com/hyprwm/Hyprland/blob/main/example/hyprland.lua) and
-  # verified against src/config/lua/bindings/LuaBindingsDispatchers.cpp.
-  dsp = luaExpr: mkLuaInline luaExpr;
-  exec = cmd: dsp "hl.dsp.exec_cmd(${toLua cmd})";
-
-  # settings.bind entries render as hl.bind(<keys>, <dispatcher>, <opts>).
-  mkBind =
-    keys: dispatcher: opts:
-    {
-      _args = [
-        keys
-        dispatcher
-      ]
-      ++ lib.optional (opts != null) opts;
-    };
-  mkExecBind = keys: cmd: mkBind keys (exec cmd) null;
-
-  # mainMod + [0-9] workspace switch/move binds. Key "0" maps to workspace
-  # 10, same as the old hyprlang `$mainMod, 0, workspace, 10`.
-  workspaceBinds = lib.concatMap (
-    n:
-    let
-      key = if n == 10 then "0" else toString n;
-    in
-    [
-      (mkBind "${mainMod} + ${key}" (dsp "hl.dsp.focus({ workspace = ${toString n} })") null)
-      (mkBind "${mainMod} + SHIFT + ${key}" (dsp "hl.dsp.window.move({ workspace = ${toString n} })") null)
-    ]
-  ) (lib.range 1 10);
+  workspaceBinds = hyprBinds.workspaceBinds mainMod;
 in
 {
   # satty's -o path (see screenshot binds below) doesn't create missing
