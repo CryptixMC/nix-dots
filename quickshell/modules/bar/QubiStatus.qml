@@ -1,6 +1,6 @@
 import QtQuick
 import "../../theme"
-import "../qubi/qml"
+import "file:/home/cryptix/Projects/qubi/qml"
 
 // Qubi engine health in the bar. All the logic (socket, state derivation,
 // tooltip strings) is Qubi's own QubiStatusModel; this is only how this

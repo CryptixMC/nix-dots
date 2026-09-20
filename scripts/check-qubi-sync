@@ -1,22 +1,25 @@
 #!/usr/bin/env bash
 # Nix builds from the `qubi` flake input; the live shell reads QML straight
-# from the quickshell/modules/qubi submodule checkout. They must agree, or
-# the engine and the QML it talks to can be different revisions.
+# from the standalone ~/Projects/qubi checkout (see quickshell/shell.qml's
+# absolute import). They must agree, or the engine and the QML it talks to
+# can be different revisions.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
+
+QUBI_CHECKOUT="$HOME/Projects/qubi"
 
 locked=$(nix eval --impure --raw --expr \
   '(builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.qubi.locked.rev') || {
   echo "check-qubi-sync: couldn't read the qubi input's locked rev from flake.lock" >&2
   exit 1
 }
-checkout=$(git -C quickshell/modules/qubi rev-parse HEAD)
+checkout=$(git -C "$QUBI_CHECKOUT" rev-parse HEAD)
 
 if [[ "$locked" != "$checkout" ]]; then
   echo "qubi is out of sync:" >&2
-  echo "  flake.lock:            $locked" >&2
-  echo "  submodule checkout:    $checkout" >&2
-  echo "run 'nix flake lock --update-input qubi' or check out $locked in the submodule" >&2
+  echo "  flake.lock:      $locked" >&2
+  echo "  $QUBI_CHECKOUT: $checkout" >&2
+  echo "run 'nix flake update qubi' or check out $locked in $QUBI_CHECKOUT" >&2
   exit 1
 fi
 

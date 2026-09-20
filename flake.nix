@@ -18,12 +18,14 @@
     claude-desktop.url = "github:poeck/claude-desktop-nix-flake";
     claude-desktop.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Qubi is its own repo now. It is ALSO checked out as a git submodule at
-    # quickshell/modules/qubi, because the shell loads QML from $HOME rather
-    # than the store and that has to stay live-editable. Nix reads the flake
-    # from the input below, not from the submodule, so the two can drift --
-    # scripts/check-qubi-sync compares them. Still private, hence git+ssh
-    # instead of github:; switch to `github:CryptixMC/qubi` when it goes public.
+    # Qubi is its own repo now (github.com/CryptixMC/qubi), checked out
+    # standalone at ~/Projects/qubi -- not nested in this repo at all, since
+    # the shell loads its QML from $HOME rather than the store and that has
+    # to stay live-editable (quickshell/shell.qml imports it by absolute
+    # path). Nix reads the flake from the input below, not that checkout, so
+    # the two can drift -- scripts/check-qubi-sync compares them. Still
+    # private, hence git+ssh instead of github:; switch to
+    # `github:CryptixMC/qubi` when it goes public.
     qubi.url = "git+ssh://git@github.com/CryptixMC/qubi";
     qubi.inputs.nixpkgs.follows = "nixpkgs";
 

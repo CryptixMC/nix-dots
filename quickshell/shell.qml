@@ -5,7 +5,7 @@ import Quickshell.Io
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"
-import "modules/qubi/qml"
+import "file:/home/cryptix/Projects/qubi/qml"
 import "theme"
 import "modules/lock"
 import "modules/wallpaper"
@@ -37,7 +37,9 @@ ShellRoot {
 
     // Everything Qubi (chat, compare, sessions, model browser, extensions,
     // clipboard, ask-user, screen context, voice, notes) is one component
-    // from its own tree -- modules/qubi/ is the qubi repo, see its README.
+    // from its own tree -- github.com/CryptixMC/qubi, checked out standalone
+    // at ~/Projects/qubi (see that repo's README), imported here by absolute
+    // path so Quickshell's hot-reload still picks up live edits there.
     // It imports nothing from this shell; `theme` is the whole interface,
     // and themes/<name>/theme.json can override Qubi's tokens under a
     // `qubi` key. Its IPC targets are bound in hyprland.nix.

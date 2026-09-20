@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
-# Pull the latest qubi, point the flake input at it, and stage both the
-# submodule gitlink and flake.lock together so they never drift -- see
-# scripts/check-qubi-sync.
+# Pull the latest qubi into the standalone ~/Projects/qubi checkout, point
+# the flake input at the same rev, and stage flake.lock -- see
+# scripts/check-qubi-sync. Unlike a submodule bump, the checkout itself
+# isn't part of nix-dots' git tree, so there's nothing to `git add` for it.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
+QUBI_CHECKOUT="$HOME/Projects/qubi"
 branch="${1:-main}"
 
-git -C quickshell/modules/qubi checkout --quiet "$branch"
-git -C quickshell/modules/qubi pull --quiet --ff-only origin "$branch"
-new_rev=$(git -C quickshell/modules/qubi rev-parse HEAD)
+git -C "$QUBI_CHECKOUT" checkout --quiet "$branch"
+git -C "$QUBI_CHECKOUT" pull --quiet --ff-only origin "$branch"
+new_rev=$(git -C "$QUBI_CHECKOUT" rev-parse HEAD)
 
 nix flake update qubi
 
 locked=$(nix eval --impure --raw --expr \
   '(builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.qubi.locked.rev')
 if [[ "$locked" != "$new_rev" ]]; then
-  echo "bump-qubi: submodule is at $new_rev but flake.lock resolved to $locked" >&2
+  echo "bump-qubi: $QUBI_CHECKOUT is at $new_rev but flake.lock resolved to $locked" >&2
   echo "(qubi's default branch on the remote may differ from '$branch')" >&2
   exit 1
 fi
 
-git add quickshell/modules/qubi flake.lock
+git add flake.lock
 echo "staged qubi bump to $new_rev -- review with 'git diff --cached' and commit"
