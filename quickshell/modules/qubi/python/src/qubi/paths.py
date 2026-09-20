@@ -54,3 +54,12 @@ def ollama_url(cfg=None):
 
 def hw_state_file(cfg=None):
     return _expand(os.environ.get("QUBI_HW_STATE_FILE") or _engine(cfg).get("hw_state_file") or DEFAULT_HW_STATE_FILE)
+
+
+def ws_bind(cfg=None):
+    """(enabled, host, port) for the websocket transport."""
+    e = _engine(cfg)
+    enabled = os.environ.get("QUBI_WS_ENABLE", str(e.get("ws_enable", True))).lower() not in ("0", "false", "no")
+    host = os.environ.get("QUBI_WS_HOST") or e.get("ws_host") or "127.0.0.1"
+    port = int(os.environ.get("QUBI_WS_PORT") or e.get("ws_port") or 8765)
+    return enabled, host, port

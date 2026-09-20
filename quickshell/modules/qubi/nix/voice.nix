@@ -1,7 +1,7 @@
 { pkgs, lib, ... }:
 
 let
-  # Sibling to goose.nix, not folded into it or into ai-workstation.nix —
+  # Its own file, not folded into hm-module.nix —
   # this is audio I/O, not GPU/model routing, and stays independently
   # useful even if the chat overlay's voice UI (VoiceSession.qml) changes
   # shape later. Push-to-talk only (record → transcribe once), not

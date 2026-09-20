@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ pkgs, lib, config, ... }:
 
 let
   # Reports dock/undock and gaming-eviction state changes via desktop
@@ -225,29 +225,6 @@ let
       --unresolved-type disable \
       "''${files[@]}"
   '';
-
-  # Both MCP servers below are hand-rolled stdio JSON-RPC (stdlib only, no
-  # MCP SDK dependency) rather than using an MCP framework package — kept
-  # deliberately minimal ("dumb relay, no framework"), and protocol-verified
-  # live via a hand-written JSON-RPC probe the same way GooseAcpSession.qml's
-  # ACP handling was originally derived. They ship as console scripts of the
-  # qubi Python package (quickshell/modules/qubi/python/src/qubi/mcp/), which
-  # qubi-engine.nix puts on PATH -- so the SUPER+N overlay's
-  # `qubi-notes-capture-mcp --cli ...` and .mcp.json's profile-path
-  # `qubi-ask-user-mcp` both resolve without a second wrapper in
-  # home.packages (which would collide with the package's own bin/).
-  qubi = pkgs.callPackage ../../../quickshell/modules/qubi/nix/package.nix { };
-
-  # Goose resolves an extension's cmd by absolute path with whatever
-  # environment the launching goose happens to have, so the one setting
-  # ask_user needs (which Quickshell instance hosts the dialog) is pinned
-  # here rather than trusted to be inherited.
-  askUserMcp = pkgs.writeShellScript "qubi-ask-user-mcp" ''
-    export QUBI_SHELL_PATH="$HOME/nix-dots/quickshell"
-    exec ${qubi}/bin/qubi-ask-user-mcp
-  '';
-
-  notesCaptureMcp = "${qubi}/bin/qubi-notes-capture-mcp";
 
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
     set -euo pipefail
@@ -547,34 +524,9 @@ let
         bundled = false;
         timeout = 60;
       };
-      # Enabled by default (unlike the opt-in ones above) -- these are
-      # Phase 4's actual deliverables, meant to be reachable from any
-      # session without a manual enable step. ask-user's own 300s internal
-      # timeout (qubi/mcp/ask_user.py) already bounds worst-case latency
-      # if nothing answers, so there's no extra timeout tax on sessions that
-      # never call it.
-      ask-user = {
-        enabled = true;
-        type = "stdio";
-        name = "ask-user";
-        display_name = "Ask User";
-        description = "Ask the human a multiple-choice or free-text question and block for a real answer via an on-screen dialog";
-        cmd = "${askUserMcp}";
-        args = [ ];
-        bundled = false;
-        timeout = 310;
-      };
-      notes-capture = {
-        enabled = true;
-        type = "stdio";
-        name = "notes-capture";
-        display_name = "Notes Capture";
-        description = "Append a structured note (title, summary, links, tags) to the capture inbox";
-        cmd = notesCaptureMcp;
-        args = [ ];
-        bundled = false;
-        timeout = 60;
-      };
+      # ask-user and notes-capture are not listed here: programs.qubi
+      # (quickshell/modules/qubi/nix/hm-module.nix) merges them in, enabled
+      # by default so they are reachable from any session.
     };
     providers = {
       ollama = {
@@ -648,20 +600,6 @@ let
     # verify actually flags git commit/push.
     GOOSE_MODE = "smart_approve";
   };
-
-  gooseConfigYAML = lib.generators.toYAML { } gooseConfig;
-
-  # A direct store path for the activation script to copy from — NOT the
-  # same thing as the home.file entry below. Confirmed live:
-  # `entryAfter [ "writeBoundary" ]` does NOT guarantee home.file's own
-  # symlinks already exist — home-manager's actual activation order is
-  # writeBoundary → gooseConfigInit → linkGeneration, so an activation
-  # script depending on `home.file`'s live on-disk path fails with
-  # "cannot stat ...: No such file or directory" on every switch. A plain
-  # `pkgs.writeText` output is a build-time dependency instead, so it's
-  # guaranteed to exist the moment the activation script runs, regardless
-  # of file-linking order.
-  gooseConfigFile = pkgs.writeText "goose-config.yaml" gooseConfigYAML;
 
   gooseDesktopWrapped = pkgs.symlinkJoin {
     name = "goose-desktop";
@@ -874,7 +812,7 @@ let
       - type: stdio
         name: notes-capture
         display_name: Notes Capture
-        cmd: ${notesCaptureMcp}
+        cmd: ${config.programs.qubi.goose.extensionCommands.notes-capture}
         args: []
         bundled: false
         timeout: 60
@@ -1197,105 +1135,26 @@ in
     pkgs.tesseract
   ] ++ qubiAliases;
 
-  home.file.".config/goose/recipes/coding-agent.yaml".text = codingAgentRecipe;
-  home.file.".config/goose/recipes/mobile-gui-agent.yaml".text = mobileGuiAgentRecipe;
-  home.file.".config/goose/recipes/research-agent.yaml".text = researchAgentRecipe;
+  # Everything below is fed to programs.qubi (quickshell/modules/qubi/nix/
+  # hm-module.nix, enabled in ./qubi.nix), which owns the mechanism: writing
+  # recipes, installing config.yaml as a real file with drift backup (Goose
+  # rewrites it at runtime, so it can't be a store symlink), and merging in
+  # Qubi's own ask-user/notes-capture extensions. This file only supplies
+  # this machine's content.
+  programs.qubi.goose = {
+    manageConfig = true;
+    settings = gooseConfig;
 
-  # Global counterpart to this repo's own AGENTS.md (repo root) — covers
-  # a goose session invoked from outside this repo's directory, which the
-  # project-level file wouldn't reach. Same content, single source of
-  # truth via readFile rather than a second copy that could drift.
-  # Read-only reference file, not runtime-mutated by Goose the way
-  # config.yaml is, so a plain home.file (unlike config.yaml below) is
-  # sufficient — no activation-copy dance needed.
-  home.file.".config/goose/AGENTS.md".text = builtins.readFile ../../../AGENTS.md;
-
-  # Read-only oracle copy used below to detect runtime drift before
-  # overwriting the live config.yaml. Not the live file itself — Goose
-  # writes to config.yaml at runtime (`/model`, `/mode`, extension
-  # enable/disable, `active_provider` — all go through
-  # Config::{set_goose_model, set_goose_provider, set_param}, confirmed in
-  # the goose_cli binary), and Home Manager store files are root-owned
-  # read-only, so `home.file` can't target config.yaml directly.
-  home.file.".config/goose/config.yaml.nix-source".text = gooseConfigYAML;
-
-  # Installs the Nix-generated config.yaml over whatever's on disk on every
-  # `home-manager switch`. If the live file has drifted from the *previous*
-  # nix-source (i.e. Goose's own runtime writes changed it, e.g. a `/mode`
-  # or `/model` switch from an interactive session), it's backed up first
-  # rather than silently discarded — activation only overwrites, it never
-  # merges.
-  home.activation.gooseConfigInit = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    configDir="$HOME/.config/goose"
-    configFile="$configDir/config.yaml"
-    nixSource="${gooseConfigFile}"
-
-    run mkdir -p "$configDir"
-
-    if [ -e "$configFile" ] && ! cmp -s "$configFile" "$nixSource" 2>/dev/null; then
-      run cp "$configFile" "$configDir/config.yaml.pre-nix-$(date +%s)"
-    fi
-
-    run install -m 0644 "$nixSource" "$configFile"
-  '';
-
-  # qubi-bridge.service (the old goose_bridge.py single-process relay) is
-  # REMOVED here -- superseded by qubi-engine.service (qubi-engine.nix),
-  # which serves the exact same role (WebSocket on 127.0.0.1:8765 for
-  # mobile) plus the full multi-tier routing/escalation/gaming behavior
-  # goose_bridge.py never had. Confirmed live this had to be a real
-  # removal, not just a manual `systemctl stop`: with both units enabled,
-  # a real `home-manager switch` (which happened live tonight) restarts
-  # qubi-bridge.service on activation same as qubi-engine.service, and
-  # whichever wins the race grabs port 8765 first -- the loser then
-  # crash-loops forever with `OSError: [Errno 98] address already in use`,
-  # confirmed via journalctl (qubi-engine.service's own restart counter
-  # was at 9 before this fix). goose_bridge.py and its qubi-bridge CLI
-  # wrapper have since been deleted outright (see git history).
-  systemd.user.services.qubi-mobile-static = {
-    Unit.Description = "Static file server for mobile_gui.html, fronted by tailscale serve";
-    Service = {
-      # Loopback only -- tailscale serve (qubi-tailscale-serve.service) is
-      # the sole tailnet-facing surface now, proxying to localhost:8901.
-      # Binding directly to the Tailscale IP here breaks that proxy (a
-      # real 502, confirmed live) since it refuses the loopback connection
-      # tailscale serve makes.
-      ExecStart = "${pkgs.python3}/bin/python3 -m http.server 8901 --bind 127.0.0.1 --directory /home/cryptix/nix-dots";
-      Restart = "on-failure";
+    recipes = {
+      coding-agent = codingAgentRecipe;
+      mobile-gui-agent = mobileGuiAgentRecipe;
+      research-agent = researchAgentRecipe;
     };
-    Install.WantedBy = [ "default.target" ];
-  };
 
-  # Puts both mobile services behind `tailscale serve` for real HTTPS
-  # (plain HTTP blocks mic access in the browser and degrades PWA
-  # installability) -- Tailnet-only, deliberately never `tailscale funnel`
-  # (which would expose this to the public internet). Idempotent (`serve`
-  # just overwrites its own config with the same values on every run), so
-  # running this on every login is safe and self-healing if Serve config
-  # is ever reset. A oneshot rather than a long-running service since
-  # `tailscale serve --bg` itself backgrounds and persists in tailscaled,
-  # not in this unit's own process.
-  #
-  # BLOCKED tonight on a one-time manual step (see BLOCKERS.md): Serve is
-  # disabled tenant-wide until a real browser login approves it at a URL
-  # `tailscale serve` itself prints -- confirmed live, this is a genuine
-  # interactive-auth wall, not a config mistake. This service is correct
-  # and ready; it will start succeeding the moment that approval happens,
-  # no further change needed here.
-  systemd.user.services.qubi-tailscale-serve = {
-    Unit = {
-      Description = "Expose qubi-engine/qubi-mobile-static over tailscale serve (HTTPS, tailnet-only)";
-      After = [ "qubi-engine.service" "qubi-mobile-static.service" "tailscaled.service" ];
-    };
-    Service = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "qubi-tailscale-serve-setup" ''
-        set -uo pipefail
-        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path /ws http://localhost:8765
-        ${pkgs.tailscale}/bin/tailscale serve --bg --set-path / http://localhost:8901
-      '';
-    };
-    Install.WantedBy = [ "default.target" ];
+    # Global counterpart to this repo's own AGENTS.md (repo root) — covers
+    # a goose session invoked from outside this repo's directory, which the
+    # project-level file wouldn't reach. Same content, single source of
+    # truth via readFile rather than a second copy that could drift.
+    extraInstructions = builtins.readFile ../../../AGENTS.md;
   };
 }

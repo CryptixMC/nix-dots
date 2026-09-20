@@ -32,6 +32,7 @@ import asyncio
 import time
 
 from . import config as qubi_config
+from . import paths
 from ._log import log
 from .acp_proxy import AcpProxyMixin
 from .hw import HwMixin
@@ -158,9 +159,9 @@ async def amain():
     engine = Engine(cfg)
     await engine.start()
     await engine.serve_socket()
-    ws = cfg["engine"].get("ws_enable", True)
-    if ws:
-        await engine.serve_ws(cfg["engine"]["ws_host"], cfg["engine"]["ws_port"])
+    ws_enabled, ws_host, ws_port = paths.ws_bind(cfg)
+    if ws_enabled:
+        await engine.serve_ws(ws_host, ws_port)
     await asyncio.Future()
 
 

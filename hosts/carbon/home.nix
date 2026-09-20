@@ -12,8 +12,7 @@
     ../../modules/home-manager/apps/goose.nix
     ../../modules/home-manager/apps/goose-bench.nix
     ../../modules/home-manager/apps/opencode.nix
-    ../../modules/home-manager/apps/voice.nix
-    ../../modules/home-manager/apps/qubi-engine.nix
+    ../../modules/home-manager/apps/qubi.nix
     ../../modules/style/stylix.nix
   ];
 

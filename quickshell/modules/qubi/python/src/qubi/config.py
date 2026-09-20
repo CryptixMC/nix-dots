@@ -257,14 +257,36 @@ def cmd_validate(args):
     return 0
 
 
+def deep_merge(base, overlay):
+    """Recursively merge `overlay` into `base` in place: dicts merge, anything
+    else (lists included) replaces."""
+    for k, v in overlay.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
 def cmd_init(args):
     """Write the default config, but only if nothing exists (or --force).
     This is what the home-manager activation snippet calls -- see
-    qubi-engine.nix's home.activation.qubiConfigInit."""
+    nix/hm-module.nix. `--overlay` lets that module seed site defaults
+    (tier models etc.) without ever touching an existing file."""
     if os.path.exists(CONFIG_PATH) and not args.force:
         print(f"{CONFIG_PATH} already exists, not overwriting (use --force)")
         return 0
-    save(copy.deepcopy(DEFAULT_CONFIG))
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
+    if args.overlay:
+        with open(args.overlay) as f:
+            deep_merge(cfg, json.load(f))
+        errors = _validate(cfg)
+        if errors:
+            print("error: overlay produces an invalid config:", file=sys.stderr)
+            for e in errors:
+                print(f"  - {e}", file=sys.stderr)
+            return 1
+    save(cfg)
     print(f"wrote default config to {CONFIG_PATH}")
     return 0
 
@@ -287,6 +309,7 @@ def main():
 
     i = sub.add_parser("init", help="write the default config if missing")
     i.add_argument("--force", action="store_true")
+    i.add_argument("--overlay", metavar="FILE", help="JSON deep-merged over the defaults (first write only)")
     i.set_defaults(func=cmd_init)
 
     args = p.parse_args()

@@ -35,3 +35,25 @@ def test_walk_creates_intermediate_nodes_only_when_asked():
         pass
     else:
         raise AssertionError("expected KeyError")
+
+
+def test_deep_merge_merges_dicts_and_replaces_lists():
+    base = {"tiers": {"light": {"model": "a", "extensions": ["x"]}}, "theme": "t"}
+    config.deep_merge(base, {"tiers": {"light": {"model": "b", "extensions": []}}})
+    assert base == {"tiers": {"light": {"model": "b", "extensions": []}}, "theme": "t"}
+
+
+def test_init_overlay_seeds_but_never_clobbers(tmp_path, monkeypatch, capsys):
+    import argparse
+    import json
+
+    target = tmp_path / "config.json"
+    overlay = tmp_path / "overlay.json"
+    overlay.write_text(json.dumps({"tiers": {"light": {"model": "gemma3:4b"}}}))
+    monkeypatch.setattr(config, "CONFIG_PATH", str(target))
+    args = argparse.Namespace(force=False, overlay=str(overlay))
+    assert config.cmd_init(args) == 0
+    assert json.loads(target.read_text())["tiers"]["light"]["model"] == "gemma3:4b"
+    target.write_text(json.dumps({"mine": True}))
+    assert config.cmd_init(args) == 0
+    assert json.loads(target.read_text()) == {"mine": True}
