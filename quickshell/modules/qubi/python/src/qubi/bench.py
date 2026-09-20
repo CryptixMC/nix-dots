@@ -8,7 +8,7 @@ the real engine socket -- the same protocol GooseAcpSession.qml speaks --
 so what it measures is the actual deployed system: routing, the escalate
 tool's real shape, and real per-tier latency, not a model in isolation.
 
-Gate thresholds live in .agents/bench/gates.json, not hardcoded here, so
+Gate thresholds live in python/src/qubi/data/gates.json, not hardcoded here, so
 Liam can retune them without touching this file. Reuses
 ~/.config/qubi/config.json's own latency_budgets for the latency gate
 rather than duplicating that number in a second place.
@@ -16,7 +16,7 @@ rather than duplicating that number in a second place.
 Four of the seven gates (tool-format, no-tool, escalation-accuracy,
 latency) share one set of real live turns against the target tier rather
 than each spawning its own -- the light tier's own measured TTFT is
-17-40s per turn (see .agents/bench/2026-09-19-latency.md), so reusing
+17-40s per turn (see docs/bench/2026-09-19-latency.md), so reusing
 turns across gates keeps one `acceptance` run from taking many minutes
 longer than it needs to.
 
@@ -293,7 +293,7 @@ def cmd_acceptance(args):
         print(f"  {name:22} {r['status'].upper()}")
         if r["status"] == "fail":
             overall_pass = False
-    print(f"\n  overall: {'PASS' if overall_pass else 'FAIL (see BLOCKERS.md/PROGRESS.md for known, not-hidden failures)'}")
+    print(f"\n  overall: {'PASS' if overall_pass else 'FAIL (see docs/history/BLOCKERS-2026-09-19.md/docs/history/PROGRESS-2026-09-19.md for known, not-hidden failures)'}")
 
     out_path = os.path.expanduser(f"~/.local/share/qubi-bench/acceptance-{tier}.json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

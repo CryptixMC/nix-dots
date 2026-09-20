@@ -95,7 +95,7 @@ def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None, model=None
     # ~/.config/goose/config.yaml apart from `extensions`, so every tier
     # inherited that file's model (qwen3:4b) no matter what the tier asked
     # for. The GOOSE_MODEL env var set in ensure_started does not reliably
-    # win over the config file, which is exactly the leak BLOCKERS.md
+    # win over the config file, which is exactly the leak docs/history/BLOCKERS-2026-09-19.md
     # already recorded for the claude tier ("it leaks the wrong model
     # (qwen3:4b) into a claude-code-provider session and every prompt
     # fails") -- same root cause, and it silently affected every tier.

@@ -7,7 +7,7 @@ All the real work happens in qubi_engine.py, which watches the light tier's
 `session/update` notification stream for a `tool_call` whose tool name is
 `escalate`, pulls `reason`/`suggested_tier` back out of the call, and emits
 its own `qubi/escalation_offer` notification to subscribed clients instead
-of ever auto-switching tiers -- see DECISIONS.md, "the engine never
+of ever auto-switching tiers -- see docs/history/DECISIONS-2026-09-19.md, "the engine never
 auto-escalates" is a hard invariant, not a default.
 
 Same hand-rolled stdio MCP pattern as ask_user.py/notes_capture.py -- no new

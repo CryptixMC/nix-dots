@@ -7,7 +7,7 @@ IPC-triggered by this script, same convention every other overlay in this
 repo uses). Deliberately does NOT use MCP's elicitation/create -- whether
 the pinned Goose 1.47.0 advertises elicitation support and propagates it
 through its ACP surface to the chat overlay was never confirmed live (see
-BLOCKERS.md: the eGPU hit a dead-KFD state mid-session, which made every
+docs/history/BLOCKERS-2026-09-19.md: the eGPU hit a dead-KFD state mid-session, which made every
 live goose acp + tool-call test impossible for the rest of the night).
 Blocking synchronously inside a plain tools/call response works regardless
 of whether the client understands elicitation at all -- from Goose's side

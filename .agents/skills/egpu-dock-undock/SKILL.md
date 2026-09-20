@@ -35,7 +35,7 @@ PCI BAR (looks fine at the driver/display level) while ROCm/KFD compute
 is **silently dead underneath** — `rocminfo` reports zero GPU agents
 despite the card showing up fine in `lspci`. This has now happened on
 this machine on **multiple separate occasions**, most recently live
-during a benchmark run on 2026-09-18 (see BLOCKERS.md for that incident).
+during a benchmark run on 2026-09-18 (see quickshell/modules/qubi/docs/history/BLOCKERS-2026-09-19.md for that incident).
 Symptoms once in this state:
 - `rocminfo | grep "Device Type:.*GPU"` → zero matches, while
   `lspci -d 1002:73bf` still shows the card.

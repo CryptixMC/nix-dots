@@ -16,7 +16,7 @@ import "../core"
 //                entirely, same as ClipboardTransform.qml's precedent).
 //   undocked  -> tesseract OCR, shown in the normal overlay.
 //
-// Confirmed live this session (see BLOCKERS.md/PROGRESS.md): the pinned
+// Confirmed live this session (see docs/history/BLOCKERS-2026-09-19.md/docs/history/PROGRESS-2026-09-19.md): the pinned
 // Goose 1.47.0 genuinely advertises promptCapabilities.image=true and
 // correctly processes a real base64 image content block via
 // session/prompt (tested through the claude-code provider, which doesn't

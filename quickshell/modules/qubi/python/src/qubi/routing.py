@@ -27,7 +27,7 @@ def score_prompt(text, cwd_is_git_repo=True):
     if len(text) > 400:
         score += 3
         reasons.append(f"long message ({len(text)} chars)")
-    if any(tok in text for tok in ("/home", "/nix-dots", "./")) and cwd_is_git_repo:
+    if any(tok in text for tok in ("/home", "~/", "./")) and cwd_is_git_repo:
         score += 2
         reasons.append("mentions a file path")
     verb_hits = [v for v in HEAVY_VERBS if v in text.lower()]

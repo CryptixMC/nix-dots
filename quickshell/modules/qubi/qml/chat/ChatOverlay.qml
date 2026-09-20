@@ -133,7 +133,7 @@ PanelWindow {
     // item. Replaced the old free-model picker: the engine owns each tier's
     // process now and exposes no per-request model override, so only a
     // whole-tier switch actually does anything (see GooseAcpSession's own
-    // switchModel comment and BLOCKERS.md #4).
+    // switchModel comment and docs/history/BLOCKERS-2026-09-19.md #4).
     property bool tierPickerOpen: false
 
     // Hamburger dropdown: every overlay feature this shell has, in one

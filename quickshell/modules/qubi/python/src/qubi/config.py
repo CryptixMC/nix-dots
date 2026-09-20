@@ -36,12 +36,12 @@ DEFAULT_CONFIG = {
         # when reasoning is switched OFF. Exists as a separate tier rather
         # than a flag on `light` because the only thing that actually makes
         # a qwen3 turn shorter is a prompt-level switch plus a smaller/terser
-        # model, and both are per-tier settings -- see BLOCKERS.md on why
+        # model, and both are per-tier settings -- see docs/history/BLOCKERS-2026-09-19.md on why
         # think:false and GOOSE_LOCAL_ENABLE_THINKING=false do not help.
         #
         # `no_think_prefix` prepends qwen3's documented `/no_think` switch.
         # It defaults to FALSE because measuring it here showed the opposite
-        # of what BLOCKERS.md recorded -- against qwen3:4b through Ollama's
+        # of what docs/history/BLOCKERS-2026-09-19.md recorded -- against qwen3:4b through Ollama's
         # own /api/generate it DOUBLED the work rather than halving it
         # (716 -> 1440 eval tokens, 2704 -> 5366 chars of reasoning, same
         # prompt), because the model starts reasoning about the switch. The

@@ -181,7 +181,7 @@ body { font-family: "JetBrainsMono Nerd Font Mono", ui-monospace, "SF Mono", Men
 // Derived from how this page itself was loaded, not hardcoded -- works
 // both direct (http://<host>:8901/, ws://<host>:8765, the
 // pre-Serve setup) and behind `tailscale serve` (https://<tailnet-host>/,
-// wss://<same host>/ws -- see BLOCKERS.md: Serve itself needs a one-time
+// wss://<same host>/ws -- see docs/history/BLOCKERS-2026-09-19.md: Serve itself needs a one-time
 // browser approval that couldn't be done non-interactively, so the /ws
 // path specifically is unverified, but this at least stops the URL from
 // silently breaking the moment Serve is enabled and the hostname changes).
@@ -299,7 +299,7 @@ function applyTheme(result) {
 
 // Real install flow: Chromium/Android fires beforeinstallprompt when this
 // page meets installability criteria (served over HTTPS with a valid
-// manifest -- see BLOCKERS.md/DECISIONS.md for why plain HTTP never
+// manifest -- see docs/history/BLOCKERS-2026-09-19.md/docs/history/DECISIONS-2026-09-19.md for why plain HTTP never
 // triggers this at all, no matter what the manifest says). We suppress
 // the browser's own default mini-infobar (preventDefault) and drive our
 // own themed banner + button instead, calling .prompt() on click -- this

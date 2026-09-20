@@ -5,12 +5,31 @@ the right model tier in front of [goose](https://github.com/block/goose),
 with a Quickshell desktop frontend and a mobile PWA speaking the same
 protocol.
 
-This tree is being extracted from a personal dotfiles repo. Layout:
+| Path      | What                                                                  |
+|-----------|-----------------------------------------------------------------------|
+| `python/` | The `qubi` package: engine, config/bench/models CLIs, MCP servers     |
+| `qml/`    | Quickshell frontend: chat, sessions, model browser, voice, ... (`Qubi.qml`) |
+| `mobile/` | Mobile PWA (static, no build step)                                    |
+| `nix/`    | Package, PWA package, home-manager module                             |
+| `docs/`   | [protocol](docs/protocol.md), [theming](docs/theming.md), [hw-state](docs/hw-state.md), build history |
 
-| Path      | What                                                            |
-|-----------|-----------------------------------------------------------------|
-| `python/` | The `qubi` package: engine, config/bench/models CLIs, MCP servers |
-| `nix/`    | Nix package (and, later, the home-manager module)               |
+## Install (home-manager flake)
+
+```nix
+inputs.qubi.url = "github:<owner>/qubi";
+
+# in your home configuration
+imports = [ inputs.qubi.homeModules.qubi ];
+programs.qubi.enable = true;                 # engine service + CLIs + MCP servers
+services.qubi.mobile.enable = true;          # optional: serve the PWA on loopback
+# services.qubi.engine.initialConfig.tiers.light.model = "gemma3:4b";
+```
+
+Every option is documented in `nix/hm-module.nix`. For the desktop UI, put
+this repo somewhere inside your Quickshell config (a git submodule works
+well, since Quickshell live-reloads from the checkout) and add
+`Qubi { theme: YourTheme }` to your `ShellRoot`; see
+[docs/theming.md](docs/theming.md). `quickshell -p qml` runs it standalone.
 
 ## Running from a checkout
 
@@ -41,5 +60,6 @@ default (see `python/src/qubi/paths.py`):
 ## Tests
 
 ```sh
-pytest && ruff check .
+nix flake check        # pytest, ruff, qmllint, structural checks
+pytest && ruff check . # or just the Python side, from `nix develop`
 ```

@@ -48,7 +48,7 @@ let
     # semantics ai-workstation.nix's dockedModel/undockedModel values were
     # picked for. qubi-engine owns those processes now, and
     # GooseAcpSession.switchModel is a thin shim that maps a model name
-    # onto whichever TIER runs it (BLOCKERS.md #4). undockedModel is
+    # onto whichever TIER runs it (quickshell/modules/qubi/docs/history/BLOCKERS-2026-09-19.md #4). undockedModel is
     # qwen3-coder:latest, which is the HEAVY tier's model -- so every
     # undock was silently switching the live chat session from light to
     # heavy: an 18GB model on CPU, plus a whole different extension set
