@@ -47,12 +47,10 @@ import socket
 import sys
 import time
 
-import qubi_config
+from . import config as qubi_config
+from . import paths
 
-RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-SOCKET_PATH = os.path.join(RUNTIME_DIR, "qubi", "engine.sock")
-GAMING_STATE_FILE = "/run/ai-workstation/state.json"
-GATES_PATH = os.path.join(os.path.dirname(__file__), "..", ".agents", "bench", "gates.json")
+GATES_PATH = os.environ.get("QUBI_BENCH_GATES") or os.path.join(os.path.dirname(__file__), "data", "gates.json")
 
 # should_escalate=True is a deliberately unambiguous multi-file/careful-
 # reasoning ask (the escalate tool's own description's trigger language);
@@ -79,7 +77,7 @@ class EngineClient:
     # yet," not a broken stream.
     def __init__(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.connect(SOCKET_PATH)
+        self.sock.connect(paths.socket_path(qubi_config.load()))
         self._buf = b""
         self._id = 1
 
@@ -220,7 +218,7 @@ def cmd_acceptance(args):
         # header comment.
         cases = []
         for case in ESCALATION_CASES:
-            new_result, err = client.call("session/new", {"cwd": os.path.expanduser("~/nix-dots"), "mcpServers": []}, timeout=200)
+            new_result, err = client.call("session/new", {"cwd": paths.default_cwd(qubi_config.load()), "mcpServers": []}, timeout=200)
             if err:
                 raise RuntimeError(f"session/new failed: {err}")
             session_id = new_result["sessionId"]
@@ -271,13 +269,13 @@ def cmd_acceptance(args):
     # state exists right now rather than forcing one (the state file is
     # root-owned; this CLI never sudo's to flip it).
     try:
-        with open(GAMING_STATE_FILE) as f:
+        with open(paths.hw_state_file(qubi_config.load())) as f:
             gaming_state = json.load(f)
         is_gaming = gaming_state.get("state") == "gaming"
     except (FileNotFoundError, json.JSONDecodeError):
         is_gaming = False
     if not is_gaming:
-        results["game-qa"] = {"status": "skip", "reason": f"not currently in gaming state ({GAMING_STATE_FILE})"}
+        results["game-qa"] = {"status": "skip", "reason": f"not currently in gaming state ({paths.hw_state_file(qubi_config.load())})"}
     else:
         status_client = EngineClient()
         try:

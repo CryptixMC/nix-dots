@@ -35,6 +35,15 @@ TIMEOUT_SECONDS = 300  # a human may be away from the keyboard briefly
 
 PROTOCOL_VERSION = "2024-11-05"
 
+
+def _quickshell_ipc():
+    """`quickshell ipc` argv addressing the shell that hosts the askuser
+    overlay. $QUBI_SHELL_PATH is the config directory that shell was started
+    with (`quickshell -p <path>`); unset means the default config."""
+    shell_path = os.environ.get("QUBI_SHELL_PATH")
+    return ["quickshell", "ipc"] + (["-p", os.path.expanduser(shell_path)] if shell_path else [])
+
+
 TOOL_DEF = {
     "name": "ask_user",
     "description": (
@@ -87,7 +96,7 @@ def ask_user(question, options, allow_free_text):
 
     try:
         subprocess.run(
-            ["quickshell", "ipc", "-p", os.path.expanduser("~/nix-dots/quickshell"), "call", "askuser", "show", req_id],
+            _quickshell_ipc() + ["call", "askuser", "show", req_id],
             capture_output=True,
             timeout=5,
         )

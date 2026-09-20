@@ -22,7 +22,7 @@ import json
 import os
 import sys
 
-CONFIG_PATH = os.path.expanduser("~/.config/qubi/config.json")
+from .paths import CONFIG_PATH   # $QUBI_CONFIG, else ~/.config/qubi/config.json
 
 # The only gaming_budget value implemented tonight. Kept as a list (not a
 # single constant) so `validate` naturally extends when a second value is

@@ -12,11 +12,10 @@ but undeclared, with sizes. Never deletes anything -- Phase 7's own
 instruction is dry-run only tonight.
 """
 import argparse
-import json
 import subprocess
 import sys
 
-import qubi_config
+from . import config as qubi_config
 
 # Grep-verified against real source (not guessed) at the time this was
 # written -- each entry names the file that actually references it, so a

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qubi"
+description = "Persistent multi-tier router in front of `goose acp`, with desktop and mobile clients"
+readme = "README.md"
+requires-python = ">=3.11"
+dynamic = ["version"]
+dependencies = [
+  "websockets>=12",
+  "pyyaml>=6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+qubi-engine = "qubi.engine:main"
+qubi-config = "qubi.config:main"
+qubi-bench = "qubi.bench:main"
+qubi-models = "qubi.models:main"
+qubi-hwstate = "qubi.hw:main"
+qubi-escalate-mcp = "qubi.mcp.escalate:main"
+qubi-ask-user-mcp = "qubi.mcp.ask_user:main"
+qubi-notes-capture-mcp = "qubi.mcp.notes_capture:entry"
+
+[tool.setuptools.dynamic]
+version = { attr = "qubi.protocol.VERSION" }
+
+[tool.setuptools.packages.find]
+where = ["python/src"]
+
+[tool.setuptools.package-data]
+qubi = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]
+pythonpath = ["python/src"]
+
+[tool.ruff]
+line-length = 140
+src = ["python/src"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]

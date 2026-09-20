@@ -228,22 +228,26 @@ let
 
   # Both MCP servers below are hand-rolled stdio JSON-RPC (stdlib only, no
   # MCP SDK dependency) rather than using an MCP framework package — kept
-  # deliberately minimal ("dumb relay, no framework"), and protocol-verified live via a
-  # hand-written JSON-RPC probe the same way GooseAcpSession.qml's ACP
-  # handling was originally derived (see mcp-servers/ for the scripts).
-  askUserMcp = pkgs.writeShellScriptBin "qubi-ask-user-mcp" ''
-    set -euo pipefail
-    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/ask_user.py}
+  # deliberately minimal ("dumb relay, no framework"), and protocol-verified
+  # live via a hand-written JSON-RPC probe the same way GooseAcpSession.qml's
+  # ACP handling was originally derived. They ship as console scripts of the
+  # qubi Python package (quickshell/modules/qubi/python/src/qubi/mcp/), which
+  # qubi-engine.nix puts on PATH -- so the SUPER+N overlay's
+  # `qubi-notes-capture-mcp --cli ...` and .mcp.json's profile-path
+  # `qubi-ask-user-mcp` both resolve without a second wrapper in
+  # home.packages (which would collide with the package's own bin/).
+  qubi = pkgs.callPackage ../../../quickshell/modules/qubi/nix/package.nix { };
+
+  # Goose resolves an extension's cmd by absolute path with whatever
+  # environment the launching goose happens to have, so the one setting
+  # ask_user needs (which Quickshell instance hosts the dialog) is pinned
+  # here rather than trusted to be inherited.
+  askUserMcp = pkgs.writeShellScript "qubi-ask-user-mcp" ''
+    export QUBI_SHELL_PATH="$HOME/nix-dots/quickshell"
+    exec ${qubi}/bin/qubi-ask-user-mcp
   '';
 
-  # "$@" passthrough matters here specifically -- the SUPER+N Quickshell
-  # overlay invokes this same binary with `--cli --title ... --summary ...`
-  # for direct one-shot capture, while Goose invokes it bare (stdio MCP
-  # mode). See notes_capture.py's own `if sys.argv[1] == "--cli"` dispatch.
-  notesCaptureMcp = pkgs.writeShellScriptBin "qubi-notes-capture-mcp" ''
-    set -euo pipefail
-    exec ${pkgs.python3}/bin/python3 ${../../../mcp-servers/notes_capture.py} "$@"
-  '';
+  notesCaptureMcp = "${qubi}/bin/qubi-notes-capture-mcp";
 
   gooseNhGuard = pkgs.writeShellScriptBin "nh" ''
     set -euo pipefail
@@ -546,7 +550,7 @@ let
       # Enabled by default (unlike the opt-in ones above) -- these are
       # Phase 4's actual deliverables, meant to be reachable from any
       # session without a manual enable step. ask-user's own 300s internal
-      # timeout (mcp-servers/ask_user.py) already bounds worst-case latency
+      # timeout (qubi/mcp/ask_user.py) already bounds worst-case latency
       # if nothing answers, so there's no extra timeout tax on sessions that
       # never call it.
       ask-user = {
@@ -555,7 +559,7 @@ let
         name = "ask-user";
         display_name = "Ask User";
         description = "Ask the human a multiple-choice or free-text question and block for a real answer via an on-screen dialog";
-        cmd = "${askUserMcp}/bin/qubi-ask-user-mcp";
+        cmd = "${askUserMcp}";
         args = [ ];
         bundled = false;
         timeout = 310;
@@ -566,7 +570,7 @@ let
         name = "notes-capture";
         display_name = "Notes Capture";
         description = "Append a structured note (title, summary, links, tags) to the capture inbox";
-        cmd = "${notesCaptureMcp}/bin/qubi-notes-capture-mcp";
+        cmd = notesCaptureMcp;
         args = [ ];
         bundled = false;
         timeout = 60;
@@ -870,7 +874,7 @@ let
       - type: stdio
         name: notes-capture
         display_name: Notes Capture
-        cmd: ${notesCaptureMcp}/bin/qubi-notes-capture-mcp
+        cmd: ${notesCaptureMcp}
         args: []
         bundled: false
         timeout: 60
@@ -1188,14 +1192,6 @@ in
     goosePlan
     gooseChat
     qmlLintRepo
-    # On PATH so the SUPER+N Quickshell overlay can shell out to
-    # `qubi-notes-capture-mcp --cli ...` directly (not just reachable as a
-    # Goose stdio extension, which resolves cmd by its own absolute store
-    # path regardless of PATH).
-    notesCaptureMcp
-    # On PATH so .mcp.json can point at the profile symlink instead of a
-    # raw store path with no GC root.
-    askUserMcp
     # SUPER+I screen-context capture's undocked/gaming OCR path
     # (ScreenContext.qml) -- not installed anywhere else in this flake.
     pkgs.tesseract
