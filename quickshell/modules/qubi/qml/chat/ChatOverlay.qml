@@ -12,7 +12,7 @@ import "../voice"
 import "../modelbrowser"
 import "../clipboard"
 import "../notes"
-import "../../theme"
+import "../core"
 
 // Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
 // session (GooseAcpSession.qml) — shown/hidden via IPC from a Hyprland
@@ -22,7 +22,7 @@ import "../../theme"
 //
 // Right-docked sliding panel (not a centered, full-screen-blocking
 // overlay like Launcher.qml/SessionsPicker.qml) — the surface itself is
-// only Theme.spacing.chatPanelWidth wide, anchored top+bottom+right, so
+// only QubiTheme.spacing.chatPanelWidth wide, anchored top+bottom+right, so
 // the rest of the desktop stays fully interactive while it's open. Closes
 // via Escape, the header's own close button, or pressing the toggle
 // keybind again — no click-outside-to-close, since there's no full-screen
@@ -63,7 +63,7 @@ PanelWindow {
 
     Timer {
         id: closeTimer
-        interval: Theme.motion.chatSlide.duration
+        interval: QubiTheme.motion.chatSlide.duration
         onTriggered: root.panelMapped = false
     }
 
@@ -494,7 +494,7 @@ PanelWindow {
         id: panel
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: Theme.spacing.chatPanelWidth
+        width: QubiTheme.spacing.chatPanelWidth
         // Deliberately NOT anchors.right: an anchor owns the item's
         // horizontal position and silently overrides any `x` binding, so
         // the slide animation below never rendered a single frame -- while
@@ -503,14 +503,14 @@ PanelWindow {
         // that animation to finish. All cost, no motion. Positioning with x
         // explicitly gives the Behavior something real to drive.
         x: ChatState.visible ? parent.width - width : parent.width
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         Behavior on x {
             NumberAnimation {
-                duration: Theme.motion.chatSlide.duration
-                easing.type: Theme.motion.chatSlide.easing
+                duration: QubiTheme.motion.chatSlide.duration
+                easing.type: QubiTheme.motion.chatSlide.easing
             }
         }
 
@@ -530,7 +530,7 @@ PanelWindow {
             id: content
             anchors {
                 fill: parent
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
 
             // An Item with three anchored children rather than a Row with a
@@ -544,25 +544,25 @@ PanelWindow {
                     left: parent.left
                     right: parent.right
                 }
-                height: Theme.spacing.chatHeaderHeight
+                height: QubiTheme.spacing.chatHeaderHeight
 
                 Rectangle {
                     id: historyButton
-                    width: Theme.spacing.chatCloseSize
-                    height: Theme.spacing.chatCloseSize
+                    width: QubiTheme.spacing.chatCloseSize
+                    height: QubiTheme.spacing.chatCloseSize
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
                     }
                     radius: height / 2
-                    color: historyArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                    color: historyArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: "☰"
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                     }
 
                     MouseArea {
@@ -585,22 +585,22 @@ PanelWindow {
                 // slash command makes, via the shared newChat() helper.
                 Rectangle {
                     id: newChatButton
-                    width: Theme.spacing.chatCloseSize
-                    height: Theme.spacing.chatCloseSize
+                    width: QubiTheme.spacing.chatCloseSize
+                    height: QubiTheme.spacing.chatCloseSize
                     anchors {
                         left: historyButton.right
-                        leftMargin: Theme.spacing.launcherTabGap / 2
+                        leftMargin: QubiTheme.spacing.launcherTabGap / 2
                         verticalCenter: parent.verticalCenter
                     }
                     radius: height / 2
-                    color: newChatArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                    color: newChatArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: "＋"
-                        color: newChatArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: newChatArea.containsMouse ? QubiTheme.color.fg : QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                     }
 
                     MouseArea {
@@ -615,29 +615,29 @@ PanelWindow {
                     id: titleLabel
                     anchors.centerIn: parent
                     text: "Qubi"
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                     font.bold: true
                 }
 
                 Rectangle {
                     id: closeButton
-                    width: Theme.spacing.chatCloseSize
-                    height: Theme.spacing.chatCloseSize
+                    width: QubiTheme.spacing.chatCloseSize
+                    height: QubiTheme.spacing.chatCloseSize
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                     }
                     radius: height / 2
-                    color: closeArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                    color: closeArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: "✕"
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                     }
 
                     MouseArea {
@@ -664,12 +664,12 @@ PanelWindow {
                     bottom: permissionBanner.top
                     left: parent.left
                     right: parent.right
-                    topMargin: Theme.spacing.launcherContentGap
-                    bottomMargin: Theme.spacing.launcherContentGap
+                    topMargin: QubiTheme.spacing.launcherContentGap
+                    bottomMargin: QubiTheme.spacing.launcherContentGap
                 }
                 clip: true
                 model: ChatState.messages
-                spacing: Theme.spacing.launcherContentGap / 2
+                spacing: QubiTheme.spacing.launcherContentGap / 2
 
                 // Recycle delegate object trees instead of destroying and
                 // reallocating them. Each row here is an Item + Rectangle +
@@ -775,8 +775,8 @@ PanelWindow {
                         id: intrinsic
                         visible: false
                         text: row.displayText
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                         textFormat: Text.PlainText
                         wrapMode: Text.NoWrap
                     }
@@ -786,14 +786,14 @@ PanelWindow {
                         // A bubble containing code takes the full width --
                         // code lines shouldn't be re-wrapped to hug the
                         // longest prose line.
-                        width: row.hasCode ? Theme.spacing.chatBubbleMaxWidth : Math.min(intrinsic.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
-                        height: body.implicitHeight + (row.isMuted ? Theme.spacing.launcherRowInset : meta.height + Theme.spacing.launcherRowInset)
+                        width: row.hasCode ? QubiTheme.spacing.chatBubbleMaxWidth : Math.min(intrinsic.implicitWidth + QubiTheme.spacing.launcherRowInset * 2, QubiTheme.spacing.chatBubbleMaxWidth)
+                        height: body.implicitHeight + (row.isMuted ? QubiTheme.spacing.launcherRowInset : meta.height + QubiTheme.spacing.launcherRowInset)
                         anchors {
                             right: row.isUser ? parent.right : undefined
                             left: row.isUser ? undefined : parent.left
                         }
-                        radius: Theme.radius.input
-                        color: row.isMuted ? "transparent" : (row.isUser ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg)
+                        radius: QubiTheme.radius.input
+                        color: row.isMuted ? "transparent" : (row.isUser ? QubiTheme.color.launcherItemSelectedBg : QubiTheme.color.launcherInputBg)
 
                         Column {
                             id: body
@@ -801,9 +801,9 @@ PanelWindow {
                                 left: parent.left
                                 right: parent.right
                                 top: parent.top
-                                margins: Theme.spacing.launcherRowInset
+                                margins: QubiTheme.spacing.launcherRowInset
                             }
-                            spacing: Theme.spacing.launcherContentGap / 2
+                            spacing: QubiTheme.spacing.launcherContentGap / 2
 
                             // Muted branch: one plain, collapsible line.
                             Text {
@@ -827,9 +827,9 @@ PanelWindow {
                                     return `${glyph} thinking: ${row.thoughtExpanded ? full : collapsedPreview}`;
                                 }
                                 wrapMode: Text.Wrap
-                                color: Theme.color.launcherPlaceholderFg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.launcherPlaceholderFg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                                 font.italic: true
                                 textFormat: Text.PlainText
 
@@ -855,9 +855,9 @@ PanelWindow {
                                             width: body.width
                                             text: modelData.text
                                             wrapMode: Text.Wrap
-                                            color: Theme.color.fg
-                                            font.family: Theme.font.family
-                                            font.pixelSize: Theme.font.sizeBase
+                                            color: QubiTheme.color.fg
+                                            font.family: QubiTheme.font.family
+                                            font.pixelSize: QubiTheme.font.sizeBase
                                             textFormat: Text.MarkdownText
                                         }
                                     }
@@ -866,15 +866,15 @@ PanelWindow {
                                         id: codeSegment
                                         Rectangle {
                                             width: body.width
-                                            height: codeText.implicitHeight + codeHeader.height + Theme.spacing.launcherInputTextInset * 2
-                                            radius: Theme.radius.input
+                                            height: codeText.implicitHeight + codeHeader.height + QubiTheme.spacing.launcherInputTextInset * 2
+                                            radius: QubiTheme.radius.input
                                             // The whole shell is already a
                                             // mono font, so a code block
                                             // needs a surface, not a
                                             // typeface change.
-                                            color: Theme.color.launcherBg
-                                            border.width: Theme.spacing.borderHairline
-                                            border.color: Theme.color.launcherBorder
+                                            color: QubiTheme.color.launcherBg
+                                            border.width: QubiTheme.spacing.borderHairline
+                                            border.color: QubiTheme.color.launcherBorder
 
                                             Item {
                                                 id: codeHeader
@@ -882,24 +882,24 @@ PanelWindow {
                                                     left: parent.left
                                                     right: parent.right
                                                     top: parent.top
-                                                    margins: Theme.spacing.launcherInputTextInset
+                                                    margins: QubiTheme.spacing.launcherInputTextInset
                                                 }
-                                                height: Theme.font.sizeSmall + 4
+                                                height: QubiTheme.font.sizeSmall + 4
 
                                                 Text {
                                                     anchors.left: parent.left
                                                     text: modelData.lang.length > 0 ? modelData.lang : "code"
-                                                    color: Theme.color.launcherPlaceholderFg
-                                                    font.family: Theme.font.family
-                                                    font.pixelSize: Theme.font.sizeSmall
+                                                    color: QubiTheme.color.launcherPlaceholderFg
+                                                    font.family: QubiTheme.font.family
+                                                    font.pixelSize: QubiTheme.font.sizeSmall
                                                 }
 
                                                 Text {
                                                     anchors.right: parent.right
                                                     text: "copy"
-                                                    color: copyCodeArea.containsMouse ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
-                                                    font.family: Theme.font.family
-                                                    font.pixelSize: Theme.font.sizeSmall
+                                                    color: copyCodeArea.containsMouse ? QubiTheme.color.accentPurple : QubiTheme.color.launcherPlaceholderFg
+                                                    font.family: QubiTheme.font.family
+                                                    font.pixelSize: QubiTheme.font.sizeSmall
 
                                                     MouseArea {
                                                         id: copyCodeArea
@@ -916,14 +916,14 @@ PanelWindow {
                                                     left: parent.left
                                                     right: parent.right
                                                     top: codeHeader.bottom
-                                                    leftMargin: Theme.spacing.launcherInputTextInset
-                                                    rightMargin: Theme.spacing.launcherInputTextInset
+                                                    leftMargin: QubiTheme.spacing.launcherInputTextInset
+                                                    rightMargin: QubiTheme.spacing.launcherInputTextInset
                                                 }
                                                 text: modelData.text
                                                 wrapMode: Text.Wrap
-                                                color: Theme.color.fg
-                                                font.family: Theme.font.family
-                                                font.pixelSize: Theme.font.sizeSmall
+                                                color: QubiTheme.color.fg
+                                                font.family: QubiTheme.font.family
+                                                font.pixelSize: QubiTheme.font.sizeSmall
                                                 textFormat: Text.PlainText
                                             }
                                         }
@@ -938,23 +938,23 @@ PanelWindow {
                             anchors {
                                 left: parent.left
                                 top: body.bottom
-                                margins: Theme.spacing.launcherRowInset
+                                margins: QubiTheme.spacing.launcherRowInset
                             }
                             height: visible ? implicitHeight : 0
-                            spacing: Theme.spacing.launcherContentGap
+                            spacing: QubiTheme.spacing.launcherContentGap
 
                             Text {
                                 text: row.modelData?.time ? new Date(row.modelData.time).toLocaleTimeString(Qt.locale(), "hh:mm") : ""
-                                color: Theme.color.launcherPlaceholderFg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.launcherPlaceholderFg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
 
                             Text {
                                 text: "copy"
-                                color: Theme.color.launcherPlaceholderFg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.launcherPlaceholderFg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                                 font.underline: copyArea.containsMouse
 
                                 MouseArea {
@@ -980,14 +980,14 @@ PanelWindow {
                     // banner costs no vertical space at all (height is
                     // already 0 below; without this the margin would
                     // still push the message list up).
-                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                    bottomMargin: visible ? QubiTheme.spacing.launcherContentGap : 0
                 }
                 height: visible ? implicitHeight : 0
-                implicitHeight: permissionColumn.implicitHeight + Theme.spacing.launcherContentGap
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.accentPurple
+                implicitHeight: permissionColumn.implicitHeight + QubiTheme.spacing.launcherContentGap
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.accentPurple
 
                 Column {
                     id: permissionColumn
@@ -995,41 +995,41 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         verticalCenter: parent.verticalCenter
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
-                    spacing: Theme.spacing.launcherContentGap / 2
+                    spacing: QubiTheme.spacing.launcherContentGap / 2
 
                     Text {
                         width: parent.width
                         text: `qubi wants to: ${permissionBanner.visible ? (ChatState.pendingPermission.params?.toolCall?.title ?? "run a tool") : ""}`
                         wrapMode: Text.Wrap
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: QubiTheme.color.fg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                     }
 
                     Row {
-                        spacing: Theme.spacing.launcherContentGap
+                        spacing: QubiTheme.spacing.launcherContentGap
 
                         Repeater {
                             model: permissionBanner.visible ? (ChatState.pendingPermission.params?.options ?? []) : []
 
                             delegate: Rectangle {
                                 required property var modelData
-                                width: optionLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                                height: Theme.spacing.themePillHeight
+                                width: optionLabel.implicitWidth + QubiTheme.spacing.themePillPadX * 2
+                                height: QubiTheme.spacing.themePillHeight
                                 radius: height / 2
-                                color: Theme.color.launcherItemSelectedBg
-                                border.width: Theme.spacing.borderHairline
-                                border.color: Theme.color.launcherInputBorder
+                                color: QubiTheme.color.launcherItemSelectedBg
+                                border.width: QubiTheme.spacing.borderHairline
+                                border.color: QubiTheme.color.launcherInputBorder
 
                                 Text {
                                     id: optionLabel
                                     anchors.centerIn: parent
                                     text: modelData.name
-                                    color: Theme.color.fg
-                                    font.family: Theme.font.family
-                                    font.pixelSize: Theme.font.sizeSmall
+                                    color: QubiTheme.color.fg
+                                    font.family: QubiTheme.font.family
+                                    font.pixelSize: QubiTheme.font.sizeSmall
                                 }
 
                                 MouseArea {
@@ -1057,14 +1057,14 @@ PanelWindow {
                     bottom: activityStrip.top
                     left: parent.left
                     right: parent.right
-                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                    bottomMargin: visible ? QubiTheme.spacing.launcherContentGap : 0
                 }
                 height: visible ? implicitHeight : 0
-                implicitHeight: escalationColumn.implicitHeight + Theme.spacing.launcherContentGap
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.accentPurple
+                implicitHeight: escalationColumn.implicitHeight + QubiTheme.spacing.launcherContentGap
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.accentPurple
 
                 Column {
                     id: escalationColumn
@@ -1072,21 +1072,21 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         verticalCenter: parent.verticalCenter
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
-                    spacing: Theme.spacing.launcherContentGap / 2
+                    spacing: QubiTheme.spacing.launcherContentGap / 2
 
                     Text {
                         width: parent.width
                         text: escalationBanner.visible ? `qubi wants a bigger model: ${ChatState.pendingEscalation.reason ?? ""}` : ""
                         wrapMode: Text.Wrap
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: QubiTheme.color.fg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                     }
 
                     Row {
-                        spacing: Theme.spacing.launcherContentGap
+                        spacing: QubiTheme.spacing.launcherContentGap
 
                         Repeater {
                             // Real option ids from escalate.py/qubi_engine.py's
@@ -1099,20 +1099,20 @@ PanelWindow {
 
                             delegate: Rectangle {
                                 required property var modelData
-                                width: escalationOptionLabel.implicitWidth + Theme.spacing.themePillPadX * 2
-                                height: Theme.spacing.themePillHeight
+                                width: escalationOptionLabel.implicitWidth + QubiTheme.spacing.themePillPadX * 2
+                                height: QubiTheme.spacing.themePillHeight
                                 radius: height / 2
-                                color: Theme.color.launcherItemSelectedBg
-                                border.width: Theme.spacing.borderHairline
-                                border.color: Theme.color.launcherInputBorder
+                                color: QubiTheme.color.launcherItemSelectedBg
+                                border.width: QubiTheme.spacing.borderHairline
+                                border.color: QubiTheme.color.launcherInputBorder
 
                                 Text {
                                     id: escalationOptionLabel
                                     anchors.centerIn: parent
                                     text: modelData.name
-                                    color: Theme.color.fg
-                                    font.family: Theme.font.family
-                                    font.pixelSize: Theme.font.sizeSmall
+                                    color: QubiTheme.color.fg
+                                    font.family: QubiTheme.font.family
+                                    font.pixelSize: QubiTheme.font.sizeSmall
                                 }
 
                                 MouseArea {
@@ -1137,13 +1137,13 @@ PanelWindow {
                     left: parent.left
                     right: parent.right
                     bottom: turnActions.top
-                    bottomMargin: Theme.spacing.launcherContentGap / 2
+                    bottomMargin: QubiTheme.spacing.launcherContentGap / 2
                 }
-                height: visible ? slashColumn.implicitHeight + Theme.spacing.launcherContentGap : 0
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: visible ? slashColumn.implicitHeight + QubiTheme.spacing.launcherContentGap : 0
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 Column {
                     id: slashColumn
@@ -1159,31 +1159,31 @@ PanelWindow {
                         delegate: Rectangle {
                             required property var modelData
                             width: parent.width
-                            height: Theme.spacing.launcherRowHeight
-                            color: slashRowArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                            height: QubiTheme.spacing.launcherRowHeight
+                            color: slashRowArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                             Text {
                                 anchors {
                                     left: parent.left
                                     verticalCenter: parent.verticalCenter
-                                    leftMargin: Theme.spacing.launcherRowInset
+                                    leftMargin: QubiTheme.spacing.launcherRowInset
                                 }
                                 text: parent.modelData.name
-                                color: Theme.color.accentPurple
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.accentPurple
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
 
                             Text {
                                 anchors {
                                     right: parent.right
                                     verticalCenter: parent.verticalCenter
-                                    rightMargin: Theme.spacing.launcherRowInset
+                                    rightMargin: QubiTheme.spacing.launcherRowInset
                                 }
                                 text: parent.modelData.help
-                                color: Theme.color.launcherPlaceholderFg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.launcherPlaceholderFg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
 
                             MouseArea {
@@ -1207,18 +1207,18 @@ PanelWindow {
                 anchors {
                     bottom: inputBox.top
                     right: parent.right
-                    bottomMargin: height > 0 ? Theme.spacing.launcherContentGap / 2 : 0
+                    bottomMargin: height > 0 ? QubiTheme.spacing.launcherContentGap / 2 : 0
                 }
-                height: (regenButton.visible || stopButton.visible) ? Theme.font.sizeSmall + 4 : 0
-                spacing: Theme.spacing.launcherContentGap
+                height: (regenButton.visible || stopButton.visible) ? QubiTheme.font.sizeSmall + 4 : 0
+                spacing: QubiTheme.spacing.launcherContentGap
 
                 Text {
                     id: regenButton
                     visible: !GooseAcpSession.busy && ChatState.messages.length > 0
                     text: "regenerate"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                     font.underline: regenArea.containsMouse
 
                     MouseArea {
@@ -1233,9 +1233,9 @@ PanelWindow {
                     id: stopButton
                     visible: GooseAcpSession.busy
                     text: "stop"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                     font.underline: stopArea.containsMouse
 
                     MouseArea {
@@ -1263,14 +1263,14 @@ PanelWindow {
                     bottom: inputBox.top
                     left: parent.left
                     right: parent.right
-                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                    bottomMargin: visible ? QubiTheme.spacing.launcherContentGap : 0
                 }
                 height: visible ? implicitHeight : 0
-                implicitHeight: activityColumn.implicitHeight + Theme.spacing.launcherContentGap
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.accentPurple
+                implicitHeight: activityColumn.implicitHeight + QubiTheme.spacing.launcherContentGap
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.accentPurple
 
                 readonly property string label: {
                     if (GooseAcpSession.engineUnavailable)
@@ -1301,12 +1301,12 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         top: parent.top
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
-                    spacing: Theme.spacing.sessionMetaGap
+                    spacing: QubiTheme.spacing.sessionMetaGap
 
                     Row {
-                        spacing: Theme.spacing.launcherIconLabelGap
+                        spacing: QubiTheme.spacing.launcherIconLabelGap
 
                         // Pure-QML spinner: no image asset, no layer, and it
                         // stops dead when the strip is hidden so an idle
@@ -1317,7 +1317,7 @@ PanelWindow {
                             height: 8
                             radius: 4
                             anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.color.accentPurple
+                            color: QubiTheme.color.accentPurple
 
                             SequentialAnimation on opacity {
                                 running: activityStrip.visible
@@ -1338,9 +1338,9 @@ PanelWindow {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: GooseAcpSession.engineUnavailable ? activityStrip.label : `${activityStrip.label} · ${GooseAcpSession.currentTier}`
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.fg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
                     }
 
@@ -1355,9 +1355,9 @@ PanelWindow {
                         elide: Text.ElideRight
                         maximumLineCount: 2
                         wrapMode: Text.Wrap
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                     }
                 }
             }
@@ -1370,44 +1370,44 @@ PanelWindow {
                     bottom: statusBar.top
                     left: parent.left
                     right: parent.right
-                    bottomMargin: Theme.spacing.launcherContentGap
+                    bottomMargin: QubiTheme.spacing.launcherContentGap
                 }
                 height: textFieldBg.height
 
-                readonly property int minHeight: Theme.spacing.chatComposerHeight
-                readonly property int maxHeight: Theme.spacing.chatComposerMaxHeight
+                readonly property int minHeight: QubiTheme.spacing.chatComposerHeight
+                readonly property int maxHeight: QubiTheme.spacing.chatComposerMaxHeight
 
                 Rectangle {
                     id: textFieldBg
                     anchors {
                         left: parent.left
                         right: buttonRow.left
-                        rightMargin: Theme.spacing.themePillGap
+                        rightMargin: QubiTheme.spacing.themePillGap
                         bottom: parent.bottom
                     }
                     // Driven only by the text's own content height, never
                     // by anything that depends back on this height -- an
                     // Item's height defaults to its implicitHeight, so a
                     // two-way binding here would be a real loop.
-                    height: Math.max(inputBox.minHeight, Math.min(inputBox.maxHeight, chatInput.implicitHeight + Theme.spacing.launcherInputTextInset * 2))
-                    radius: Theme.radius.input
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: GooseAcpSession.busy ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+                    height: Math.max(inputBox.minHeight, Math.min(inputBox.maxHeight, chatInput.implicitHeight + QubiTheme.spacing.launcherInputTextInset * 2))
+                    radius: QubiTheme.radius.input
+                    color: QubiTheme.color.launcherInputBg
+                    border.width: QubiTheme.spacing.borderHairline
+                    border.color: GooseAcpSession.busy ? QubiTheme.color.accentPurple : QubiTheme.color.launcherInputBorder
                     clip: true
 
                     Text {
                         visible: chatInput.text.length === 0
                         anchors {
                             left: parent.left
-                            leftMargin: Theme.spacing.launcherInputTextInset
+                            leftMargin: QubiTheme.spacing.launcherInputTextInset
                             top: parent.top
-                            topMargin: Theme.spacing.launcherInputTextInset
+                            topMargin: QubiTheme.spacing.launcherInputTextInset
                         }
                         text: !GooseAcpSession.sessionReady ? "starting qubi…" : GooseAcpSession.busy ? "qubi is thinking…" : "message qubi…"
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
                     }
 
                     // TextEdit, not TextInput: multiline with wrapping, the
@@ -1418,17 +1418,17 @@ PanelWindow {
                         anchors {
                             left: parent.left
                             right: parent.right
-                            leftMargin: Theme.spacing.launcherInputTextInset
-                            rightMargin: Theme.spacing.launcherInputTextInset
+                            leftMargin: QubiTheme.spacing.launcherInputTextInset
+                            rightMargin: QubiTheme.spacing.launcherInputTextInset
                         }
                         // Scrolls to the newest line once the box has hit
                         // its cap, instead of growing off the top edge.
-                        y: Math.min(Theme.spacing.launcherInputTextInset, textFieldBg.height - Theme.spacing.launcherInputTextInset - implicitHeight)
+                        y: Math.min(QubiTheme.spacing.launcherInputTextInset, textFieldBg.height - QubiTheme.spacing.launcherInputTextInset - implicitHeight)
                         height: implicitHeight
                         wrapMode: TextEdit.Wrap
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeBase
+                        color: QubiTheme.color.fg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeBase
 
                         Keys.onEscapePressed: ChatState.hide()
 
@@ -1462,29 +1462,29 @@ PanelWindow {
                     anchors {
                         right: parent.right
                         bottom: parent.bottom
-                        bottomMargin: (inputBox.minHeight - Theme.spacing.chatSendSize) / 2
+                        bottomMargin: (inputBox.minHeight - QubiTheme.spacing.chatSendSize) / 2
                     }
-                    spacing: Theme.spacing.themePillGap / 2
+                    spacing: QubiTheme.spacing.themePillGap / 2
 
                     // Hold to talk: records while held, transcribes on
                     // release into the composer for review. Deliberately
                     // does NOT send -- see PushToTalk.qml.
                     Rectangle {
                         id: micButton
-                        width: Theme.spacing.chatSendSize
-                        height: Theme.spacing.chatSendSize
-                        radius: Theme.radius.input
-                        color: pushToTalk.recording ? Theme.color.accentPink : (micArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent")
-                        border.width: Theme.spacing.borderHairline
-                        border.color: pushToTalk.recording ? Theme.color.accentPink : Theme.color.launcherInputBorder
+                        width: QubiTheme.spacing.chatSendSize
+                        height: QubiTheme.spacing.chatSendSize
+                        radius: QubiTheme.radius.input
+                        color: pushToTalk.recording ? QubiTheme.color.accentPink : (micArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent")
+                        border.width: QubiTheme.spacing.borderHairline
+                        border.color: pushToTalk.recording ? QubiTheme.color.accentPink : QubiTheme.color.launcherInputBorder
 
                         Text {
                             anchors.centerIn: parent
                             text: "󰍬"
                             renderType: Text.NativeRendering
-                            color: pushToTalk.recording ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeBase
+                            color: pushToTalk.recording ? QubiTheme.color.launcherBg : QubiTheme.color.launcherPlaceholderFg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeBase
                         }
 
                         MouseArea {
@@ -1504,20 +1504,20 @@ PanelWindow {
                     // Full spoken conversation mode (the old SUPER+O).
                     Rectangle {
                         id: convoButton
-                        width: Theme.spacing.chatSendSize
-                        height: Theme.spacing.chatSendSize
-                        radius: Theme.radius.input
-                        color: convoArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
-                        border.width: Theme.spacing.borderHairline
-                        border.color: Theme.color.launcherInputBorder
+                        width: QubiTheme.spacing.chatSendSize
+                        height: QubiTheme.spacing.chatSendSize
+                        radius: QubiTheme.radius.input
+                        color: convoArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
+                        border.width: QubiTheme.spacing.borderHairline
+                        border.color: QubiTheme.color.launcherInputBorder
 
                         Text {
                             anchors.centerIn: parent
                             text: "󰍩"
                             renderType: Text.NativeRendering
-                            color: Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeBase
+                            color: QubiTheme.color.launcherPlaceholderFg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeBase
                         }
 
                         MouseArea {
@@ -1533,19 +1533,19 @@ PanelWindow {
 
                     Rectangle {
                         id: sendButton
-                        width: Theme.spacing.chatSendSize
-                        height: Theme.spacing.chatSendSize
-                        radius: Theme.radius.input
-                        color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBg
-                        border.width: Theme.spacing.borderHairline
-                        border.color: chatInput.text.length > 0 ? Theme.color.accentPurple : Theme.color.launcherInputBorder
+                        width: QubiTheme.spacing.chatSendSize
+                        height: QubiTheme.spacing.chatSendSize
+                        radius: QubiTheme.radius.input
+                        color: chatInput.text.length > 0 ? QubiTheme.color.accentPurple : QubiTheme.color.launcherInputBg
+                        border.width: QubiTheme.spacing.borderHairline
+                        border.color: chatInput.text.length > 0 ? QubiTheme.color.accentPurple : QubiTheme.color.launcherInputBorder
 
                         Text {
                             anchors.centerIn: parent
                             text: "⏎"
-                            color: chatInput.text.length > 0 ? Theme.color.launcherBg : Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeBase
+                            color: chatInput.text.length > 0 ? QubiTheme.color.launcherBg : QubiTheme.color.launcherPlaceholderFg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeBase
                             font.bold: true
                         }
 
@@ -1602,7 +1602,7 @@ PanelWindow {
                     left: parent.left
                     right: parent.right
                 }
-                height: Theme.spacing.chatStatusHeight
+                height: QubiTheme.spacing.chatStatusHeight
 
                 Text {
                     id: mcpLabel
@@ -1611,9 +1611,9 @@ PanelWindow {
                         verticalCenter: parent.verticalCenter
                     }
                     text: `⚙ ${ExtensionsState.enabledCount} MCP`
-                    color: mcpArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: mcpArea.containsMouse ? QubiTheme.color.fg : QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
 
                     MouseArea {
                         id: mcpArea
@@ -1647,9 +1647,9 @@ PanelWindow {
                         const tokenPart = tokens > 0 ? ` · ${tokens >= 1000 ? (tokens / 1000).toFixed(1) + "k" : tokens}` : "";
                         return `${label}${model.length > 0 ? " · " + model : ""}${tokenPart}`;
                     }
-                    color: tierArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: tierArea.containsMouse ? QubiTheme.color.fg : QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
 
                     MouseArea {
                         id: tierArea
@@ -1670,14 +1670,14 @@ PanelWindow {
                 anchors {
                     top: headerRow.bottom
                     left: parent.left
-                    topMargin: Theme.spacing.launcherContentGap / 2
+                    topMargin: QubiTheme.spacing.launcherContentGap / 2
                 }
-                width: Theme.spacing.chatTierPickerWidth
-                height: featureMenuColumn.implicitHeight + Theme.spacing.launcherContentGap
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                width: QubiTheme.spacing.chatTierPickerWidth
+                height: featureMenuColumn.implicitHeight + QubiTheme.spacing.launcherContentGap
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
                 // Floats over the message list, which is not itself a
                 // MouseArea-blocking layer -- without an explicit stacking
                 // order the menu could render behind later-declared
@@ -1699,22 +1699,22 @@ PanelWindow {
                             id: menuRow
                             required property var modelData
                             width: parent.width
-                            height: Theme.spacing.launcherRowHeight
-                            color: menuArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                            height: QubiTheme.spacing.launcherRowHeight
+                            color: menuArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                             Text {
                                 anchors {
                                     left: parent.left
                                     right: parent.right
                                     verticalCenter: parent.verticalCenter
-                                    leftMargin: Theme.spacing.launcherRowInset
-                                    rightMargin: Theme.spacing.launcherRowInset
+                                    leftMargin: QubiTheme.spacing.launcherRowInset
+                                    rightMargin: QubiTheme.spacing.launcherRowInset
                                 }
                                 text: menuRow.modelData.label
                                 elide: Text.ElideRight
-                                color: Theme.color.fg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.fg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
 
                             MouseArea {
@@ -1739,14 +1739,14 @@ PanelWindow {
                 anchors {
                     right: parent.right
                     bottom: statusBar.top
-                    bottomMargin: Theme.spacing.launcherContentGap / 2
+                    bottomMargin: QubiTheme.spacing.launcherContentGap / 2
                 }
-                width: Theme.spacing.chatTierPickerWidth
-                height: tierColumn.implicitHeight + Theme.spacing.launcherContentGap
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                width: QubiTheme.spacing.chatTierPickerWidth
+                height: tierColumn.implicitHeight + QubiTheme.spacing.launcherContentGap
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 Column {
                     id: tierColumn
@@ -1775,22 +1775,22 @@ PanelWindow {
                         delegate: Rectangle {
                             required property string modelData
                             width: parent.width
-                            height: Theme.spacing.launcherRowHeight
-                            color: modelData === GooseAcpSession.currentTier ? Theme.color.launcherItemSelectedBg : "transparent"
+                            height: QubiTheme.spacing.launcherRowHeight
+                            color: modelData === GooseAcpSession.currentTier ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                             Text {
                                 anchors {
                                     left: parent.left
                                     right: parent.right
                                     verticalCenter: parent.verticalCenter
-                                    leftMargin: Theme.spacing.launcherRowInset
-                                    rightMargin: Theme.spacing.launcherRowInset
+                                    leftMargin: QubiTheme.spacing.launcherRowInset
+                                    rightMargin: QubiTheme.spacing.launcherRowInset
                                 }
                                 text: `${parent.modelData} · ${GooseAcpSession.tierModels[parent.modelData] ?? "?"}`
                                 elide: Text.ElideRight
-                                color: Theme.color.fg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.fg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
 
                             MouseArea {
@@ -1806,29 +1806,29 @@ PanelWindow {
                     // a tier points AT, or install something new.
                     Rectangle {
                         width: parent.width
-                        height: Theme.spacing.borderHairline
-                        color: Theme.color.launcherBorder
+                        height: QubiTheme.spacing.borderHairline
+                        color: QubiTheme.color.launcherBorder
                     }
 
                     Rectangle {
                         id: moreModelsRow
                         width: parent.width
-                        height: Theme.spacing.launcherRowHeight
-                        color: moreModelsArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                        height: QubiTheme.spacing.launcherRowHeight
+                        color: moreModelsArea.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                         Text {
                             anchors {
                                 left: parent.left
                                 right: parent.right
                                 verticalCenter: parent.verticalCenter
-                                leftMargin: Theme.spacing.launcherRowInset
-                                rightMargin: Theme.spacing.launcherRowInset
+                                leftMargin: QubiTheme.spacing.launcherRowInset
+                                rightMargin: QubiTheme.spacing.launcherRowInset
                             }
                             text: "⊕  more models…"
                             elide: Text.ElideRight
-                            color: Theme.color.accentPurple
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.accentPurple
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
 
                         MouseArea {

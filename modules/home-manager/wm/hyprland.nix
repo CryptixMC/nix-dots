@@ -383,7 +383,7 @@ in
           # Theme registry (quickshell/theme/, see the theme-registry
           # migration): cycles the active theme live via IPC, no restart.
           (mkExecBind "${mainMod} + T" "quickshell ipc -p ~/nix-dots/quickshell call theme next")
-          # Chat overlay (quickshell/modules/chat/, see TODO.md's Phase 3
+          # Chat overlay (quickshell/modules/qubi/qml/chat/, see TODO.md's Phase 3
           # section): talks to the `goose` CLI, same IPC-toggle convention
           # as the launcher/theme binds above. D is the primary bind per
           # user request; K kept as an existing-habit alias, both toggle
@@ -403,16 +403,16 @@ in
           # Reserved for parallel agent branches (not built yet — confirmed
           # each target/function fails gracefully today, "Target not
           # found."/"Function not found.", exit 0):
-          # clipboard-transform picker (quickshell/modules/clipboard/).
+          # clipboard-transform picker (quickshell/modules/qubi/qml/clipboard/).
           # SUPER+X was already taken by the extensions manager above, so
           # this one deliberately uses U instead (bare U was unused; SHIFT+U
           # is the eGPU-eject bind below).
           (mkExecBind "${mainMod} + U" "quickshell ipc -p ~/nix-dots/quickshell call clipboard transform")
-          # screen-context capture (quickshell/modules/screenctx/).
+          # screen-context capture (quickshell/modules/qubi/qml/screenctx/).
           (mkExecBind "${mainMod} + I" "quickshell ipc -p ~/nix-dots/quickshell call screenctx capture")
-          # research -> TODO capture (quickshell/modules/notes/).
+          # research -> TODO capture (quickshell/modules/qubi/qml/notes/).
           (mkExecBind "${mainMod} + N" "quickshell ipc -p ~/nix-dots/quickshell call notes capture")
-          # voice conversation mode (quickshell/modules/voice/), straight
+          # voice conversation mode (quickshell/modules/qubi/qml/voice/), straight
           # into the full-screen overlay -- previously only reachable by
           # opening the chat panel first and clicking its mic button. Reuses
           # the same "voice toggle" IPC target the mic button and /voice
@@ -423,7 +423,7 @@ in
           # is a spoken back-and-forth where turnaround matters more than a
           # reasoning trace nobody sees.
           #
-          # side-by-side model comparison (quickshell/modules/chat/
+          # side-by-side model comparison (quickshell/modules/qubi/qml/chat/
           # ChatCompare.qml) lost this keybind slot to voice above; it's
           # still reachable from the chat panel's hamburger menu
           # (featureMenuItems in ChatOverlay.qml), and its own IPC target

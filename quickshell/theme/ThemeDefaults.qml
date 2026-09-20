@@ -34,33 +34,7 @@ QtObject {
             gameCardWidth: 140, gameCardImageHeight: 140, gameCardGap: 12, gameSectionGap: 18,
             gameRecommendedRowHeight: 210, gameGridRowHeight: 230, gameSectionHeaderGap: 8,
             fileTreeWidth: 220, fileTreeRowHeight: 28, fileGridCellSize: 92, fileGridGap: 12,
-            fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120,
-            sessionListWidth: 340, sessionRowHeight: 52, sessionRowPadX: 12, sessionRowGap: 4,
-            sessionMetaGap: 4, sessionPreviewPad: 16,
-            modelbrowserCardWidth: 200, modelbrowserCardHeight: 120, modelbrowserCardGap: 12,
-            modelbrowserGridPad: 4, modelbrowserProgressHeight: 6,
-            chatPanelWidth: 440, chatHeaderHeight: 44, chatCloseSize: 24,
-            chatBubbleMaxWidth: 340, chatComposerHeight: 44, chatSendSize: 32,
-            // chatStatusHeight: the bottom bar carrying the MCP count and
-            // the tier/model/token readout. Shorter than a row since it's
-            // sizeSmall text only, no touch target.
-            chatStatusHeight: 20, chatTierPickerWidth: 220,
-            // Composer grows with the text up to this cap (~5 lines),
-            // then pins to the newest line rather than growing further.
-            chatComposerMaxHeight: 140,
-            // Reserved for parallel agent branches — placeholder values only,
-            // each branch should replace these with its own real layout
-            // constants rather than repurpose them as-is.
-            clipboardPanelWidth: 320, clipboardRowHeight: 34,
-            screenctxPanelWidth: 320, screenctxRowHeight: 34,
-            voicePanelWidth: 320, voiceRowHeight: 34,
-            // Sized generously so the waveform's max possible bar height
-            // (see VoiceOverlay.qml's amplitude formula) can never exceed
-            // these bounds -- the previous single-blob design's real bug
-            // was a radius formula that could exceed its own canvas size.
-            voiceWaveformWidth: 420, voiceWaveformHeight: 200,
-            notesPanelWidth: 320, notesRowHeight: 34,
-            comparePanelWidth: 640, compareColumnGap: 12
+            fileBreadcrumbHeight: 24, fileOutsideListMaxHeight: 120
         },
         font: { family: "JetBrainsMono Nerd Font Mono", sizeBase: 13, sizeSmall: 11, sizeWorkspace: 12, weightBold: true },
         motion: {
@@ -70,12 +44,7 @@ QtObject {
             // actual default-timeout value, not an edge case.
             toastTimeoutMs: 8000,
             hoverColor: { duration: 180, easing: "OutQuad" },
-            criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 },
-            // Doubles as ChatOverlay's unmap delay (its closeTimer uses this
-            // same value), so this number IS the perceived close latency —
-            // the fullscreen layer surface stays mapped this long after you
-            // hit close. 220ms read as sluggish; 140 still reads as motion.
-            chatSlide: { duration: 140, easing: "OutCubic" }
+            criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 }
         },
         effect: { popupElevated: false, popupShadowColor: "transparent", popupShadowOffset: 0 },
         wallpaper: { engine: "static", image: "alyssa.png" }
@@ -178,8 +147,7 @@ QtObject {
     function build(base16, manifest, componentOverrides, themeDir, availableWallpapers) {
         const shape = root.deepMerge(root.baseline, manifest ?? ({}));
         shape.motion = Object.assign({}, shape.motion, {
-            hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) }),
-            chatSlide: Object.assign({}, shape.motion.chatSlide, { easing: root.resolveEasing(shape.motion.chatSlide.easing) })
+            hoverColor: Object.assign({}, shape.motion.hoverColor, { easing: root.resolveEasing(shape.motion.hoverColor.easing) })
         });
         return {
             // Raw base16 hex values, passed through unmodified — Theme.color
@@ -194,6 +162,10 @@ QtObject {
             font: shape.font,
             motion: shape.motion,
             effect: shape.effect,
+            // Opaque pass-through of a theme.json's optional `qubi` key: Qubi's
+            // own tokens (modules/qubi/qml/core/QubiTheme.qml) live in its
+            // tree, not in the baseline above; a theme overrides them here.
+            qubi: shape.qubi ?? ({}),
             // `available` is every plain image/gif file under wallpapers/
             // (the Themes tab's picker) — distinct from engine/image/gif/
             // shader below, which is just the one theme.json declares as

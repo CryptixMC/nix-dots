@@ -1,0 +1,5 @@
+singleton QubiTheme 1.0 QubiTheme.qml
+singleton QubiConfig 1.0 QubiConfig.qml
+singleton GooseAcpSession 1.0 GooseAcpSession.qml
+singleton ChatState 1.0 ChatState.qml
+SessionSync 1.0 SessionSync.qml

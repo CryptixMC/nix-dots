@@ -32,6 +32,7 @@ Item {
     readonly property var font: root.current.font
     readonly property var motion: root.current.motion
     readonly property var effect: root.current.effect
+    readonly property var qubi: root.current.qubi ?? ({})
     // Resolves a user-picked wallpaper override (Themes tab, via
     // ThemeState.setWallpaperOverride) ahead of the theme's own theme.json-
     // declared default. Engine is inferred from the override filename's

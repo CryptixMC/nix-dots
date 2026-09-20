@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../core"
 
 // Show/hide state + the parsed extensions list for the extensions/MCP
 // manager, and the source of the chat panel's MCP status indicator.
@@ -24,7 +25,7 @@ import Quickshell.Io
 QtObject {
     id: root
 
-    readonly property string configPath: `${Quickshell.env("HOME")}/.config/goose/config.yaml`
+    readonly property string configPath: QubiConfig.gooseConfigPath
 
     property bool visible: false
     property var extensions: []

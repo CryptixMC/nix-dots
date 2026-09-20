@@ -3,8 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Pipewire
-import "../../theme"
-import "../chat"
+import "../core"
 
 // SUPER+O: full-screen voice conversation overlay. Continuous listening
 // (energy-threshold voice activity detection on the live mic peak, no
@@ -260,8 +259,8 @@ PanelWindow {
     Item {
         id: waveform
         anchors.centerIn: parent
-        width: Theme.spacing.voiceWaveformWidth
-        height: Theme.spacing.voiceWaveformHeight
+        width: QubiTheme.spacing.voiceWaveformWidth
+        height: QubiTheme.spacing.voiceWaveformHeight
 
         readonly property int barCount: 28
         readonly property real barSpacing: 5
@@ -287,11 +286,11 @@ PanelWindow {
                     height: targetHeight
                     anchors.verticalCenter: parent.verticalCenter
                     color: {
-                        const c = Theme.color.accentPurple;
+                        const c = QubiTheme.color.accentPurple;
                         if (VoiceState.phase === "speaking")
                             return c;
                         if (VoiceState.phase === "recording")
-                            return Theme.color.accentPink;
+                            return QubiTheme.color.accentPink;
                         return Qt.rgba(c.r, c.g, c.b, 0.5);
                     }
 
@@ -337,7 +336,7 @@ PanelWindow {
         anchors {
             top: waveform.bottom
             horizontalCenter: waveform.horizontalCenter
-            topMargin: Theme.spacing.launcherContentGap
+            topMargin: QubiTheme.spacing.launcherContentGap
         }
         text: {
             switch (VoiceState.phase) {
@@ -349,9 +348,9 @@ PanelWindow {
             default: return "";
             }
         }
-        color: Theme.color.launcherPlaceholderFg
-        font.family: Theme.font.family
-        font.pixelSize: Theme.font.sizeBase
+        color: QubiTheme.color.launcherPlaceholderFg
+        font.family: QubiTheme.font.family
+        font.pixelSize: QubiTheme.font.sizeBase
     }
 
     Text {
@@ -363,8 +362,8 @@ PanelWindow {
         visible: VoiceState.errorMessage.length > 0
         text: VoiceState.errorMessage
         color: "#f38ba8"
-        font.family: Theme.font.family
-        font.pixelSize: Theme.font.sizeSmall
+        font.family: QubiTheme.font.family
+        font.pixelSize: QubiTheme.font.sizeSmall
         wrapMode: Text.WordWrap
         width: 400
         horizontalAlignment: Text.AlignHCenter
@@ -377,8 +376,8 @@ PanelWindow {
             horizontalCenter: parent.horizontalCenter
             bottomMargin: 60
         }
-        width: Theme.spacing.voicePanelWidth + 200
-        spacing: Theme.spacing.voiceRowHeight * 0.2
+        width: QubiTheme.spacing.voicePanelWidth + 200
+        spacing: QubiTheme.spacing.voiceRowHeight * 0.2
 
         Repeater {
             model: VoiceState.transcript.slice(-6)
@@ -388,9 +387,9 @@ PanelWindow {
                 horizontalAlignment: modelData.role === "user" ? Text.AlignRight : Text.AlignLeft
                 text: modelData.text
                 wrapMode: Text.WordWrap
-                color: modelData.role === "user" ? Theme.color.fg : Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: modelData.role === "user" ? QubiTheme.color.fg : QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
         }
 
@@ -402,9 +401,9 @@ PanelWindow {
                 const l = VoiceState.lastLatency;
                 return `record ${l.recordMs ?? 0}ms · transcribe ${l.transcribeMs ?? 0}ms · think ${l.llmMs ?? 0}ms · speak ${l.speakMs ?? 0}ms`;
             }
-            color: Theme.color.launcherPlaceholderFg
-            font.family: Theme.font.family
-            font.pixelSize: Theme.font.sizeSmall
+            color: QubiTheme.color.launcherPlaceholderFg
+            font.family: QubiTheme.font.family
+            font.pixelSize: QubiTheme.font.sizeSmall
             font.italic: true
         }
     }

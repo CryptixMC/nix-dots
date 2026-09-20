@@ -42,8 +42,8 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string defaultCwd: "/home/cryptix/nix-dots"
-    readonly property string _engineSocketPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/run/user/1000") + "/qubi/engine.sock"
+    readonly property string defaultCwd: QubiConfig.defaultCwd
+    readonly property string _engineSocketPath: QubiConfig.socketPath
 
     property bool initialized: false
     property string sessionId: ""

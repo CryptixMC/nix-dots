@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // Surfaces ask-user MCP tool calls (mcp-servers/ask_user.py) as a real
 // blocking on-screen dialog. Structural cousin of ClipboardTransform.qml.
@@ -35,7 +35,7 @@ PanelWindow {
 
     Process {
         id: readRequestProcess
-        command: ["cat", `${Quickshell.env("HOME")}/.local/share/qubi/ask-user/request-${root._requestId}.json`]
+        command: ["cat", `${QubiConfig.askUserDir}/request-${root._requestId}.json`]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -80,13 +80,13 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.clipboardPanelWidth
-        implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY * 2
+        width: QubiTheme.spacing.clipboardPanelWidth
+        implicitHeight: content.implicitHeight + QubiTheme.spacing.launcherPanelPadY * 2
         height: Math.min(implicitHeight, parent.height * 0.8)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -98,25 +98,25 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Text {
                 width: parent.width
                 text: "Qubi is asking…"
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
 
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 text: AskUserState.question
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeBase
                 font.bold: true
             }
 
@@ -130,22 +130,22 @@ PanelWindow {
                         id: optRow
                         required property string modelData
                         width: content.width
-                        height: Theme.spacing.clipboardRowHeight
-                        radius: Theme.radius.input
-                        color: optMouse.containsMouse ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg
-                        border.width: Theme.spacing.borderHairline
-                        border.color: Theme.color.launcherInputBorder
+                        height: QubiTheme.spacing.clipboardRowHeight
+                        radius: QubiTheme.radius.input
+                        color: optMouse.containsMouse ? QubiTheme.color.launcherItemSelectedBg : QubiTheme.color.launcherInputBg
+                        border.width: QubiTheme.spacing.borderHairline
+                        border.color: QubiTheme.color.launcherInputBorder
 
                         Text {
                             anchors {
                                 left: parent.left
                                 verticalCenter: parent.verticalCenter
-                                margins: Theme.spacing.launcherRowInset
+                                margins: QubiTheme.spacing.launcherRowInset
                             }
                             text: optRow.modelData
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.fg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
 
                         MouseArea {
@@ -160,35 +160,35 @@ PanelWindow {
 
             Rectangle {
                 width: parent.width
-                height: Theme.spacing.launcherInputHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: QubiTheme.spacing.launcherInputHeight
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
                 visible: AskUserState.allowFreeText
 
                 Text {
                     visible: freeTextInput.text.length === 0
                     anchors {
                         left: parent.left
-                        leftMargin: Theme.spacing.launcherRowInset
+                        leftMargin: QubiTheme.spacing.launcherRowInset
                         verticalCenter: parent.verticalCenter
                     }
                     text: "Type an answer…"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                 }
 
                 TextInput {
                     id: freeTextInput
                     anchors {
                         fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
 
                     Keys.onEscapePressed: AskUserState.reset()
                     onAccepted: if (text.length > 0) root.respond(text)

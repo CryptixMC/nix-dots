@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // Extensions/MCP manager — list config.yaml's registered extensions,
 // toggle enabled/disabled, add a new stdio MCP server through a form.
@@ -19,7 +19,7 @@ import "../../theme"
 PanelWindow {
     id: root
 
-    readonly property string configPath: `${Quickshell.env("HOME")}/.config/goose/config.yaml`
+    readonly property string configPath: QubiConfig.gooseConfigPath
 
     screen: Quickshell.screens[0] ?? null
     visible: ExtensionsState.visible
@@ -79,12 +79,12 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.launcherWidthWide
+        width: QubiTheme.spacing.launcherWidthWide
         height: Math.min(parent.height * 0.75, 720)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -93,15 +93,15 @@ PanelWindow {
         Column {
             anchors {
                 fill: parent
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Text {
                 text: ExtensionsState.loading ? "loading extensions…" : `${ExtensionsState.extensions.length} extensions`
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
 
             ListView {
@@ -114,34 +114,34 @@ PanelWindow {
                     required property var modelData
                     width: ListView.view.width
                     height: 40
-                    radius: Theme.radius.input
-                    color: Theme.color.launcherInputBg
+                    radius: QubiTheme.radius.input
+                    color: QubiTheme.color.launcherInputBg
 
                     Row {
                         anchors.left: parent.left
-                        anchors.leftMargin: Theme.spacing.launcherRowInset
+                        anchors.leftMargin: QubiTheme.spacing.launcherRowInset
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 8
 
                         Text {
                             text: modelData.display_name
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.fg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
 
                         Text {
                             text: modelData.type
-                            color: Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.launcherPlaceholderFg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
 
                         Text {
                             text: modelData.enabled ? "enabled" : "disabled"
-                            color: modelData.enabled ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: modelData.enabled ? QubiTheme.color.accentPurple : QubiTheme.color.launcherPlaceholderFg
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                         }
                     }
 

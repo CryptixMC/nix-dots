@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../core"
 
 // A single independent `goose acp` process, for the side-by-side compare
 // view (ChatCompare.qml instantiates two of these). Deliberately NOT
@@ -22,7 +23,7 @@ Item {
 
     property string provider: "ollama"
     property string model: ""
-    readonly property string defaultCwd: "/home/cryptix/nix-dots"
+    readonly property string defaultCwd: QubiConfig.defaultCwd
 
     property bool sessionReady: false
     property bool busy: false

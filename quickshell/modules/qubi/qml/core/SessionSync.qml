@@ -22,7 +22,7 @@ Item {
 
     required property string sessionId
 
-    readonly property string dbPath: `${Quickshell.env("HOME")}/.local/share/goose/sessions/sessions.db`
+    readonly property string dbPath: QubiConfig.sessionsDbPath
     property int pollIntervalMs: 3000
 
     // Highest messages.id already accounted for. The cursor is the row id,

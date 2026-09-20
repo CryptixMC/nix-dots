@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // SUPER+SHIFT+D: side-by-side model compare, two fully independent
 // `goose acp` processes (GooseAcpPane.qml, new/own file -- see its header
@@ -73,10 +73,10 @@ PanelWindow {
         anchors.centerIn: parent
         width: Math.min(parent.width * 0.85, 1100)
         height: Math.min(parent.height * 0.85, 700)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -85,35 +85,35 @@ PanelWindow {
         Column {
             anchors {
                 fill: parent
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Row {
                 width: parent.width
                 height: parent.height - promptRow.height - parent.spacing
-                spacing: Theme.spacing.compareColumnGap
+                spacing: QubiTheme.spacing.compareColumnGap
 
                 Rectangle {
-                    width: (parent.width - Theme.spacing.compareColumnGap) / 2
+                    width: (parent.width - QubiTheme.spacing.compareColumnGap) / 2
                     height: parent.height
-                    radius: Theme.radius.input
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: Theme.color.launcherInputBorder
+                    radius: QubiTheme.radius.input
+                    color: QubiTheme.color.launcherInputBg
+                    border.width: QubiTheme.spacing.borderHairline
+                    border.color: QubiTheme.color.launcherInputBorder
 
                     Column {
                         anchors {
                             fill: parent
-                            margins: Theme.spacing.launcherContentInset
+                            margins: QubiTheme.spacing.launcherContentInset
                         }
                         spacing: 4
 
                         Text {
                             text: `${paneLeft.provider}: ${paneLeft.model}${paneLeft.busy ? " (thinking…)" : ""}`
-                            color: Theme.color.accentPurple
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.accentPurple
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                             font.bold: true
                         }
                         Flickable {
@@ -126,34 +126,34 @@ PanelWindow {
                                 width: parent.width
                                 wrapMode: Text.WordWrap
                                 textFormat: Text.MarkdownText
-                                color: Theme.color.fg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.fg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
                         }
                     }
                 }
 
                 Rectangle {
-                    width: (parent.width - Theme.spacing.compareColumnGap) / 2
+                    width: (parent.width - QubiTheme.spacing.compareColumnGap) / 2
                     height: parent.height
-                    radius: Theme.radius.input
-                    color: Theme.color.launcherInputBg
-                    border.width: Theme.spacing.borderHairline
-                    border.color: Theme.color.launcherInputBorder
+                    radius: QubiTheme.radius.input
+                    color: QubiTheme.color.launcherInputBg
+                    border.width: QubiTheme.spacing.borderHairline
+                    border.color: QubiTheme.color.launcherInputBorder
 
                     Column {
                         anchors {
                             fill: parent
-                            margins: Theme.spacing.launcherContentInset
+                            margins: QubiTheme.spacing.launcherContentInset
                         }
                         spacing: 4
 
                         Text {
                             text: `${paneRight.provider}: ${paneRight.model}${paneRight.busy ? " (thinking…)" : ""}`
-                            color: Theme.color.accentPurple
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
+                            color: QubiTheme.color.accentPurple
+                            font.family: QubiTheme.font.family
+                            font.pixelSize: QubiTheme.font.sizeSmall
                             font.bold: true
                         }
                         Flickable {
@@ -166,9 +166,9 @@ PanelWindow {
                                 width: parent.width
                                 wrapMode: Text.WordWrap
                                 textFormat: Text.MarkdownText
-                                color: Theme.color.fg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.fg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
                         }
                     }
@@ -178,21 +178,21 @@ PanelWindow {
             Rectangle {
                 id: promptRow
                 width: parent.width
-                height: Theme.spacing.launcherInputHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: QubiTheme.spacing.launcherInputHeight
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 TextInput {
                     id: promptInput
                     anchors {
                         fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                     Keys.onEscapePressed: ChatCompareState.hide()
                     onAccepted: root.sendToBoth()
                 }

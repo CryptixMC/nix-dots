@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // SUPER+N: quick manual "jot this down" capture, direct CLI invocation of
 // the same capture_note() logic the notes-capture MCP server uses (see
@@ -71,13 +71,13 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.notesPanelWidth + 160
-        implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY * 2
+        width: QubiTheme.spacing.notesPanelWidth + 160
+        implicitHeight: content.implicitHeight + QubiTheme.spacing.launcherPanelPadY * 2
         height: implicitHeight
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -89,49 +89,49 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Text {
                 width: parent.width
                 text: "Capture a note"
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeBase
                 font.bold: true
             }
 
             Rectangle {
                 width: parent.width
-                height: Theme.spacing.launcherInputHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: QubiTheme.spacing.launcherInputHeight
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 Text {
                     visible: titleInput.text.length === 0
                     anchors {
                         left: parent.left
-                        leftMargin: Theme.spacing.launcherRowInset
+                        leftMargin: QubiTheme.spacing.launcherRowInset
                         verticalCenter: parent.verticalCenter
                     }
                     text: "Title"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                 }
 
                 TextInput {
                     id: titleInput
                     anchors {
                         fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                     Keys.onEscapePressed: NotesState.hide()
                     KeyNavigation.tab: summaryInput
                 }
@@ -140,52 +140,52 @@ PanelWindow {
             Rectangle {
                 width: parent.width
                 height: 90
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 Text {
                     visible: summaryInput.text.length === 0
                     anchors {
                         left: parent.left
                         top: parent.top
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
                     text: "Summary"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                 }
 
                 TextEdit {
                     id: summaryInput
                     anchors {
                         fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
                     wrapMode: TextEdit.WordWrap
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                     Keys.onEscapePressed: NotesState.hide()
                 }
             }
 
             Rectangle {
                 width: 100
-                height: Theme.spacing.clipboardRowHeight
-                radius: Theme.radius.input
-                color: submitMouse.containsMouse ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: QubiTheme.spacing.clipboardRowHeight
+                radius: QubiTheme.radius.input
+                color: submitMouse.containsMouse ? QubiTheme.color.launcherItemSelectedBg : QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
 
                 Text {
                     anchors.centerIn: parent
                     text: "Capture"
-                    color: Theme.color.accentPurple
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: QubiTheme.color.accentPurple
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                     font.bold: true
                 }
 

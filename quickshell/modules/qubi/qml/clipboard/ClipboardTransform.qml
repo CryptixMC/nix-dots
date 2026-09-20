@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // Clipboard transform overlay (SUPER+U): wl-paste -> pick a transform ->
 // stream an Ollama completion -> wl-copy the result. Direct Ollama HTTP API
@@ -59,7 +59,7 @@ PanelWindow {
     // means "not gaming" (no ai-workstation session has ever run).
     Process {
         id: gamingCheckProcess
-        command: ["cat", "/run/ai-workstation/state.json"]
+        command: ["cat", QubiConfig.hwStateFile]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -146,7 +146,7 @@ PanelWindow {
             prompt = prompt.replace("{{instruction}}", instruction || "Rewrite this");
         ClipboardState.resultText = "";
         ClipboardState.phase = "running";
-        ollamaProcess.command = ["curl", "-N", "-s", "-X", "POST", "http://localhost:11434/api/generate",
+        ollamaProcess.command = ["curl", "-N", "-s", "-X", "POST", `${QubiConfig.ollamaUrl}/api/generate`,
             "-d", JSON.stringify({ model: root._model, prompt: prompt, stream: true })];
         ollamaProcess.running = true;
     }
@@ -202,13 +202,13 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.clipboardPanelWidth
-        implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY * 2
+        width: QubiTheme.spacing.clipboardPanelWidth
+        implicitHeight: content.implicitHeight + QubiTheme.spacing.launcherPanelPadY * 2
         height: Math.min(implicitHeight, parent.height * 0.8)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -220,16 +220,16 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Text {
                 width: parent.width
                 text: "Clipboard Transform"
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeBase
                 font.bold: true
             }
 
@@ -239,27 +239,27 @@ PanelWindow {
                 wrapMode: Text.WordWrap
                 visible: ClipboardState.phase === "checking"
                 text: "reading clipboard…"
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 visible: ClipboardState.phase === "empty"
                 text: "Clipboard is empty — copy something first."
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 visible: ClipboardState.phase === "image"
                 text: "Clipboard contains an image, not text — nothing to transform."
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
             Text {
                 width: parent.width
@@ -267,17 +267,17 @@ PanelWindow {
                 visible: ClipboardState.phase === "oversized"
                 text: `Clipboard content is too large (${ClipboardState.clipboardText.length} chars, max ${ClipboardState.maxChars}) — copy something shorter.`
                 color: root.errorColor
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 visible: ClipboardState.phase === "gaming-blocked"
                 text: "Clipboard transform is disabled while gaming (keeps the eGPU free for the game)."
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
             Text {
                 width: parent.width
@@ -285,8 +285,8 @@ PanelWindow {
                 visible: ClipboardState.phase === "error"
                 text: ClipboardState.errorMessage
                 color: root.errorColor
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
 
             // Action picker
@@ -301,28 +301,28 @@ PanelWindow {
                         id: row
                         required property var modelData
                         width: content.width
-                        height: Theme.spacing.clipboardRowHeight
-                        radius: Theme.radius.input
-                        color: rowMouse.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+                        height: QubiTheme.spacing.clipboardRowHeight
+                        radius: QubiTheme.radius.input
+                        color: rowMouse.containsMouse ? QubiTheme.color.launcherItemSelectedBg : "transparent"
 
                         Row {
                             anchors {
                                 left: parent.left
                                 verticalCenter: parent.verticalCenter
-                                margins: Theme.spacing.launcherRowInset
+                                margins: QubiTheme.spacing.launcherRowInset
                             }
-                            spacing: Theme.spacing.launcherIconLabelGap
+                            spacing: QubiTheme.spacing.launcherIconLabelGap
                             Text {
                                 text: row.modelData.glyph
-                                color: Theme.color.accentPurple
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeBase
+                                color: QubiTheme.color.accentPurple
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeBase
                             }
                             Text {
                                 text: row.modelData.label
-                                color: Theme.color.fg
-                                font.family: Theme.font.family
-                                font.pixelSize: Theme.font.sizeSmall
+                                color: QubiTheme.color.fg
+                                font.family: QubiTheme.font.family
+                                font.pixelSize: QubiTheme.font.sizeSmall
                             }
                         }
 
@@ -345,35 +345,35 @@ PanelWindow {
             // Custom prompt entry
             Rectangle {
                 width: parent.width
-                height: Theme.spacing.launcherInputHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherInputBorder
+                height: QubiTheme.spacing.launcherInputHeight
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
+                border.width: QubiTheme.spacing.borderHairline
+                border.color: QubiTheme.color.launcherInputBorder
                 visible: ClipboardState.phase === "custom-input"
 
                 Text {
                     visible: customInput.text.length === 0
                     anchors {
                         left: parent.left
-                        leftMargin: Theme.spacing.launcherRowInset
+                        leftMargin: QubiTheme.spacing.launcherRowInset
                         verticalCenter: parent.verticalCenter
                     }
                     text: "What should be done to the clipboard text?"
-                    color: Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
                 }
 
                 TextInput {
                     id: customInput
                     anchors {
                         fill: parent
-                        margins: Theme.spacing.launcherInputTextInset
+                        margins: QubiTheme.spacing.launcherInputTextInset
                     }
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeBase
 
                     Keys.onEscapePressed: ClipboardState.hide()
                     onAccepted: root.runAction(ClipboardState.actions.find(a => a.id === "custom"), text)
@@ -383,25 +383,25 @@ PanelWindow {
             // Streaming result
             Column {
                 width: parent.width
-                spacing: Theme.spacing.launcherContentGap
+                spacing: QubiTheme.spacing.launcherContentGap
                 visible: ClipboardState.phase === "running" || ClipboardState.phase === "done"
 
                 Text {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: ClipboardState.resultText.length > 0 ? ClipboardState.resultText : "thinking…"
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: QubiTheme.color.fg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                 }
 
                 Text {
                     width: parent.width
                     visible: ClipboardState.phase === "done"
                     text: "Copied to clipboard ✓ (Escape to close)"
-                    color: Theme.color.accentPurple
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: QubiTheme.color.accentPurple
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                     font.bold: true
                 }
             }

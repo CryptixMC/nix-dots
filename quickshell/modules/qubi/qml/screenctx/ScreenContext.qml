@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../../theme"
+import "../core"
 
 // SUPER+I: region-select screen capture -> vision description or OCR text,
 // routed by ai-workstation state (never loads a VLM onto a GPU a game
@@ -64,7 +64,7 @@ PanelWindow {
 
     Process {
         id: gamingCheckProcess
-        command: ["cat", "/run/ai-workstation/state.json"]
+        command: ["cat", QubiConfig.hwStateFile]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
@@ -200,7 +200,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 const b64 = text.trim();
-                visionProcess.command = ["curl", "-N", "-s", "-X", "POST", "http://localhost:11434/api/generate",
+                visionProcess.command = ["curl", "-N", "-s", "-X", "POST", `${QubiConfig.ollamaUrl}/api/generate`,
                     "-d", JSON.stringify({
                         model: "qwen3-vl:4b",
                         prompt: "Describe what's on screen in this screenshot, concisely.",
@@ -224,13 +224,13 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.screenctxPanelWidth + 200
-        implicitHeight: content.implicitHeight + Theme.spacing.launcherPanelPadY * 2
+        width: QubiTheme.spacing.screenctxPanelWidth + 200
+        implicitHeight: content.implicitHeight + QubiTheme.spacing.launcherPanelPadY * 2
         height: Math.min(implicitHeight, parent.height * 0.8)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -242,16 +242,16 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                margins: Theme.spacing.launcherContentInset
+                margins: QubiTheme.spacing.launcherContentInset
             }
-            spacing: Theme.spacing.launcherContentGap
+            spacing: QubiTheme.spacing.launcherContentGap
 
             Text {
                 width: parent.width
                 text: "Screen Context"
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeBase
                 font.bold: true
             }
 
@@ -259,9 +259,9 @@ PanelWindow {
                 width: parent.width
                 visible: ScreenState.phase === "processing"
                 text: ScreenState.route === "vision" ? "asking qwen3-vl…" : "reading text…"
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
 
             Text {
@@ -270,8 +270,8 @@ PanelWindow {
                 visible: ScreenState.phase === "error"
                 text: ScreenState.errorMessage
                 color: root.errorColor
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
 
             Text {
@@ -279,9 +279,9 @@ PanelWindow {
                 wrapMode: Text.WordWrap
                 visible: ScreenState.phase === "result"
                 text: ScreenState.resultText
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
         }
     }

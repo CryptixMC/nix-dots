@@ -26,7 +26,7 @@ from . import config as qubi_config
 #   qwen3-coder:latest  -- goose.nix (undocked default + docked subagent),
 #                          modules/nixos/apps/ai-workstation.nix
 #                          (undockedModel)
-#   qwen3-vl:4b         -- quickshell/modules/screenctx/ScreenContext.qml
+#   qwen3-vl:4b         -- qml/screenctx/ScreenContext.qml
 #                          (vision model for screen-context capture)
 DECLARED_EXTRAS = {
     "qwen3.6:latest": "docked planner/heavy-chat model (goose.nix)",

@@ -2,8 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../chat"
-import "../../theme"
+import "../core"
 
 // Model browser ("Cookbook") — browse llmfit-ranked Ollama-pullable models
 // as a card grid, click a card to pull it via Ollama's REST API with a
@@ -167,12 +166,12 @@ PanelWindow {
     Rectangle {
         id: box
         anchors.centerIn: parent
-        width: Theme.spacing.launcherWidthWide
+        width: QubiTheme.spacing.launcherWidthWide
         height: Math.min(parent.height * 0.75, 720)
-        radius: Theme.radius.panel
-        color: Theme.color.launcherBg
-        border.width: Theme.spacing.borderHairline
-        border.color: Theme.color.launcherBorder
+        radius: QubiTheme.radius.panel
+        color: QubiTheme.color.launcherBg
+        border.width: QubiTheme.spacing.borderHairline
+        border.color: QubiTheme.color.launcherBorder
 
         MouseArea {
             anchors.fill: parent
@@ -188,20 +187,20 @@ PanelWindow {
                 top: parent.top
                 left: parent.left
                 right: parent.right
-                margins: Theme.spacing.modelbrowserGridPad
+                margins: QubiTheme.spacing.modelbrowserGridPad
             }
-            height: Theme.spacing.chatHeaderHeight
+            height: QubiTheme.spacing.chatHeaderHeight
 
             Text {
                 anchors {
                     left: parent.left
                     verticalCenter: parent.verticalCenter
-                    leftMargin: Theme.spacing.launcherRowInset
+                    leftMargin: QubiTheme.spacing.launcherRowInset
                 }
                 text: ModelBrowserState.useMode ? "Use a model for this conversation" : "Models"
-                color: Theme.color.fg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeBase
+                color: QubiTheme.color.fg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeBase
                 font.bold: true
             }
 
@@ -209,16 +208,16 @@ PanelWindow {
                 anchors {
                     right: parent.right
                     verticalCenter: parent.verticalCenter
-                    rightMargin: Theme.spacing.launcherRowInset
+                    rightMargin: QubiTheme.spacing.launcherRowInset
                 }
                 text: {
                     if (!ModelBrowserState.useMode)
                         return "click a card to install";
                     return ModelBrowserState.installedLoading ? "loading installed models…" : "click an installed model to use it now";
                 }
-                color: Theme.color.launcherPlaceholderFg
-                font.family: Theme.font.family
-                font.pixelSize: Theme.font.sizeSmall
+                color: QubiTheme.color.launcherPlaceholderFg
+                font.family: QubiTheme.font.family
+                font.pixelSize: QubiTheme.font.sizeSmall
             }
         }
 
@@ -226,9 +225,9 @@ PanelWindow {
             anchors.centerIn: parent
             visible: root.mergedModels.length === 0
             text: ModelBrowserState.loading ? "loading models…" : "no models"
-            color: Theme.color.launcherPlaceholderFg
-            font.family: Theme.font.family
-            font.pixelSize: Theme.font.sizeBase
+            color: QubiTheme.color.launcherPlaceholderFg
+            font.family: QubiTheme.font.family
+            font.pixelSize: QubiTheme.font.sizeBase
         }
 
         GridView {
@@ -237,23 +236,23 @@ PanelWindow {
                 left: parent.left
                 right: parent.right
                 bottom: parent.bottom
-                margins: Theme.spacing.modelbrowserGridPad
+                margins: QubiTheme.spacing.modelbrowserGridPad
             }
             clip: true
-            cellWidth: Theme.spacing.modelbrowserCardWidth + Theme.spacing.modelbrowserCardGap
-            cellHeight: Theme.spacing.modelbrowserCardHeight + Theme.spacing.modelbrowserCardGap
+            cellWidth: QubiTheme.spacing.modelbrowserCardWidth + QubiTheme.spacing.modelbrowserCardGap
+            cellHeight: QubiTheme.spacing.modelbrowserCardHeight + QubiTheme.spacing.modelbrowserCardGap
             model: root.mergedModels
 
             delegate: Rectangle {
                 id: card
                 required property var modelData
                 readonly property bool isCurrent: card.modelData.ollama_name === root.currentModelName
-                width: Theme.spacing.modelbrowserCardWidth
-                height: Theme.spacing.modelbrowserCardHeight
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
+                width: QubiTheme.spacing.modelbrowserCardWidth
+                height: QubiTheme.spacing.modelbrowserCardHeight
+                radius: QubiTheme.radius.input
+                color: QubiTheme.color.launcherInputBg
                 border.width: cardMouse.containsMouse ? 2 : (card.isCurrent ? 1 : 0)
-                border.color: Theme.color.accentPurple
+                border.color: QubiTheme.color.accentPurple
 
                 // Live download progress for this card's model, if a pull
                 // is currently in flight (see the download-trigger logic
@@ -266,7 +265,7 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         top: parent.top
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
                     spacing: 2
 
@@ -274,9 +273,9 @@ PanelWindow {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.modelData.name
-                        color: Theme.color.fg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.fg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                         font.bold: true
                     }
 
@@ -284,18 +283,18 @@ PanelWindow {
                         width: parent.width
                         elide: Text.ElideRight
                         text: `${card.modelData.parameter_count} params · ${card.modelData.estimated_tps} tok/s`
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                     }
 
                     Text {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.modelData.fit_label
-                        color: Theme.color.accentPurple
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.accentPurple
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                     }
                 }
 
@@ -304,13 +303,13 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         bottom: parent.bottom
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
                     visible: card.progress === undefined
                     text: card.isCurrent ? "in use ✓" : (card.modelData.installed ? "installed ✓" : "pull")
-                    color: card.modelData.installed ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
+                    color: card.modelData.installed ? QubiTheme.color.accentPurple : QubiTheme.color.launcherPlaceholderFg
+                    font.family: QubiTheme.font.family
+                    font.pixelSize: QubiTheme.font.sizeSmall
                 }
 
                 // Live pull progress — replaces the installed/pull label
@@ -320,7 +319,7 @@ PanelWindow {
                         left: parent.left
                         right: parent.right
                         bottom: parent.bottom
-                        margins: Theme.spacing.launcherRowInset
+                        margins: QubiTheme.spacing.launcherRowInset
                     }
                     visible: card.progress !== undefined
                     spacing: 2
@@ -329,16 +328,16 @@ PanelWindow {
                         width: parent.width
                         elide: Text.ElideRight
                         text: card.progress?.status ?? ""
-                        color: Theme.color.launcherPlaceholderFg
-                        font.family: Theme.font.family
-                        font.pixelSize: Theme.font.sizeSmall
+                        color: QubiTheme.color.launcherPlaceholderFg
+                        font.family: QubiTheme.font.family
+                        font.pixelSize: QubiTheme.font.sizeSmall
                     }
 
                     Rectangle {
                         width: parent.width
-                        height: Theme.spacing.modelbrowserProgressHeight
+                        height: QubiTheme.spacing.modelbrowserProgressHeight
                         radius: height / 2
-                        color: Theme.color.launcherInputBorder
+                        color: QubiTheme.color.launcherInputBorder
 
                         Rectangle {
                             anchors {
@@ -348,7 +347,7 @@ PanelWindow {
                             }
                             width: parent.width * ((card.progress?.percent ?? 0) / 100)
                             radius: parent.radius
-                            color: Theme.color.accentPurple
+                            color: QubiTheme.color.accentPurple
                         }
                     }
                 }
@@ -358,7 +357,7 @@ PanelWindow {
                 // in an earlier session against this exact endpoint.
                 Process {
                     id: pullProcess
-                    command: ["curl", "-N", "-s", "-X", "POST", "http://localhost:11434/api/pull", "-d", `{"model":"${card.modelData.ollama_name}"}`]
+                    command: ["curl", "-N", "-s", "-X", "POST", `${QubiConfig.ollamaUrl}/api/pull`, "-d", `{"model":"${card.modelData.ollama_name}"}`]
                     running: false
                     stdout: SplitParser {
                         onRead: line => {
