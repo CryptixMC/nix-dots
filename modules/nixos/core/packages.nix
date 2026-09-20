@@ -20,36 +20,22 @@
     nix-direnv
     xwayland
     lazygit
-    # celeste: broken on rustc 1.97+ (rustix 0.37.27 uses removed internal
-    # rustc_attrs, still unfixed on nixos-unstable) - re-add once fixed upstream
     onlyoffice-desktopeditors
     discord
     qbittorrent
     (pkgs.callPackage ../../../pkgs/oneclient { })
     (pkgs.callPackage ../../../pkgs/oneclient-new-cluster { })
-    android-tools # adb/fastboot udev rules — USB debugging for Android dev
-    # elephant # Walker's backend daemon, hidden alongside Walker itself —
-    # see TODO.md §3; re-add if Walker is ever restored.
+    android-tools # adb/fastboot; udev rules give USB-debugging access
     claude-code
     claude-agent-acp
-    # Screenshotting: hyprshot wraps grim+slurp+hyprpicker for region/window/
-    # output capture; satty is the wlroots-native annotate/save/copy UI. See
-    # binds in modules/home-manager/wm/hyprland.nix.
-    hyprshot
+    hyprshot # region/window/output screenshots, piped to satty (binds in wm/hyprland.nix)
     satty
     wl-clipboard
-    quickshell # desktop shell toolkit — quickshell/ scaffold, see TODO.md §3
-    yq-go # YAML->JSON bridge for quickshell/theme/ThemeLoader.qml (base16.yaml has no native QML parser)
-    # No real icon theme was installed system-wide (only cursor themes +
-    # empty hicolor) — every named-icon lookup (Quickshell.iconPath,
-    # gtk-icon-theme, etc.) was silently falling back to blank/generic
-    # icons. gsettings already claims icon-theme "Adwaita"; this actually
-    # provides it.
-    adwaita-icon-theme
-    # Formerly modules/temp.nix.
+    quickshell # the desktop shell — config lives in quickshell/
+    yq-go # base16.yaml -> JSON for quickshell/theme/ThemeLoader.qml
+    adwaita-icon-theme # named-icon lookups fall back to blanks without a real icon theme
     ghostty
     zenith
-    zenith-nvidia
     fzf
     eza
     fd

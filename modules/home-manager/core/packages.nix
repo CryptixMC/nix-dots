@@ -5,7 +5,6 @@
     prismlauncher
     brightnessctl
     nixd
-    nil
     vinegar
     easyeffects
     lsp-plugins
