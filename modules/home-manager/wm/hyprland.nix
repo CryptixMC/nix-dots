@@ -412,14 +412,25 @@ in
           (mkExecBind "${mainMod} + U" "quickshell ipc -p ~/nix-dots/quickshell call clipboard transform")
           # screen-context capture (quickshell/modules/screenctx/).
           (mkExecBind "${mainMod} + I" "quickshell ipc -p ~/nix-dots/quickshell call screenctx capture")
-          # voice conversation mode: now the chat composer's conversation
-          # button (and /voice), so SUPER+O is gone for the same reason as
-          # H/B/X above. The `voice` IPC target is unchanged.
           # research -> TODO capture (quickshell/modules/notes/).
           (mkExecBind "${mainMod} + N" "quickshell ipc -p ~/nix-dots/quickshell call notes capture")
-          # side-by-side model comparison, a new function on the existing
-          # chat target (quickshell/modules/chat/).
-          (mkExecBind "${mainMod} + SHIFT + D" "quickshell ipc -p ~/nix-dots/quickshell call chat compare")
+          # voice conversation mode (quickshell/modules/voice/), straight
+          # into the full-screen overlay -- previously only reachable by
+          # opening the chat panel first and clicking its mic button. Reuses
+          # the same "voice toggle" IPC target the mic button and /voice
+          # already call (VoiceOverlay.qml's own IpcHandler), so this is a
+          # second entry point onto the exact same code path, not a new one.
+          # A fresh conversation opened this way defaults to the `fast`
+          # tier -- see VoiceOverlay.qml's onVisibleChanged -- since voice
+          # is a spoken back-and-forth where turnaround matters more than a
+          # reasoning trace nobody sees.
+          #
+          # side-by-side model comparison (quickshell/modules/chat/
+          # ChatCompare.qml) lost this keybind slot to voice above; it's
+          # still reachable from the chat panel's hamburger menu
+          # (featureMenuItems in ChatOverlay.qml), and its own IPC target
+          # (`chat compare`) is unchanged for anyone who preferred the bind.
+          (mkExecBind "${mainMod} + SHIFT + D" "quickshell ipc -p ~/nix-dots/quickshell call voice toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
           (mkExecBind "${mainMod} + Z" editor)

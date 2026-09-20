@@ -14,6 +14,13 @@ QtObject {
     property bool loading: false
     property string loadError: ""
 
+    // Most of this history is noise: measured against the real sessions.db,
+    // 204 of 365 stored sessions had zero messages -- empty ACP shells
+    // created every time the chat panel opened a session it never used. On
+    // by default because an empty session is never something you want to
+    // resume; the picker exposes a toggle to see them anyway.
+    property bool hideEmpty: true
+
     function toggle() {
         visible = !visible;
     }

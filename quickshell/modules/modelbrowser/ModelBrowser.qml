@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import "../chat"
 import "../../theme"
 
 // Model browser ("Cookbook") — browse llmfit-ranked Ollama-pullable models
@@ -30,24 +31,102 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     color: "transparent"
 
+    // The model actually answering the current conversation right now, so
+    // a card/pill for it can render as "in use" rather than merely
+    // "installed". Handles both a real named tier (currentTier is e.g.
+    // "light") and an ad hoc qubi/use_model pick (currentTier is
+    // "model:<tag>" -- see qubi_engine.py's Session.tier_sessions header
+    // comment for why that synthetic naming exists).
+    readonly property string currentModelName: GooseAcpSession.currentTier.startsWith("model:") ? GooseAcpSession.currentTier.slice("model:".length) : (GooseAcpSession.tierModels[GooseAcpSession.currentTier] ?? "")
+
+    // One grid, not two lists. Earlier this drew installed models as a
+    // separate horizontal pill strip above the llmfit recommendation grid;
+    // the two were structurally different (different fields, different
+    // interaction) which is exactly what made it confusing to scan. This
+    // normalizes both sources into one shape and sorts installed first, so
+    // "what do I already have" and "what could I get" read as one list with
+    // a visual badge, not two unrelated widgets.
+    //
+    // llmfit's own `installed` flag can lag the real Ollama state (it's
+    // filled in once when the recommendation feed loads, and only patched
+    // locally after a pull completes THIS session) -- recomputed against
+    // the live installedModels() result instead of trusted as-is.
+    function _mergeModels(llmfitList, installedList) {
+        const installedNames = new Set((installedList ?? []).map(m => m.name));
+        const fromFeed = (llmfitList ?? []).map(m => ({
+            ollama_name: m.ollama_name,
+            name: m.name,
+            parameter_count: m.parameter_count,
+            estimated_tps: m.estimated_tps,
+            fit_label: m.fit_label,
+            installed: installedNames.has(m.ollama_name) || m.installed === true
+        }));
+        const feedNames = new Set(fromFeed.map(m => m.ollama_name));
+        const extra = (installedList ?? [])
+            .filter(m => !feedNames.has(m.name))
+            .map(m => ({
+                ollama_name: m.name,
+                name: m.name,
+                parameter_count: m.parameterSize || "?",
+                estimated_tps: "?",
+                fit_label: "already on this machine",
+                installed: true
+            }));
+        const merged = fromFeed.concat(extra);
+        // Stable sort (spec-guaranteed in the JS engines Qt Quick embeds):
+        // installed cards float to the top, relative order otherwise
+        // unchanged within each group.
+        merged.sort((a, b) => (b.installed ? 1 : 0) - (a.installed ? 1 : 0));
+        return merged;
+    }
+
+    readonly property var mergedModels: root._mergeModels(ModelBrowserState.models, ModelBrowserState.installed)
+
     function refresh() {
         ModelBrowserState.loading = true;
         modelFetchProcess.running = true;
+        root.refreshInstalled();
+    }
+
+    function refreshInstalled() {
+        ModelBrowserState.installedLoading = true;
+        GooseAcpSession.installedModels(models => {
+            ModelBrowserState.installedLoading = false;
+            ModelBrowserState.installed = models;
+        });
+    }
+
+    // Use an installed model for the current conversation right now. No-op
+    // when opened standalone (useMode false): browsing must never silently
+    // change what the chat panel is doing underneath it.
+    function useModel(name) {
+        if (!ModelBrowserState.useMode || name.length === 0)
+            return;
+        GooseAcpSession.useModelNow(name, error => {
+            if (!error)
+                ModelBrowserState.hideAndReset();
+        });
     }
 
     onVisibleChanged: {
         if (visible)
             root.refresh();
+        else
+            ModelBrowserState.useMode = false;
     }
 
     Shortcut {
         sequence: "Escape"
-        onActivated: ModelBrowserState.hide()
+        onActivated: ModelBrowserState.hideAndReset()
     }
 
     IpcHandler {
         target: "modelbrowser"
         function toggle(): void {
+            // The external/keybind entry point is always standalone
+            // browsing -- useMode is only ever turned on from inside the
+            // chat panel itself (tier picker / hamburger menu).
+            ModelBrowserState.useMode = false;
             ModelBrowserState.toggle();
         }
     }
@@ -79,7 +158,10 @@ PanelWindow {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: ModelBrowserState.hide()
+        // Clears useMode too: dismissing without choosing must not leave
+        // the browser armed to "use now" the next time it is opened
+        // standalone.
+        onClicked: ModelBrowserState.hideAndReset()
     }
 
     Rectangle {
@@ -96,9 +178,53 @@ PanelWindow {
             anchors.fill: parent
         }
 
+        // Header: what this panel is, and — when opened from the chat
+        // panel's "use a model now" entry points — how a click behaves.
+        // Without that second line the same grid would mean two different
+        // things depending on how it was opened.
+        Item {
+            id: browserHeader
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+                margins: Theme.spacing.modelbrowserGridPad
+            }
+            height: Theme.spacing.chatHeaderHeight
+
+            Text {
+                anchors {
+                    left: parent.left
+                    verticalCenter: parent.verticalCenter
+                    leftMargin: Theme.spacing.launcherRowInset
+                }
+                text: ModelBrowserState.useMode ? "Use a model for this conversation" : "Models"
+                color: Theme.color.fg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeBase
+                font.bold: true
+            }
+
+            Text {
+                anchors {
+                    right: parent.right
+                    verticalCenter: parent.verticalCenter
+                    rightMargin: Theme.spacing.launcherRowInset
+                }
+                text: {
+                    if (!ModelBrowserState.useMode)
+                        return "click a card to install";
+                    return ModelBrowserState.installedLoading ? "loading installed models…" : "click an installed model to use it now";
+                }
+                color: Theme.color.launcherPlaceholderFg
+                font.family: Theme.font.family
+                font.pixelSize: Theme.font.sizeSmall
+            }
+        }
+
         Text {
             anchors.centerIn: parent
-            visible: (ModelBrowserState.models ?? []).length === 0
+            visible: root.mergedModels.length === 0
             text: ModelBrowserState.loading ? "loading models…" : "no models"
             color: Theme.color.launcherPlaceholderFg
             font.family: Theme.font.family
@@ -107,22 +233,26 @@ PanelWindow {
 
         GridView {
             anchors {
-                fill: parent
+                top: browserHeader.bottom
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
                 margins: Theme.spacing.modelbrowserGridPad
             }
             clip: true
             cellWidth: Theme.spacing.modelbrowserCardWidth + Theme.spacing.modelbrowserCardGap
             cellHeight: Theme.spacing.modelbrowserCardHeight + Theme.spacing.modelbrowserCardGap
-            model: ModelBrowserState.models
+            model: root.mergedModels
 
             delegate: Rectangle {
                 id: card
                 required property var modelData
+                readonly property bool isCurrent: card.modelData.ollama_name === root.currentModelName
                 width: Theme.spacing.modelbrowserCardWidth
                 height: Theme.spacing.modelbrowserCardHeight
                 radius: Theme.radius.input
                 color: Theme.color.launcherInputBg
-                border.width: cardMouse.containsMouse ? 2 : 0
+                border.width: cardMouse.containsMouse ? 2 : (card.isCurrent ? 1 : 0)
                 border.color: Theme.color.accentPurple
 
                 // Live download progress for this card's model, if a pull
@@ -177,8 +307,8 @@ PanelWindow {
                         margins: Theme.spacing.launcherRowInset
                     }
                     visible: card.progress === undefined
-                    text: card.modelData.installed ? "installed ✓" : "pull"
-                    color: card.modelData.installed ? Theme.color.fg : Theme.color.launcherPlaceholderFg
+                    text: card.isCurrent ? "in use ✓" : (card.modelData.installed ? "installed ✓" : "pull")
+                    color: card.modelData.installed ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
                     font.family: Theme.font.family
                     font.pixelSize: Theme.font.sizeSmall
                 }
@@ -262,8 +392,10 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     onClicked: {
-                        if (card.modelData.installed)
+                        if (card.modelData.installed) {
+                            root.useModel(card.modelData.ollama_name);
                             return;
+                        }
                         ModelBrowserState.downloadProgress = Object.assign({}, ModelBrowserState.downloadProgress, {
                             [card.modelData.ollama_name]: {
                                 percent: 0,

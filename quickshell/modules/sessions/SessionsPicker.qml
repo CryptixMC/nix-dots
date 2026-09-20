@@ -37,7 +37,149 @@ PanelWindow {
     color: "transparent"
 
     property int selectedIndex: -1
-    readonly property var selectedSession: (selectedIndex >= 0 && selectedIndex < SessionsState.sessions.length) ? SessionsState.sessions[selectedIndex] : null
+
+    // The list the UI actually renders: SessionsState.sessions minus the
+    // empty shells when the filter is on. selectedIndex indexes THIS list,
+    // never the raw one -- mixing the two would resume/delete whichever
+    // session happened to sit at that position in the unfiltered array.
+    readonly property var visibleSessions: SessionsState.hideEmpty ? SessionsState.sessions.filter(s => (s._meta?.messageCount ?? 0) > 0) : SessionsState.sessions
+    readonly property var selectedSession: (selectedIndex >= 0 && selectedIndex < visibleSessions.length) ? visibleSessions[selectedIndex] : null
+
+    readonly property string dbPath: `${Quickshell.env("HOME")}/.local/share/goose/sessions/sessions.db`
+
+    // Session ids are goose-generated ("20260919_53"), but this value is
+    // interpolated straight into SQL, so it is whitelisted rather than
+    // trusted -- a stray quote would otherwise end the string literal.
+    function safeId(id) {
+        return String(id ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+    }
+
+    // ---- preview ------------------------------------------------------
+    //
+    // Deliberately cheap: ONE sqlite3 process per selection, two indexed
+    // LIMIT queries unioned, no model call anywhere. The "summary" is just
+    // the conversation's opening question, which is what a human actually
+    // scans for when finding an old chat -- generating a real summary would
+    // mean running inference over every session you click, which on this
+    // hardware costs tens of seconds per session (measured: 60s for "what is
+    // 6 times 7").
+    property var previewFirst: []
+    property var previewRecent: []
+    property bool previewLoading: false
+    property string previewFor: ""
+
+    function loadPreview() {
+        const sid = root.safeId(root.selectedSession?.sessionId);
+        root.previewFirst = [];
+        root.previewRecent = [];
+        root.previewFor = sid;
+        if (sid.length === 0 || previewProcess.running)
+            return;
+        root.previewLoading = true;
+        previewProcess.command = ["sqlite3", "-json", root.dbPath, `SELECT * FROM (SELECT 'first' AS kind, id, role, content_json FROM messages WHERE session_id='${sid}' AND role='user' ORDER BY id ASC LIMIT 5) UNION ALL SELECT * FROM (SELECT 'recent' AS kind, id, role, content_json FROM messages WHERE session_id='${sid}' ORDER BY id DESC LIMIT 12)`];
+        previewProcess.running = true;
+    }
+
+    // goose stores each message as an array of typed parts; only `text`
+    // parts are conversation. Same shape SessionSync.qml parses -- and the
+    // same synthetic <turn-context> scaffolding row has to be skipped here
+    // too, or every preview opens with a wall of injected context instead of
+    // what the human typed.
+    function plainText(contentJson) {
+        let parts;
+        try {
+            parts = JSON.parse(contentJson);
+        } catch (e) {
+            return "";
+        }
+        if (!Array.isArray(parts))
+            return "";
+        return parts.filter(p => p.type === "text").map(p => p.text ?? "").join("").trim();
+    }
+
+    function isScaffolding(text) {
+        return text.startsWith("<turn-context>");
+    }
+
+    Process {
+        id: previewProcess
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.previewLoading = false;
+                let rows;
+                try {
+                    rows = JSON.parse(text);
+                } catch (e) {
+                    return;
+                }
+                if (!Array.isArray(rows))
+                    return;
+                const first = [];
+                const recent = [];
+                for (const r of rows) {
+                    const body = root.plainText(r.content_json);
+                    if (body.length === 0 || root.isScaffolding(body))
+                        continue;
+                    const entry = {
+                        role: r.role,
+                        text: body
+                    };
+                    if (r.kind === "first")
+                        first.push(entry);
+                    else
+                        recent.push(entry);
+                }
+                root.previewFirst = first;
+                // The recent half came back newest-first (ORDER BY id DESC)
+                // so it reads bottom-up until reversed.
+                root.previewRecent = recent.reverse();
+            }
+        }
+    }
+
+    // ---- delete -------------------------------------------------------
+    //
+    // `goose session remove --session-id X` is the sanctioned path but is
+    // unusable here: it always prompts for confirmation on a real TTY and
+    // dies with "Error: not connected" under any non-interactive parent,
+    // which every Quickshell Process is. So the rows are removed directly,
+    // in one transaction, covering all three things that reference a
+    // session: messages, usage_ledger, and the self-referential
+    // parent_session_id. Verified against the live db -- integrity_check and
+    // foreign_key_check both clean afterwards.
+    property string confirmDeleteId: ""
+
+    function deleteSelected() {
+        const sid = root.safeId(root.selectedSession?.sessionId);
+        if (sid.length === 0 || deleteProcess.running)
+            return;
+        // Never delete the conversation currently open in the chat panel.
+        if (sid === GooseAcpSession.sessionId) {
+            SessionsState.loadError = "That session is currently open in the chat panel — close or switch it first.";
+            root.confirmDeleteId = "";
+            return;
+        }
+        deleteProcess.command = ["sqlite3", root.dbPath, `PRAGMA foreign_keys=ON; BEGIN IMMEDIATE; DELETE FROM messages WHERE session_id='${sid}'; DELETE FROM usage_ledger WHERE session_id='${sid}'; UPDATE sessions SET parent_session_id=NULL WHERE parent_session_id='${sid}'; DELETE FROM sessions WHERE id='${sid}'; COMMIT;`];
+        deleteProcess.running = true;
+    }
+
+    Process {
+        id: deleteProcess
+        running: false
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.trim().length > 0)
+                    SessionsState.loadError = `delete failed: ${text.trim()}`;
+            }
+        }
+        onExited: exitCode => {
+            root.confirmDeleteId = "";
+            root.selectedIndex = -1;
+            if (exitCode === 0)
+                root.refresh();
+        }
+    }
 
     function refresh() {
         SessionsState.loading = true;
@@ -138,12 +280,67 @@ PanelWindow {
                 height: parent.height
                 color: "transparent"
 
+                Row {
+                    id: filterRow
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: Theme.spacing.launcherTabHeight
+                    spacing: Theme.spacing.launcherIconLabelGap
+
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 150
+                        height: Theme.spacing.launcherTabHeight - 6
+                        radius: Theme.radius.input
+                        color: SessionsState.hideEmpty ? Theme.color.launcherItemSelectedBg : "transparent"
+                        border.width: Theme.spacing.borderHairline
+                        border.color: SessionsState.hideEmpty ? Theme.color.launcherInputBorder : Theme.color.launcherBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: SessionsState.hideEmpty ? "✓ hiding empty" : "showing all"
+                            color: Theme.color.fg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                SessionsState.hideEmpty = !SessionsState.hideEmpty;
+                                // The filtered list is about to change shape,
+                                // so a held index would point at a different
+                                // session than the one highlighted.
+                                root.selectedIndex = -1;
+                                root.confirmDeleteId = "";
+                            }
+                        }
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: `${root.visibleSessions.length} / ${SessionsState.sessions.length}`
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                    }
+                }
+
                 ListView {
                     id: sessionList
-                    anchors.fill: parent
+                    anchors {
+                        top: filterRow.bottom
+                        topMargin: Theme.spacing.sessionMetaGap
+                        left: parent.left
+                        right: parent.right
+                        bottom: parent.bottom
+                    }
                     clip: true
                     spacing: Theme.spacing.sessionRowGap
-                    model: SessionsState.sessions
+                    model: root.visibleSessions
 
                     delegate: Rectangle {
                         id: row
@@ -160,6 +357,10 @@ PanelWindow {
                             onClicked: {
                                 root.selectedIndex = row.index;
                                 SessionsState.loadError = "";
+                                // Selecting a different session abandons any
+                                // half-confirmed delete on the previous one.
+                                root.confirmDeleteId = "";
+                                root.loadPreview();
                             }
                             onDoubleClicked: {
                                 root.selectedIndex = row.index;
@@ -249,6 +450,74 @@ PanelWindow {
                         font.pixelSize: Theme.font.sizeBase
                     }
 
+                    // Cheap stand-in for a summary: the conversation's own
+                    // opening question. No inference, one indexed query.
+                    Text {
+                        visible: root.selectedSession !== null && root.previewFirst.length > 0
+                        width: parent.width
+                        text: {
+                            const opener = root.previewFirst.find(e => e.role === "user");
+                            if (!opener)
+                                return "";
+                            const t = opener.text.replace(/\s+/g, " ").trim();
+                            return `opened with: ${t.length > 160 ? t.slice(0, 160) + "…" : t}`;
+                        }
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 3
+                        elide: Text.ElideRight
+                        color: Theme.color.fg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                    }
+
+                    Text {
+                        visible: root.selectedSession !== null
+                        width: parent.width
+                        text: root.previewLoading ? "loading recent messages…" : (root.previewRecent.length > 0 ? "recent messages" : "no messages in this session")
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
+                    }
+
+                    // Last few turns, newest at the bottom. Plain text only
+                    // and capped in height -- this is a glance-and-recognise
+                    // affordance, not a second chat transcript.
+                    ListView {
+                        visible: root.selectedSession !== null && root.previewRecent.length > 0
+                        width: parent.width
+                        height: visible ? Math.min(contentHeight, 260) : 0
+                        clip: true
+                        interactive: contentHeight > height
+                        spacing: Theme.spacing.sessionMetaGap
+                        model: root.previewRecent
+
+                        delegate: Row {
+                            required property var modelData
+                            width: ListView.view.width
+                            spacing: Theme.spacing.launcherIconLabelGap
+
+                            Text {
+                                width: 26
+                                text: modelData.role === "user" ? "you" : "qubi"
+                                color: modelData.role === "user" ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            Text {
+                                width: parent.width - 26 - Theme.spacing.launcherIconLabelGap
+                                text: modelData.text.replace(/\s+/g, " ").trim()
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                textFormat: Text.PlainText
+                                color: Theme.color.fg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+                        }
+                    }
+
                     Text {
                         visible: SessionsState.loadError !== ""
                         width: parent.width
@@ -259,26 +528,63 @@ PanelWindow {
                         color: Theme.color.accentPurple
                     }
 
-                    Rectangle {
+                    Row {
                         visible: root.selectedSession !== null
-                        width: 120
-                        height: Theme.spacing.launcherInputHeight
-                        radius: Theme.radius.input
-                        color: Theme.color.launcherItemSelectedBg
-                        border.width: Theme.spacing.borderHairline
-                        border.color: Theme.color.launcherInputBorder
+                        spacing: Theme.spacing.themePillGap
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Resume"
-                            color: Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeBase
+                        Rectangle {
+                            width: 120
+                            height: Theme.spacing.launcherInputHeight
+                            radius: Theme.radius.input
+                            color: Theme.color.launcherItemSelectedBg
+                            border.width: Theme.spacing.borderHairline
+                            border.color: Theme.color.launcherInputBorder
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Resume"
+                                color: Theme.color.fg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeBase
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: root.resumeSelected()
+                            }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: root.resumeSelected()
+                        // Two-step, because this is an irreversible delete of
+                        // real conversation history: the first click arms it,
+                        // the second commits. Selecting any other session (or
+                        // deleting) disarms it again.
+                        Rectangle {
+                            readonly property bool armed: root.confirmDeleteId.length > 0 && root.confirmDeleteId === root.selectedSession?.sessionId
+
+                            width: 150
+                            height: Theme.spacing.launcherInputHeight
+                            radius: Theme.radius.input
+                            color: armed ? Theme.color.accentPink : "transparent"
+                            border.width: Theme.spacing.borderHairline
+                            border.color: armed ? Theme.color.accentPink : Theme.color.launcherInputBorder
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: parent.armed ? "Click again to delete" : "Delete"
+                                color: parent.armed ? Theme.color.fg : Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (parent.armed)
+                                        root.deleteSelected();
+                                    else
+                                        root.confirmDeleteId = root.selectedSession?.sessionId ?? "";
+                                }
+                            }
                         }
                     }
                 }

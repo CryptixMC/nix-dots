@@ -9,6 +9,9 @@ import Quickshell.Wayland
 import "../sessions"
 import "../extensions"
 import "../voice"
+import "../modelbrowser"
+import "../clipboard"
+import "../notes"
 import "../../theme"
 
 // Chat overlay talking to Qubi over a persistent `goose acp` JSON-RPC
@@ -46,10 +49,15 @@ PanelWindow {
     Connections {
         target: ChatState
         function onVisibleChanged() {
-            if (ChatState.visible)
+            if (ChatState.visible) {
                 root.panelMapped = true;
-            else
+                // Reopening mid-turn: the flush timer is gated on visibility,
+                // so publish whatever accumulated while the panel was hidden
+                // instead of showing stale text until the next tick.
+                ChatState.flushStreaming();
+            } else {
                 closeTimer.restart();
+            }
         }
     }
 
@@ -57,6 +65,46 @@ PanelWindow {
         id: closeTimer
         interval: Theme.motion.chatSlide.duration
         onTriggered: root.panelMapped = false
+    }
+
+    // Coalesces streamed tokens into a render. ACP chunks arrive far faster
+    // than a human reads (and far faster than a markdown re-parse costs), so
+    // publishing every one of them just burns frames. ~11Hz is smooth to the
+    // eye and bounds the streaming bubble's markdown re-parse to that rate
+    // regardless of how fast the model emits. Runs only while a turn is
+    // actually in flight, and one final flush happens in commitStreaming()
+    // so the last partial chunk is never dropped.
+    // Auto-reconnect to the engine. GooseAcpSession has always had a
+    // retryConnect() for exactly this, but nothing ever called it: the only
+    // caller was meant to be a retry button that was never built. So any
+    // `systemctl --user restart qubi-engine` -- routine in this repo, and
+    // unavoidable whenever the engine is rebuilt -- left the chat panel
+    // permanently dead until the whole shell was restarted, with the only
+    // clue a WARN in a log nobody reads. Retrying on a timer turns an
+    // engine restart into a few seconds of "reconnecting…" instead.
+    Timer {
+        id: engineRetryTimer
+        interval: 3000
+        repeat: true
+        running: GooseAcpSession.engineUnavailable
+        onTriggered: GooseAcpSession.retryConnect()
+    }
+
+    Timer {
+        id: streamFlushTimer
+        interval: 90
+        repeat: true
+        running: GooseAcpSession.busy && ChatState.visible
+        onTriggered: ChatState.flushStreaming()
+    }
+
+    // Same mechanism the Hyprland SUPER+I bind uses -- see the
+    // featureMenuItems comment above for why the hamburger menu's Screen
+    // Context entry can't just flip ScreenState.visible directly.
+    Process {
+        id: screenctxTrigger
+        running: false
+        command: ["quickshell", "ipc", "-p", Quickshell.shellDir, "call", "screenctx", "capture"]
     }
 
     anchors {
@@ -87,6 +135,34 @@ PanelWindow {
     // whole-tier switch actually does anything (see GooseAcpSession's own
     // switchModel comment and BLOCKERS.md #4).
     property bool tierPickerOpen: false
+
+    // Hamburger dropdown: every overlay feature this shell has, in one
+    // discoverable place, rather than each needing its own memorized
+    // keybind. Data-driven (LauncherState.tabs' own convention) so adding
+    // a feature later is one more list entry, not a new code path. Actions
+    // are plain closures rather than string-dispatched, since every target
+    // is a QML singleton already in scope here.
+    property bool menuOpen: false
+
+    readonly property var featureMenuItems: [
+        { label: "☰  History", action: () => SessionsState.toggle() },
+        { label: "⇄  Compare Models", action: () => ChatCompareState.toggle() },
+        { label: "🎙  Voice Conversation", action: () => VoiceState.visible = !VoiceState.visible },
+        { label: "📋  Clipboard Transform", action: () => ClipboardState.toggle() },
+        // ScreenState.visible alone would show an empty overlay -- the real
+        // capture flow only starts from ScreenContext.qml's own IpcHandler
+        // (it deliberately stays invisible until hyprshot's region-select
+        // has already run, see that file's own comment), so this goes
+        // through the same external IPC path the Hyprland keybind uses
+        // rather than flipping the state singleton directly.
+        { label: "🖼  Screen Context", action: () => screenctxTrigger.running = true },
+        { label: "📝  Notes Capture", action: () => NotesState.toggle() },
+        { label: "🔌  Extensions / MCP", action: () => ExtensionsState.toggle() },
+        { label: "📦  Browse Models", action: () => {
+                ModelBrowserState.useMode = false;
+                ModelBrowserState.visible = true;
+            } }
+    ]
 
     function cycleMode() {
         const modes = GooseAcpSession.availableModes;
@@ -208,13 +284,20 @@ PanelWindow {
         function compare(): void {
             ChatCompareState.toggle();
         }
+        // Send a prompt from outside the panel (CLI / Hyprland bind):
+        //   quickshell ipc -p ~/nix-dots/quickshell call chat send "..."
+        // Goes through the same send() path as the composer, so queueing,
+        // history and the streaming buffers all behave identically.
+        function send(text: string): void {
+            root.send(text);
+        }
     }
 
     Connections {
         target: GooseAcpSession
 
         function onMessageChunk(text) {
-            ChatState.appendToStreamingMessage(text);
+            ChatState.pushStreamingText(text);
         }
 
         function onThoughtChunk(text) {
@@ -226,10 +309,12 @@ PanelWindow {
             // onMessageChunk streams the reply -- these chunks arrive in
             // small pieces, and appendMessage-per-chunk was confirmed live
             // to render one bubble per word instead of one growing bubble.
+            // The bubble is created empty and filled from the streaming
+            // buffer, so creating it costs exactly one model reset per turn
+            // instead of one per chunk.
             if (ChatState.streamingThoughtIndex < 0)
-                ChatState.streamingThoughtIndex = ChatState.appendMessage("thought", text);
-            else
-                ChatState.appendToStreamingMessage(text, ChatState.streamingThoughtIndex);
+                ChatState.streamingThoughtIndex = ChatState.appendMessage("thought", "");
+            ChatState.pushStreamingThought(text);
         }
 
         function onToolCall(call) {
@@ -244,6 +329,9 @@ PanelWindow {
         }
 
         function onTurnComplete(result) {
+            // Fold the streamed buffers into `messages` BEFORE clearing the
+            // indices -- commitStreaming writes at those indices.
+            ChatState.commitStreaming();
             ChatState.streamingIndex = -1;
             ChatState.streamingThoughtIndex = -1;
             if (result.stopReason === "error")
@@ -356,12 +444,19 @@ PanelWindow {
         return root.slashCommands.filter(c => c.name.startsWith(t));
     }
 
+    // Shared by the /new slash command and the header's ＋ button so the
+    // two can never drift apart.
+    function newChat() {
+        ChatState.clear();
+        GooseAcpSession.newSession();
+        root.tierPickerOpen = false;
+    }
+
     function runSlash(name) {
         chatInput.text = "";
         switch (name) {
         case "/new":
-            ChatState.clear();
-            GooseAcpSession.newSession();
+            root.newChat();
             break;
         case "/history":
             SessionsState.toggle();
@@ -399,9 +494,15 @@ PanelWindow {
         id: panel
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.right: parent.right
         width: Theme.spacing.chatPanelWidth
-        x: ChatState.visible ? 0 : width
+        // Deliberately NOT anchors.right: an anchor owns the item's
+        // horizontal position and silently overrides any `x` binding, so
+        // the slide animation below never rendered a single frame -- while
+        // closeTimer above still held this fullscreen, keyboard-grabbing
+        // layer surface mapped for the whole chatSlide duration waiting for
+        // that animation to finish. All cost, no motion. Positioning with x
+        // explicitly gives the Behavior something real to drive.
+        x: ChatState.visible ? parent.width - width : parent.width
         color: Theme.color.launcherBg
         border.width: Theme.spacing.borderHairline
         border.color: Theme.color.launcherBorder
@@ -468,11 +569,45 @@ PanelWindow {
                         id: historyArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        // Reuses the existing full-screen SessionsPicker
-                        // rather than reimplementing an in-panel drawer --
-                        // it already does list/refresh/resume + history
-                        // replay correctly (SessionsPicker.qml).
-                        onClicked: SessionsState.toggle()
+                        // Used to jump straight to session history; now
+                        // opens the feature menu below instead, which lists
+                        // history as its first entry alongside every other
+                        // overlay this shell has -- compare, voice, MCP,
+                        // clipboard/screen/notes capture, and the model
+                        // browser. One discoverable entry point rather than
+                        // requiring each to already have a memorized keybind.
+                        onClicked: root.menuOpen = !root.menuOpen
+                    }
+                }
+
+                // Starting a fresh conversation was only reachable by
+                // typing /new, which is not discoverable. Same two calls the
+                // slash command makes, via the shared newChat() helper.
+                Rectangle {
+                    id: newChatButton
+                    width: Theme.spacing.chatCloseSize
+                    height: Theme.spacing.chatCloseSize
+                    anchors {
+                        left: historyButton.right
+                        leftMargin: Theme.spacing.launcherTabGap / 2
+                        verticalCenter: parent.verticalCenter
+                    }
+                    radius: height / 2
+                    color: newChatArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "＋"
+                        color: newChatArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+                    }
+
+                    MouseArea {
+                        id: newChatArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: root.newChat()
                     }
                 }
 
@@ -536,7 +671,23 @@ PanelWindow {
                 model: ChatState.messages
                 spacing: Theme.spacing.launcherContentGap / 2
 
+                // Recycle delegate object trees instead of destroying and
+                // reallocating them. Each row here is an Item + Rectangle +
+                // Column + Repeater + N Loaders + N Texts + MouseAreas, so
+                // reuse matters every time the model does change.
+                reuseItems: true
+
                 onCountChanged: positionViewAtEnd()
+
+                // Streaming does not change `count` (the bubble already
+                // exists and only its text grows), so onCountChanged alone
+                // never followed a growing reply -- the view sat still while
+                // the answer scrolled off the bottom. contentHeight does
+                // change as the bubble reflows, so track that too.
+                onContentHeightChanged: {
+                    if (ChatState.streamingIndex >= 0 || ChatState.streamingThoughtIndex >= 0)
+                        positionViewAtEnd();
+                }
 
                 // Standard modern-chat layout: user turns right-aligned
                 // in an accent bubble, assistant turns left-aligned in a
@@ -546,6 +697,7 @@ PanelWindow {
                 delegate: Item {
                     id: row
                     required property var modelData
+                    required property int index
                     readonly property bool isUser: modelData?.role === "user"
                     readonly property bool isTool: modelData?.role === "tool"
                     readonly property bool isThought: modelData?.role === "thought"
@@ -558,8 +710,32 @@ PanelWindow {
                     // ephemeral hover/expand flag in this file.
                     property bool thoughtExpanded: false
 
+                    // reuseItems recycles this object for a different row, so
+                    // per-delegate UI state has to be reset explicitly or an
+                    // expanded thought "moves" to whatever message lands here
+                    // next.
+                    ListView.onReused: row.thoughtExpanded = false
+
                     width: messageList.width
                     height: bubble.height
+
+                    // The text this row actually renders. For the two bubbles
+                    // a turn is streaming into, that is the live buffer in
+                    // ChatState rather than modelData.text -- which stays
+                    // empty until commitStreaming() folds the finished text
+                    // back in at end of turn. Everything else reads straight
+                    // from the model. This is what keeps a streamed token
+                    // from touching the messages array (and therefore from
+                    // resetting the whole ListView).
+                    readonly property string displayText: {
+                        if (!row.modelData)
+                            return "";
+                        if (row.index === ChatState.streamingIndex && ChatState.streamingText.length > 0)
+                            return ChatState.streamingText;
+                        if (row.index === ChatState.streamingThoughtIndex && ChatState.streamingThoughtText.length > 0)
+                            return ChatState.streamingThoughtText;
+                        return row.modelData.text ?? "";
+                    }
 
                     // Muted rows (tool notices, thinking traces) stay a
                     // single plain Text -- they never contain code worth
@@ -568,15 +744,49 @@ PanelWindow {
                     // mid-model-reassignment (ChatState swaps the whole
                     // messages array on every append), and an undefined
                     // modelData here threw and blanked the bubble.
-                    readonly property var segments: (row.isMuted || !row.modelData) ? [] : root.splitSegments(row.modelData.text)
+                    readonly property var segments: (row.isMuted || !row.modelData) ? [] : root.splitSegments(row.displayText)
                     readonly property bool hasCode: (row.segments ?? []).some(s => s.code)
+
+                    // Independent intrinsic measurement of this row's text,
+                    // deliberately NOT a child of `body`.
+                    //
+                    // bubble.width used to read body.implicitWidth, but a
+                    // Column's implicit width is the max of its children's
+                    // *assigned* widths, and every child below is assigned
+                    // `width: body.width` -> bubble.width - 2*inset. That
+                    // makes the width binding self-referential. It converges
+                    // rather than oscillating, so Qt never logs a binding
+                    // loop -- it just settles on the degenerate fixed point
+                    // bubble.width == 2*launcherRowInset == 22px, collapsing
+                    // every bubble to a sliver. The hasCode branch hardcodes
+                    // chatBubbleMaxWidth and never evaluates
+                    // body.implicitWidth, so code-bearing assistant replies
+                    // escaped the cycle -- which is exactly why only replies
+                    // rendered and user messages (which virtually never carry
+                    // a fence) did not.
+                    //
+                    // A Text with no assigned width and NoWrap reports the
+                    // natural width of its longest line and depends on
+                    // nothing downstream, restoring the intrinsic measurement
+                    // the pre-fdfe753 single-Text layout got for free. Keep
+                    // it PlainText: it is a ruler, not a renderer, and
+                    // MarkdownText here would re-parse on every chunk.
+                    Text {
+                        id: intrinsic
+                        visible: false
+                        text: row.displayText
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeBase
+                        textFormat: Text.PlainText
+                        wrapMode: Text.NoWrap
+                    }
 
                     Rectangle {
                         id: bubble
                         // A bubble containing code takes the full width --
                         // code lines shouldn't be re-wrapped to hug the
                         // longest prose line.
-                        width: row.hasCode ? Theme.spacing.chatBubbleMaxWidth : Math.min(body.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
+                        width: row.hasCode ? Theme.spacing.chatBubbleMaxWidth : Math.min(intrinsic.implicitWidth + Theme.spacing.launcherRowInset * 2, Theme.spacing.chatBubbleMaxWidth)
                         height: body.implicitHeight + (row.isMuted ? Theme.spacing.launcherRowInset : meta.height + Theme.spacing.launcherRowInset)
                         anchors {
                             right: row.isUser ? parent.right : undefined
@@ -599,14 +809,22 @@ PanelWindow {
                             Text {
                                 visible: row.isMuted
                                 width: parent.width
+                                // modelData guard for the same reason as
+                                // `segments` above: ChatState reassigns the
+                                // whole messages array on every streamed
+                                // chunk, which resets this ListView's model,
+                                // so a delegate can be evaluated with
+                                // modelData momentarily undefined. Unguarded,
+                                // that threw and blanked the bubble.
                                 text: {
-                                    if (!row.isMuted)
+                                    if (!row.isMuted || !row.modelData)
                                         return "";
+                                    const full = row.displayText;
                                     if (row.isTool)
-                                        return row.modelData.text;
-                                    const collapsedPreview = row.modelData.text.length > 60 ? row.modelData.text.slice(0, 60) + "…" : row.modelData.text;
+                                        return full;
+                                    const collapsedPreview = full.length > 60 ? full.slice(0, 60) + "…" : full;
                                     const glyph = row.thoughtExpanded ? "▾" : "▸";
-                                    return `${glyph} thinking: ${row.thoughtExpanded ? row.modelData.text : collapsedPreview}`;
+                                    return `${glyph} thinking: ${row.thoughtExpanded ? full : collapsedPreview}`;
                                 }
                                 wrapMode: Text.Wrap
                                 color: Theme.color.launcherPlaceholderFg
@@ -726,7 +944,7 @@ PanelWindow {
                             spacing: Theme.spacing.launcherContentGap
 
                             Text {
-                                text: row.modelData.time ? new Date(row.modelData.time).toLocaleTimeString(Qt.locale(), "hh:mm") : ""
+                                text: row.modelData?.time ? new Date(row.modelData.time).toLocaleTimeString(Qt.locale(), "hh:mm") : ""
                                 color: Theme.color.launcherPlaceholderFg
                                 font.family: Theme.font.family
                                 font.pixelSize: Theme.font.sizeSmall
@@ -743,7 +961,7 @@ PanelWindow {
                                     id: copyArea
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: root.copyToClipboard(row.modelData.text)
+                                    onClicked: root.copyToClipboard(row.displayText)
                                 }
                             }
                         }
@@ -836,7 +1054,7 @@ PanelWindow {
                 id: escalationBanner
                 visible: ChatState.pendingEscalation !== null
                 anchors {
-                    bottom: inputBox.top
+                    bottom: activityStrip.top
                     left: parent.left
                     right: parent.right
                     bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
@@ -1025,6 +1243,121 @@ PanelWindow {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: GooseAcpSession.cancel()
+                    }
+                }
+            }
+
+            // Activity indicator. The panel used to communicate exactly one
+            // bit -- the composer placeholder said "qubi is thinking…" for
+            // the entire turn -- which on a local reasoning model means a
+            // motionless panel for a very long time: measured 48s of silence
+            // before the first token on a one-sentence question, and 60s
+            // total for "what is 6 times 7". This names the actual step and,
+            // while reasoning, shows a rolling fragment of what the model is
+            // working through, so a slow turn reads as busy rather than
+            // frozen.
+            Rectangle {
+                id: activityStrip
+                visible: GooseAcpSession.engineUnavailable || GooseAcpSession.busy || GooseAcpSession.phase === "starting_model" || GooseAcpSession.phase === "switching_tier" || GooseAcpSession.phase === "reloading_hardware"
+                anchors {
+                    bottom: inputBox.top
+                    left: parent.left
+                    right: parent.right
+                    bottomMargin: visible ? Theme.spacing.launcherContentGap : 0
+                }
+                height: visible ? implicitHeight : 0
+                implicitHeight: activityColumn.implicitHeight + Theme.spacing.launcherContentGap
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.accentPurple
+
+                readonly property string label: {
+                    if (GooseAcpSession.engineUnavailable)
+                        return "engine offline — reconnecting…";
+                    switch (GooseAcpSession.phase) {
+                    case "starting_model":
+                        return "starting model";
+                    case "switching_tier":
+                        return "switching tier";
+                    case "reloading_hardware":
+                        return "hardware changed, reloading";
+                    case "queued":
+                        return "queued";
+                    case "reasoning":
+                        return "thinking";
+                    case "responding":
+                        return "writing reply";
+                    case "tool":
+                        return "running tool";
+                    default:
+                        return "working";
+                    }
+                }
+
+                Column {
+                    id: activityColumn
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: parent.top
+                        margins: Theme.spacing.launcherRowInset
+                    }
+                    spacing: Theme.spacing.sessionMetaGap
+
+                    Row {
+                        spacing: Theme.spacing.launcherIconLabelGap
+
+                        // Pure-QML spinner: no image asset, no layer, and it
+                        // stops dead when the strip is hidden so an idle
+                        // panel runs no animation at all.
+                        Rectangle {
+                            id: spinnerDot
+                            width: 8
+                            height: 8
+                            radius: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Theme.color.accentPurple
+
+                            SequentialAnimation on opacity {
+                                running: activityStrip.visible
+                                loops: Animation.Infinite
+                                NumberAnimation {
+                                    to: 0.25
+                                    duration: 520
+                                    easing.type: Easing.InOutQuad
+                                }
+                                NumberAnimation {
+                                    to: 1
+                                    duration: 520
+                                    easing.type: Easing.InOutQuad
+                                }
+                            }
+                        }
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: GooseAcpSession.engineUnavailable ? activityStrip.label : `${activityStrip.label} · ${GooseAcpSession.currentTier}`
+                            color: Theme.color.fg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                        }
+                    }
+
+                    // The rolling "what is it thinking about" line. Empty for
+                    // every phase that has no detail, and collapsed to zero
+                    // height so the strip stays one line tall then.
+                    Text {
+                        visible: GooseAcpSession.phaseDetail.length > 0
+                        height: visible ? implicitHeight : 0
+                        width: parent.width
+                        text: GooseAcpSession.phaseDetail
+                        elide: Text.ElideRight
+                        maximumLineCount: 2
+                        wrapMode: Text.Wrap
+                        color: Theme.color.launcherPlaceholderFg
+                        font.family: Theme.font.family
+                        font.pixelSize: Theme.font.sizeSmall
                     }
                 }
             }
@@ -1301,10 +1634,18 @@ PanelWindow {
                     }
                     text: {
                         const tier = GooseAcpSession.currentTier;
-                        const model = GooseAcpSession.tierModels[tier] ?? "";
+                        // An ad hoc qubi/use_model pick reports as
+                        // "model:<tag>" (see ModelBrowser.qml's
+                        // currentModelName for the full rationale) -- render
+                        // it as just the model name rather than that literal
+                        // string, since there's no separate tier label worth
+                        // showing for a one-off pick.
+                        const isAdhoc = tier.startsWith("model:");
+                        const label = isAdhoc ? tier.slice("model:".length) : tier;
+                        const model = isAdhoc ? "" : (GooseAcpSession.tierModels[tier] ?? "");
                         const tokens = ChatState.tokensTotal;
                         const tokenPart = tokens > 0 ? ` · ${tokens >= 1000 ? (tokens / 1000).toFixed(1) + "k" : tokens}` : "";
-                        return `${tier}${model.length > 0 ? " · " + model : ""}${tokenPart}`;
+                        return `${label}${model.length > 0 ? " · " + model : ""}${tokenPart}`;
                     }
                     color: tierArea.containsMouse ? Theme.color.fg : Theme.color.launcherPlaceholderFg
                     font.family: Theme.font.family
@@ -1320,6 +1661,76 @@ PanelWindow {
             }
 
             // Tier picker, floating above the status bar rather than
+            // Feature menu, floating below the hamburger button rather than
+            // replacing the header (same "float above the layout, don't
+            // resize the panel" choice tierPicker below makes).
+            Rectangle {
+                id: featureMenu
+                visible: root.menuOpen
+                anchors {
+                    top: headerRow.bottom
+                    left: parent.left
+                    topMargin: Theme.spacing.launcherContentGap / 2
+                }
+                width: Theme.spacing.chatTierPickerWidth
+                height: featureMenuColumn.implicitHeight + Theme.spacing.launcherContentGap
+                radius: Theme.radius.input
+                color: Theme.color.launcherInputBg
+                border.width: Theme.spacing.borderHairline
+                border.color: Theme.color.launcherInputBorder
+                // Floats over the message list, which is not itself a
+                // MouseArea-blocking layer -- without an explicit stacking
+                // order the menu could render behind later-declared
+                // siblings (the tier picker, the composer).
+                z: 10
+
+                Column {
+                    id: featureMenuColumn
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                    }
+
+                    Repeater {
+                        model: root.featureMenuItems
+
+                        delegate: Rectangle {
+                            id: menuRow
+                            required property var modelData
+                            width: parent.width
+                            height: Theme.spacing.launcherRowHeight
+                            color: menuArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                            Text {
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: Theme.spacing.launcherRowInset
+                                    rightMargin: Theme.spacing.launcherRowInset
+                                }
+                                text: menuRow.modelData.label
+                                elide: Text.ElideRight
+                                color: Theme.color.fg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeSmall
+                            }
+
+                            MouseArea {
+                                id: menuArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    menuRow.modelData.action();
+                                    root.menuOpen = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // pushing the conversation around (the old inline picker
             // columns resized the whole panel when opened).
             Rectangle {
@@ -1346,11 +1757,20 @@ PanelWindow {
                     }
 
                     Repeater {
-                        // Exactly the three tiers qubi/set_tier accepts --
-                        // see qubi_engine.py's own tier table. Not derived
-                        // from configOptions, which lists models that
-                        // cannot actually be switched to.
-                        model: ["light", "heavy", "claude"]
+                        // Derived from the engine's live tier table
+                        // (qubi/status -> GooseAcpSession.tierModels) rather
+                        // than a hardcoded list, because tiers are now
+                        // config-driven: `fast` appeared by adding it to
+                        // config.json, and a hardcoded list would have
+                        // silently hidden it. Ordered cheapest-first, with
+                        // any tier not in the preference list appended so an
+                        // unknown one is never dropped.
+                        model: {
+                            const order = ["fast", "light", "heavy", "claude"];
+                            const names = Object.keys(GooseAcpSession.tierModels ?? ({}));
+                            const known = order.filter(t => names.includes(t));
+                            return known.concat(names.filter(t => !order.includes(t)));
+                        }
 
                         delegate: Rectangle {
                             required property string modelData
@@ -1376,6 +1796,54 @@ PanelWindow {
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: root.switchTier(parent.modelData)
+                            }
+                        }
+                    }
+
+                    // Separator + escape hatch into the full model browser.
+                    // The tier list above only offers the models the tiers
+                    // are currently pointed at; this is how you change what
+                    // a tier points AT, or install something new.
+                    Rectangle {
+                        width: parent.width
+                        height: Theme.spacing.borderHairline
+                        color: Theme.color.launcherBorder
+                    }
+
+                    Rectangle {
+                        id: moreModelsRow
+                        width: parent.width
+                        height: Theme.spacing.launcherRowHeight
+                        color: moreModelsArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
+
+                        Text {
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                                leftMargin: Theme.spacing.launcherRowInset
+                                rightMargin: Theme.spacing.launcherRowInset
+                            }
+                            text: "⊕  more models…"
+                            elide: Text.ElideRight
+                            color: Theme.color.accentPurple
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                        }
+
+                        MouseArea {
+                            id: moreModelsArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                // useMode, not a tier assignment -- picking
+                                // a model here switches THIS conversation to
+                                // it directly (qubi/use_model), it does not
+                                // change what "light"/"fast"/etc. mean for
+                                // anyone else. See ModelBrowserState.useMode.
+                                ModelBrowserState.useMode = true;
+                                root.tierPickerOpen = false;
+                                ModelBrowserState.visible = true;
                             }
                         }
                     }

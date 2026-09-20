@@ -67,6 +67,15 @@ PanelWindow {
             VoiceState.phase = "listening";
             VoiceState.markStage("utterance");
             readyCheckProcess.running = true;
+            // Voice conversations default to the fast tier -- turnaround
+            // matters more here than a reasoning trace nobody reads over
+            // TTS. Only for a conversation that hasn't started yet: this
+            // reuses GooseAcpSession's single session (see this file's own
+            // header comment), so resuming an existing text conversation by
+            // voice must not yank it off whatever tier it's already on
+            // (possibly heavy/claude via auto-escalation) mid-turn.
+            if (ChatState.messages.length === 0 && !GooseAcpSession.busy && GooseAcpSession.currentTier !== "fast")
+                GooseAcpSession.setTier(GooseAcpSession.sessionId, "fast", () => {});
         } else {
             if (recordProcess.running)
                 recordProcess.running = false;

@@ -71,7 +71,11 @@ QtObject {
             toastTimeoutMs: 8000,
             hoverColor: { duration: 180, easing: "OutQuad" },
             criticalBlink: { duration: 500, dimTo: 0.2, restoreTo: 1 },
-            chatSlide: { duration: 220, easing: "OutCubic" }
+            // Doubles as ChatOverlay's unmap delay (its closeTimer uses this
+            // same value), so this number IS the perceived close latency —
+            // the fullscreen layer surface stays mapped this long after you
+            // hit close. 220ms read as sluggish; 140 still reads as motion.
+            chatSlide: { duration: 140, easing: "OutCubic" }
         },
         effect: { popupElevated: false, popupShadowColor: "transparent", popupShadowOffset: 0 },
         wallpaper: { engine: "static", image: "alyssa.png" }

@@ -63,6 +63,18 @@ Item {
     // explicit requirement).
     property bool engineUnavailable: false
 
+    // Live activity phase for THIS session, straight off the engine's
+    // qubi/session_status stream. `busy` is a binary in-flight flag and
+    // cannot tell "spawning a cold multi-GB model" apart from "generating
+    // token 400" -- measured on a real docked turn, the panel had no new
+    // information for 48 seconds before the first output arrived, which is
+    // what "it looks frozen" actually is. These name the step, and
+    // phaseDetail carries a rolling fragment of what the model is reasoning
+    // about, derived by the engine from the reasoning stream it already has
+    // (no second model call).
+    property string phase: "idle"
+    property string phaseDetail: ""
+
     signal qubiSessionStatus(var status)
     signal qubiEscalationOffer(var offer)
 
@@ -380,6 +392,40 @@ Item {
         });
     }
 
+    // Every model Ollama has locally. Used by the model browser's
+    // "installed" list so picking an already-downloaded model doesn't
+    // require it to appear in llmfit's recommendation feed first.
+    function installedModels(callback) {
+        _call("qubi/installed_models", {}, (result, error) => {
+            callback(error ? [] : (result?.models ?? []), error ?? null);
+        });
+    }
+
+    // Use a specific installed model for THIS conversation, right now.
+    // Deliberately not a config change: the engine binds this session onto
+    // an ephemeral per-model tier and leaves every named tier's own
+    // configured model untouched (see qubi_engine.py's _use_model). Picking
+    // a model from the browser must not silently reassign what "light" or
+    // "fast" mean for every other conversation.
+    function useModelNow(model, callback) {
+        _call("qubi/use_model", {
+            session: root.sessionId,
+            model: model
+        }, (result, error) => {
+            if (error) {
+                root.sessionFailed(`qubi/use_model failed: ${JSON.stringify(error)}`);
+                if (callback)
+                    callback(error);
+                return;
+            }
+            // currentTier updates itself from the qubi/session_status push
+            // this switch triggers server-side -- no local bookkeeping
+            // needed here beyond the callback.
+            if (callback)
+                callback(null);
+        });
+    }
+
     // options offered by a real qubi/escalation_offer notification are
     // exactly ["escalate_claude", "escalate_heavy_local", "decline"]
     // (qubi_engine.py's _on_tier_notification) -- decline needs no engine
@@ -473,6 +519,13 @@ Item {
                     // overwrite the status bar.
                     if (obj.params.session === root.sessionId && obj.params.tier)
                         root.currentTier = obj.params.tier;
+                    // Same per-session guard as currentTier above: another
+                    // subscribed session's phase must not drive this panel's
+                    // indicator.
+                    if (obj.params.session === root.sessionId) {
+                        root.phase = obj.params.phase ?? "idle";
+                        root.phaseDetail = obj.params.phaseDetail ?? "";
+                    }
                     root.qubiSessionStatus(obj.params);
                     return;
                 }

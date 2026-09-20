@@ -20,6 +20,32 @@ QtObject {
     property bool loading: false
     property var downloadProgress: ({})
 
+    // Everything Ollama already has locally, from qubi/installed_models.
+    // Distinct from `models` (llmfit's *recommendation* feed, which is a
+    // curated pull list and does not necessarily include what you have):
+    // selecting an already-downloaded model must not depend on that feed
+    // happening to mention it.
+    property var installed: []
+    property bool installedLoading: false
+
+    // True when the browser was opened from the chat panel (tier picker's
+    // "more models" row, or the hamburger menu's own entry point) meaning
+    // "pick a model to use right now" — clicking an installed card then
+    // calls GooseAcpSession.useModelNow() for the CURRENT conversation.
+    // False means standalone browsing (SUPER+B / the "Browse Models"
+    // hamburger entry): a catalogue only, clicking an installed card does
+    // nothing (pulling an uninstalled one still works either way).
+    //
+    // Deliberately not "which tier to assign" (that concept no longer
+    // exists here at all) — picking a model must never mutate a named
+    // tier's configured model out from under every other conversation.
+    property bool useMode: false
+
+    function hideAndReset() {
+        visible = false;
+        useMode = false;
+    }
+
     function toggle() {
         visible = !visible;
     }
