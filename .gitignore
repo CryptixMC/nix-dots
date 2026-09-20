@@ -2,6 +2,7 @@ result
 .claude/worktrees/
 .goose-handoff-session.log
 .playwright-mcp/
+graphify-out/
 SECTION_7_SUMMARY.md
 TEMP_TODO.md
 __pycache__/
