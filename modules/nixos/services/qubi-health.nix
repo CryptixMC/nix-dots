@@ -1,6 +1,9 @@
 { pkgs, lib, ... }:
 
 let
+  scriptWithPath = import ../../../lib/scriptWithPath.nix { inherit lib pkgs; };
+  mkUserScript = import ../../../lib/mkUserScript.nix;
+
   # Shared status-computation logic, used by both the CLI (qubi-health, run
   # by hand) and the advisory timer below (which just parses this CLI's
   # first output line rather than re-implementing the checks). Read-only —
@@ -51,36 +54,36 @@ let
   # Advisory-only wrapper: runs the CLI above, notifies on the two bad
   # states, stays silent (just logs) on HEALTHY/EGPU-ABSENT since those are
   # both normal, common conditions not worth a desktop popup every 5 minutes.
-  checkScript = pkgs.writeShellScript "qubi-health-check" ''
-    PATH=${
-      lib.makeBinPath [
-        healthCli
-        pkgs.util-linux
-        pkgs.hyprland
-        pkgs.coreutils
-      ]
-    }:$PATH
+  checkScript = scriptWithPath {
+    name = "qubi-health-check";
+    runtimeInputs = [
+      healthCli
+      pkgs.util-linux
+      pkgs.hyprland
+      pkgs.coreutils
+    ];
+    text = ''
+      log() { echo "[qubi-health] $*"; logger -t qubi-health "$*"; }
 
-    log() { echo "[qubi-health] $*"; logger -t qubi-health "$*"; }
+      ${mkUserScript { user = "cryptix"; }}
+      HYPR_SIG=$(ls -t "$RUNTIME_DIR/hypr" 2>/dev/null | head -n1)
+      hyprctl_user() {
+        as_user env HYPRLAND_INSTANCE_SIGNATURE="$HYPR_SIG" hyprctl "$@" 2>/dev/null || true
+      }
 
-    RUNTIME_DIR="/run/user/$(id -u cryptix)"
-    HYPR_SIG=$(ls -t "$RUNTIME_DIR/hypr" 2>/dev/null | head -n1)
-    hyprctl_user() {
-      runuser -u cryptix -- env XDG_RUNTIME_DIR="$RUNTIME_DIR" HYPRLAND_INSTANCE_SIGNATURE="$HYPR_SIG" hyprctl "$@" 2>/dev/null || true
-    }
+      status=$(qubi-health)
+      log "$status"
 
-    status=$(qubi-health)
-    log "$status"
-
-    case "$status" in
-      DEAD-KFD-REBOOT-REQUIRED*)
-        hyprctl_user notify -1 15000 "rgb(f38ba8)" "eGPU: dead ROCm/KFD state detected (GPU present, 0 compute agents) — reboot needed"
-        ;;
-      WEDGED-RUNNER*)
-        hyprctl_user notify -1 15000 "rgb(f38ba8)" "Ollama: llama-server stuck in D-state (unkillable) — reboot needed to clear"
-        ;;
-    esac
-  '';
+      case "$status" in
+        DEAD-KFD-REBOOT-REQUIRED*)
+          hyprctl_user notify -1 15000 "rgb(f38ba8)" "eGPU: dead ROCm/KFD state detected (GPU present, 0 compute agents) — reboot needed"
+          ;;
+        WEDGED-RUNNER*)
+          hyprctl_user notify -1 15000 "rgb(f38ba8)" "Ollama: llama-server stuck in D-state (unkillable) — reboot needed to clear"
+          ;;
+      esac
+    '';
+  };
 in
 {
   environment.systemPackages = [ healthCli ];

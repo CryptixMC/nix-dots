@@ -1,6 +1,9 @@
 { pkgs, lib, ... }:
 
 let
+  scriptWithPath = import ../../../lib/scriptWithPath.nix { inherit lib pkgs; };
+  mkUserScript = import ../../../lib/mkUserScript.nix;
+
   # Hardcoded per Phase 1b's design (llmfit is run once per state during
   # bring-up, not looked up live) — see the "Local-First AI Workstation"
   # plan doc for the full candidate lists these were chosen from.
@@ -35,15 +38,6 @@ let
   # reasoning depth more than chat needs raw speed; see goose.nix).
   dockedModel = "qwen3:4b";
 
-  # PATH explicitly set (not inherited) since these run as root-context
-  # systemd oneshots, matching the convention in
-  # modules/nixos/hardware/amd.nix's scripts.
-  scriptPath = lib.makeBinPath [
-    pkgs.coreutils
-    pkgs.util-linux
-    pkgs.bash
-  ];
-
   # qubi-state-sync is provided by modules/home-manager/apps/goose.nix's
   # home.packages, landing on the user's normal profile PATH — referenced
   # by bare name here (via a login shell for PATH resolution) rather than
@@ -51,47 +45,61 @@ let
   # matching how amd.nix's root-context scripts already call user-session
   # commands (kanshi.service, hyprctl) by name via runuser. Verify this
   # resolves correctly the first time these units actually fire.
-  mkSyncScript = state: model: pkgs.writeShellScript "ai-workstation-${state}-sync" ''
-    PATH=${scriptPath}:$PATH
-    log() { echo "[ai-workstation-${state}-sync] $*"; logger -t ai-workstation-${state}-sync "$*"; }
+  mkSyncScript =
+    state: model:
+    scriptWithPath {
+      name = "ai-workstation-${state}-sync";
+      # PATH explicitly set (not inherited) since these run as root-context
+      # systemd oneshots, matching the convention in
+      # modules/nixos/hardware/amd.nix's scripts.
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.util-linux
+        pkgs.bash
+      ];
+      text = ''
+        ${mkUserScript { user = "cryptix"; }}
+        log() { echo "[ai-workstation-${state}-sync] $*"; logger -t ai-workstation-${state}-sync "$*"; }
 
-    install -d -m 0755 -o cryptix -g users /run/ai-workstation
-    printf '{"state":"${state}","provider":"ollama","model":"%s","updated":"%s"}\n' \
-      "${model}" "$(date -Iseconds)" > /run/ai-workstation/state.json
-    log "wrote state=${state} model=${model}"
+        install -d -m 0755 -o cryptix -g users /run/ai-workstation
+        printf '{"state":"${state}","provider":"ollama","model":"%s","updated":"%s"}\n' \
+          "${model}" "$(date -Iseconds)" > /run/ai-workstation/state.json
+        log "wrote state=${state} model=${model}"
 
-    if runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" bash -lc "qubi-state-sync"; then
-      log "qubi-state-sync succeeded"
-    else
-      log "qubi-state-sync failed or not yet installed — state file is still correct, desktop notification may not have fired"
-    fi
-  '';
+        if as_user bash -lc "qubi-state-sync"; then
+          log "qubi-state-sync succeeded"
+        else
+          log "qubi-state-sync failed or not yet installed — state file is still correct, desktop notification may not have fired"
+        fi
+      '';
+    };
   # Suspend can catch ROCm/KFD mid-inference; resuming with a model still
   # "loaded" against hardware that just went through a full power-state
   # transition is the same shape of risk as the surprise-eGPU-removal
   # dead-KFD state documented in TODO.md §7 (Phase 1a "Found and fixed
   # along the way"). Evicting before suspend costs nothing (the model just
   # reloads into VRAM on next use) and removes the risk entirely.
-  suspendEvictScript = pkgs.writeShellScript "ai-workstation-suspend-evict" ''
-    PATH=${
-      lib.makeBinPath [
-        pkgs.ollama
-        pkgs.coreutils
-      ]
-    }:$PATH
-    log() { echo "[ai-workstation-suspend-evict] $*"; logger -t ai-workstation-suspend-evict "$*"; }
+  suspendEvictScript = scriptWithPath {
+    name = "ai-workstation-suspend-evict";
+    runtimeInputs = [
+      pkgs.ollama
+      pkgs.coreutils
+    ];
+    text = ''
+      log() { echo "[ai-workstation-suspend-evict] $*"; logger -t ai-workstation-suspend-evict "$*"; }
 
-    loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
-    if [ -z "$loaded" ]; then
-      log "no loaded models — nothing to evict"
-      exit 0
-    fi
+      loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
+      if [ -z "$loaded" ]; then
+        log "no loaded models — nothing to evict"
+        exit 0
+      fi
 
-    echo "$loaded" | while read -r model; do
-      log "evicting $model before suspend"
-      ollama stop "$model" 2>/dev/null || true
-    done
-  '';
+      echo "$loaded" | while read -r model; do
+        log "evicting $model before suspend"
+        ollama stop "$model" 2>/dev/null || true
+      done
+    '';
+  };
 in
 {
   systemd.tmpfiles.rules = [
