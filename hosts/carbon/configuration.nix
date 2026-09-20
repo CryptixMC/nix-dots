@@ -4,7 +4,6 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/nixos/wm/gnome.nix
     ../../modules/nixos/wm/hyprland.nix
     ../../modules/nixos/apps/games.nix
     ../../modules/nixos/apps/virtualization.nix
@@ -23,6 +22,7 @@
     ../../modules/nixos/services/searxng.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
+    ../../modules/nixos/services/desktop-support.nix
     ../../modules/nixos/core/bootloader.nix
     ../../modules/nixos/core/networking.nix
     ../../modules/nixos/core/locale.nix
