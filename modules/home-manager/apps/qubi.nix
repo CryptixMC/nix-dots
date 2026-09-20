@@ -1,4 +1,9 @@
-{ pkgs, config, ... }:
+{
+  pkgs,
+  config,
+  inputs,
+  ...
+}:
 
 let
   home = config.home.homeDirectory;
@@ -9,15 +14,12 @@ let
   # publish the whole checkout, .git included, to the tailnet.)
   mobileRoot = pkgs.runCommand "qubi-mobile-root" { } ''
     mkdir -p $out
-    cp -r ${pkgs.callPackage ../../../quickshell/modules/qubi/nix/mobile.nix { }}/. $out/
+    cp -r ${inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-mobile}/. $out/
     ln -s index.html $out/mobile_gui.html
   '';
 in
 {
-  # Qubi is staged in-tree at the path its own repo will be mounted at, and
-  # consumed exactly as it will be once it is a flake input:
-  #   imports = [ inputs.qubi.homeModules.qubi ];
-  imports = [ ../../../quickshell/modules/qubi/nix/hm-module.nix ];
+  imports = [ inputs.qubi.homeModules.qubi ];
 
   programs.qubi = {
     enable = true;

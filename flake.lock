@@ -237,11 +237,32 @@
         "type": "github"
       }
     },
+    "qubi": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1789932708,
+        "narHash": "sha256-2+RTgiZHftfjM/U65ef4daooalL794KiX3HHm17RyIg=",
+        "ref": "refs/heads/main",
+        "rev": "57cb4959ac129dc414b5caa8b0d69c6fe512f050",
+        "revCount": 60,
+        "type": "git",
+        "url": "ssh://git@github.com/CryptixMC/qubi"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/CryptixMC/qubi"
+      }
+    },
     "root": {
       "inputs": {
         "claude-desktop": "claude-desktop",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
+        "qubi": "qubi",
         "stylix": "stylix",
         "zen-browser": "zen-browser"
       }
