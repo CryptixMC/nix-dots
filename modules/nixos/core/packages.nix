@@ -46,5 +46,15 @@
     # icons. gsettings already claims icon-theme "Adwaita"; this actually
     # provides it.
     adwaita-icon-theme
+    # Formerly modules/temp.nix.
+    ghostty
+    zenith
+    zenith-nvidia
+    fzf
+    eza
+    fd
+    bat
+    bottom
+    onefetch
   ];
 }

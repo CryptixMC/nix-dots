@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "mobile-gui-static",
-      "runtimeExecutable": "/nix/store/d64q19q1xjdwfhqx6czvrjgrhq0n3lcc-python3-3.14.7/bin/python3",
-      "runtimeArgs": ["-m", "http.server", "8902"],
+      "runtimeExecutable": "nix",
+      "runtimeArgs": ["run", "nixpkgs#python3", "--", "-m", "http.server", "8902"],
       "port": 8902
     }
   ]

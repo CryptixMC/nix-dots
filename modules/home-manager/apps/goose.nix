@@ -226,23 +226,9 @@ let
       "''${files[@]}"
   '';
 
-  # Bridges goose_bridge.py (repo root — a plain WebSocket-to-`goose acp`
-  # relay, proven live: a real initialize + session/list round trip over
-  # this exact script returned real ACP data including 50 real existing
-  # sessions) into a proper Nix-managed binary. The script needs the
-  # third-party `websockets` PyPI package, which a bare system python3
-  # does not have — pkgs.python3.withPackages is the only way it actually
-  # runs on this machine.
-  gooseMobileBridge = pkgs.writeShellScriptBin "qubi-bridge" ''
-    set -euo pipefail
-    exec ${pkgs.python3.withPackages (p: [ p.websockets ])}/bin/python3 \
-      ${../../../goose_bridge.py}
-  '';
-
   # Both MCP servers below are hand-rolled stdio JSON-RPC (stdlib only, no
   # MCP SDK dependency) rather than using an MCP framework package — kept
-  # deliberately minimal, matching goose_bridge.py's own "dumb relay, no
-  # framework" precedent in this repo, and protocol-verified live via a
+  # deliberately minimal ("dumb relay, no framework"), and protocol-verified live via a
   # hand-written JSON-RPC probe the same way GooseAcpSession.qml's ACP
   # handling was originally derived (see mcp-servers/ for the scripts).
   askUserMcp = pkgs.writeShellScriptBin "qubi-ask-user-mcp" ''
@@ -319,7 +305,6 @@ let
   # muscle memory, each just execs its renamed Qubi counterpart.
   qubiAliases = [
     (pkgs.writeShellScriptBin "goose-state-sync" ''exec ${gooseStateSync}/bin/qubi-state-sync "$@"'')
-    (pkgs.writeShellScriptBin "goose-mobile-bridge" ''exec ${gooseMobileBridge}/bin/qubi-bridge "$@"'')
     (pkgs.writeShellScriptBin "goose-code" ''exec ${gooseCode}/bin/qubi-code "$@"'')
     (pkgs.writeShellScriptBin "goose-claude" ''exec ${gooseClaude}/bin/qubi-claude "$@"'')
     (pkgs.writeShellScriptBin "goose-plan" ''exec ${goosePlan}/bin/qubi-plan "$@"'')
@@ -594,7 +579,7 @@ let
         # that doesn't go through qubi-code's dock-aware routing (cold
         # start, before ai-workstation-boot-sync's switchModel IPC call
         # lands). This is also the model any ACP client gets by default —
-        # Goose Desktop's own "New Chat", and any qubi-bridge
+        # Goose Desktop's own "New Chat", and any qubi-engine
         # session that doesn't get an explicit --model override.
         #
         # qwen3:4b (2026-09-17 /goal speed target pick: 81.0 tok/s, 3/3 on
@@ -1203,12 +1188,14 @@ in
     goosePlan
     gooseChat
     qmlLintRepo
-    gooseMobileBridge
     # On PATH so the SUPER+N Quickshell overlay can shell out to
     # `qubi-notes-capture-mcp --cli ...` directly (not just reachable as a
     # Goose stdio extension, which resolves cmd by its own absolute store
     # path regardless of PATH).
     notesCaptureMcp
+    # On PATH so .mcp.json can point at the profile symlink instead of a
+    # raw store path with no GC root.
+    askUserMcp
     # SUPER+I screen-context capture's undocked/gaming OCR path
     # (ScreenContext.qml) -- not installed anywhere else in this flake.
     pkgs.tesseract
@@ -1267,9 +1254,8 @@ in
   # whichever wins the race grabs port 8765 first -- the loser then
   # crash-loops forever with `OSError: [Errno 98] address already in use`,
   # confirmed via journalctl (qubi-engine.service's own restart counter
-  # was at 9 before this fix). gooseMobileBridge/qubi-bridge the CLI
-  # binary itself stays installed (home.packages, below) as a manual
-  # fallback tool -- only the auto-starting unit is gone.
+  # was at 9 before this fix). goose_bridge.py and its qubi-bridge CLI
+  # wrapper have since been deleted outright (see git history).
   systemd.user.services.qubi-mobile-static = {
     Unit.Description = "Static file server for mobile_gui.html, fronted by tailscale serve";
     Service = {

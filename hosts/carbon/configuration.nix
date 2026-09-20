@@ -10,7 +10,6 @@
     ../../modules/nixos/apps/virtualization.nix
     ../../modules/nixos/apps/docker.nix
     ../../modules/nixos/apps/ai-workstation.nix
-    ../../modules/temp.nix
     ../../modules/style/stylix.nix
     ../../modules/nixos/services/pipewire.nix
     ../../modules/nixos/services/printing.nix

@@ -371,10 +371,8 @@ in
           (mkExecBind "${mainMod} + E" fileManager)
           (mkBind "${mainMod} + V" (dsp "hl.dsp.window.float()") null)
           # Quickshell launcher (quickshell/modules/launcher/, see TODO.md
-          # §3) now owns Walker's old SUPER+R slot — Walker is hidden (see
-          # walker.nix's import in hosts/carbon/home.nix and the `walker`/
-          # `elephant` package removals) rather than deleted, so this can be
-          # pointed back at `walker -t float` easily if ever needed. Runs
+          # §3) now owns Walker's old SUPER+R slot — walker.nix was removed
+          # (recoverable from git history, tag pre-qubi-split). Runs
           # inside the already-running Quickshell instance (not a separate
           # process), so it's shown/hidden via Quickshell's own IPC rather
           # than exec/pkill: `quickshell ipc -p <path> call <target> <fn>`
@@ -550,9 +548,8 @@ in
           -- bare Hyprland doesn't) — exec the real path directly instead.
           --
           -- Quickshell (quickshell/, see TODO.md §3) is the default bar AND
-          -- launcher now (SUPER+R). Waybar/Walker are hidden, not removed —
-          -- disabled in waybar.nix / commented out of the walker.nix import
-          -- and the walker+elephant package lists — so there's no `waybar`
+          -- launcher now (SUPER+R). waybar.nix/walker.nix were removed (git
+          -- history, tag pre-qubi-split, has them), so there's no `waybar`
           -- or `elephant` process to autostart here anymore.
           --
           -- hyprpaper dropped: quickshell/modules/wallpaper/Wallpaper.qml

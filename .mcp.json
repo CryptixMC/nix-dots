@@ -25,7 +25,7 @@
     },
     "ask-user": {
       "type": "stdio",
-      "command": "/nix/store/qpxk366783wrrzswf5caawsqjv3l2ip8-qubi-ask-user-mcp/bin/qubi-ask-user-mcp",
+      "command": "/home/cryptix/.nix-profile/bin/qubi-ask-user-mcp",
       "args": [],
       "env": {}
     },
