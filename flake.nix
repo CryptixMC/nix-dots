@@ -30,6 +30,29 @@
       ...
     }@inputs:
     {
+      # The local packages, buildable on their own (`nix build
+      # .#kitten-space-agency`) instead of only as part of a full system
+      # rebuild. kitten-space-agency (unfree) and oneclient are nixpkgs
+      # candidates; proton-drive-cli is a binary-only blob and stays here.
+      packages.x86_64-linux =
+        let
+          pkgs = import nixpkgs {
+            system = "x86_64-linux";
+            config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [
+              "kitten-space-agency"
+              "proton-drive-cli"
+            ];
+          };
+        in
+        {
+          kitten-space-agency = pkgs.callPackage ./pkgs/kitten-space-agency { };
+          oneclient = pkgs.callPackage ./pkgs/oneclient { };
+          oneclient-new-cluster = pkgs.callPackage ./pkgs/oneclient-new-cluster { };
+          proton-drive-cli = pkgs.callPackage ./pkgs/proton-drive-cli { };
+        };
+
+      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-rfc-style;
+
       nixosConfigurations = {
         carbon = nixpkgs.lib.nixosSystem {
           specialArgs = { inherit inputs; };
