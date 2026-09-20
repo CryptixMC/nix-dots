@@ -7,7 +7,6 @@ Welcome to my NixOS configuration! This repository is designed for modularity, t
 ## TO-DO
 - [ ] get all modules to be styled via stylix
 - [ ] add a template for styles
-- [ ] waybar is a WIP
 
 ---
 
@@ -120,16 +119,25 @@ This repo uses Nix flakes for reproducible system and user configurations. Key f
 
 ```
 nix-dots/
-├── assets/         # Extra theme assets (e.g., for editors)
-├── files/          # (Currently empty, for future use)
 ├── hosts/          # Host-specific configs
 ├── modules/        # Modular NixOS & Home Manager configs
-├── old-stuff/      # Legacy configs
+├── quickshell/     # The desktop shell (bar, launcher, greeter, theme system)
 ├── themes/         # Custom themes (e.g., Ultraviolet)
+├── pkgs/           # Locally-packaged derivations not (yet) in nixpkgs
+├── lib/            # Shared Nix helpers used across modules
+├── scripts/        # Maintenance scripts (see scripts/*)
+├── docs/           # Development history and notes
 ├── flake.nix       # Flake entry point
 ├── flake.lock      # Flake lock file
 └── README.md       # This file
 ```
+
+Qubi, the local-AI assistant that used to live inside this repo (engine,
+MCP servers, mobile PWA, Quickshell overlays), is now its own project:
+[CryptixMC/qubi](https://github.com/CryptixMC/qubi), checked out standalone
+at `~/Projects/qubi` and pulled into the system as a flake input (see
+`flake.nix`). `quickshell/shell.qml` mounts its QML by absolute path so
+Quickshell's live-reload keeps working across the two checkouts.
 
 ---
 
