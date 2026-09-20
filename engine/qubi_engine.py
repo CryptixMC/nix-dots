@@ -61,7 +61,7 @@ def log(*a):
 # Per-tier goose config generation
 # --------------------------------------------------------------------------
 
-def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None):
+def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None, model=None):
     """Writes an isolated $XDG_CONFIG_HOME/goose/config.yaml for this tier:
     same base config Liam already has (auth, provider credentials, every
     extension's real cmd path) but with `extensions.*.enabled` rewritten to
@@ -116,6 +116,35 @@ def build_tier_config_dir(tier_name, tier_cfg, extra_extensions=None):
         }
     cfg["extensions"] = exts
 
+    # Rewrite the model/provider keys to THIS tier's, not the base config's.
+    #
+    # Without this the tier config is a verbatim copy of
+    # ~/.config/goose/config.yaml apart from `extensions`, so every tier
+    # inherited that file's model (qwen3:4b) no matter what the tier asked
+    # for. The GOOSE_MODEL env var set in ensure_started does not reliably
+    # win over the config file, which is exactly the leak BLOCKERS.md
+    # already recorded for the claude tier ("it leaks the wrong model
+    # (qwen3:4b) into a claude-code-provider session and every prompt
+    # fails") -- same root cause, and it silently affected every tier.
+    #
+    # Caught by A/B measurement: the `fast` tier, configured for
+    # llama3.2:3b, answered in 53s while emitting 1935 characters of
+    # reasoning. llama3.2 has no reasoning mode and answers the same prompt
+    # in 147ms when called directly, so the tier was plainly still running
+    # qwen3 -- and its generated config.yaml confirmed it.
+    provider = tier_cfg.get("provider")
+    if provider:
+        cfg["GOOSE_PROVIDER"] = provider
+        cfg["active_provider"] = provider
+    if model:
+        cfg["GOOSE_MODEL"] = model
+    providers = dict(cfg.get("providers") or {})
+    if provider and model:
+        entry = dict(providers.get(provider) or {})
+        entry["model"] = model
+        providers[provider] = entry
+        cfg["providers"] = providers
+
     tier_dir = os.path.join(TIERCONF_DIR, tier_name, "goose")
     os.makedirs(tier_dir, exist_ok=True)
     with open(os.path.join(tier_dir, "config.yaml"), "w") as f:
@@ -162,7 +191,7 @@ class TierProcess:
         self.starting = True
         self.ready.clear()
         model = self.tier_cfg["cpu_model"] if cpu_override else self.tier_cfg["model"]
-        config_home = build_tier_config_dir(self.name, self.tier_cfg, extra_extensions=extra_extensions)
+        config_home = build_tier_config_dir(self.name, self.tier_cfg, extra_extensions=extra_extensions, model=model)
         env = dict(os.environ)
         env["XDG_CONFIG_HOME"] = config_home
         env["GOOSE_PROVIDER"] = self.tier_cfg["provider"]
@@ -310,11 +339,54 @@ class Session:
         self.id = session_id
         self.tier = tier
         self.status = "idle"
+        # Finer-grained than `status`, purely for the UI's activity
+        # indicator. `status` says whether a turn is in flight; `phase` says
+        # WHAT is taking the time, which is the difference between a panel
+        # that looks frozen and one that looks busy. Measured on a real
+        # docked turn: a trivial prompt spent ~16s with nothing at all sent
+        # to the client, because the only two status pushes are "working" at
+        # dispatch and "done" at the end. Every long-running step below now
+        # names itself here instead.
+        self.phase = "idle"
+        # Short rolling description of what the model is reasoning about,
+        # derived from the reasoning stream (first line of the newest
+        # agent_thought_chunk, truncated). Deliberately NOT a second model
+        # call -- summarising the summary would cost more than the turn.
+        self.phase_detail = ""
         self.last_activity = time.monotonic()
         self.subscribers = set()  # ClientConn set
         self.last_user_prompt = None
         self.prompt_queue = []  # (ClientConn, params, respond_future)
         self.busy = False
+
+        # One goose session per tier, because goose pins the model onto the
+        # session row at session/new time:
+        #   sessions.model_config_json = {"model_name": "qwen3:4b", ...}
+        # session/load then RESTORES that pinned model, so the old design
+        # (one goose session, session/load'ed onto whichever tier) silently
+        # ran every tier on whatever model created the session. Proven by
+        # unloading llama3.2 and watching a switch to the llama3.2-configured
+        # `fast` tier never reload it -- it was still answering from qwen3.
+        # Setting GOOSE_MODEL, the tier config's GOOSE_MODEL, and
+        # providers.<p>.model all failed to override the pin.
+        #
+        # `self.id` stays the stable, client-facing id for the whole
+        # conversation; these are the per-tier aliases the engine talks to
+        # goose with. Clients never see them -- notifications are rewritten
+        # back to self.id on the way out.
+        self.tier_sessions = {tier: session_id}
+
+        # Conversation to replay into the next tier's fresh goose session.
+        # A brand-new session has no history, and escalation exists
+        # precisely to hand a hard problem to a bigger model *with* its
+        # context, so the transcript is carried over as a preamble on the
+        # first prompt after a switch.
+        self.pending_context = None
+
+    def tier_sid(self, tier=None):
+        """The goose session id to use when talking to `tier`."""
+        t = tier or self.tier
+        return self.tier_sessions.get(t, self.id)
 
 
 class ClientConn:
@@ -349,9 +421,21 @@ class Engine:
     def __init__(self, cfg):
         self.cfg = cfg
         self.tiers = {}
-        for name in ("light", "heavy", "claude"):
+        # Driven by the config rather than a hardcoded triple, so adding a
+        # tier (e.g. "fast") is a config edit, not a code change. The three
+        # below are still required -- routing, escalation and the light-tier
+        # hardware bounce all name them directly -- so a config missing one
+        # is a startup error rather than a mysterious KeyError later.
+        for required in ("light", "heavy", "claude"):
+            if required not in cfg["tiers"]:
+                raise SystemExit(f"[qubi-engine] config is missing the required '{required}' tier")
+        for name in cfg["tiers"]:
             self.tiers[name] = TierProcess(name, cfg["tiers"][name], self._on_tier_notification)
-        self.sessions = {}  # session_id -> Session
+        self.sessions = {}  # client-facing session_id -> Session
+        # goose's per-tier session id -> Session. Notifications arrive
+        # stamped with the tier's own alias, so this is how a chunk gets
+        # routed back to the conversation (and to the right subscribers).
+        self.session_by_alias = {}
         self.clients = set()
         # Raw hardware state string, not a bool: `gaming` and `undocked`
         # both mean "CPU-only" but differ in everything else, and collapsing
@@ -474,22 +558,99 @@ class Engine:
     async def _new_session_on(self, tier_name):
         r = await self.tiers[tier_name].call("session/new", {"cwd": REPO_ROOT, "mcpServers": []})
         sid = r["result"]["sessionId"]
-        self.sessions[sid] = Session(sid, tier_name)
+        sess = Session(sid, tier_name)
+        self.sessions[sid] = sess
+        self.session_by_alias[sid] = sess
         return sid, r
+
+    def _register_alias(self, sess, tier_name, alias):
+        sess.tier_sessions[tier_name] = alias
+        self.session_by_alias[alias] = sess
+
+    async def _bind_tier_session(self, sess, tier_name):
+        """Ensure `sess` has a goose session on `tier_name`, creating one if
+        needed, and return its alias.
+
+        A fresh session/new (rather than session/load of the existing one) is
+        the whole point: it is the only way the target tier's own model is
+        the one that actually answers -- see Session.tier_sessions.
+        """
+        existing = sess.tier_sessions.get(tier_name)
+        if existing:
+            return existing
+        tier = self.tiers[tier_name]
+        r = await tier.call("session/new", {"cwd": REPO_ROOT, "mcpServers": []}, timeout=300)
+        if r.get("error"):
+            raise RuntimeError(f"session/new on {tier_name} failed: {r['error']}")
+        alias = r["result"]["sessionId"]
+        self._register_alias(sess, tier_name, alias)
+        log(f"session {sess.id}: new goose session {alias} on tier {tier_name}")
+        return alias
+
+    async def _transcript_for(self, alias, limit=40):
+        """Recent conversation from goose's own db, for replaying into a
+        freshly-created session on another tier.
+
+        Read from sessions.db rather than kept in memory because that is the
+        system of record both this engine and Goose Desktop write to, and a
+        session may predate this engine process entirely.
+        """
+        db_path = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sqlite3", "-json", db_path,
+                "SELECT role, content_json FROM (SELECT id, role, content_json FROM messages "
+                f"WHERE session_id = '{alias}' ORDER BY id DESC LIMIT {limit}) ORDER BY id",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            )
+            out, _ = await proc.communicate()
+            rows = json.loads(out.decode() or "[]")
+        except Exception:
+            return None
+        lines = []
+        for row in rows:
+            try:
+                parts = json.loads(row["content_json"])
+            except Exception:
+                continue
+            if not isinstance(parts, list):
+                continue
+            body = "".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
+            # Same synthetic scaffolding row SessionSync.qml filters: it is
+            # injected context, not anything the human or model said.
+            if not body or body.startswith("<turn-context>"):
+                continue
+            lines.append(f"{'User' if row['role'] == 'user' else 'Assistant'}: {body}")
+        if not lines:
+            return None
+        return "\n".join(lines)
 
     # -- tier notification handling (routing + escalation interception) --
 
     async def _on_tier_notification(self, tier_name, obj):
         method = obj.get("method")
+
+        # Tier notifications are stamped with that tier's own goose session
+        # alias. Resolve it back to the conversation and rewrite the id in
+        # place, so a client that subscribed to session X keeps seeing X no
+        # matter which tier is currently answering. Without this rewrite a
+        # tier switch would silently orphan every subscriber.
+        def _resolve(o):
+            raw = o.get("params", {}).get("sessionId")
+            s = self.session_by_alias.get(raw) or self.sessions.get(raw)
+            if s is not None and raw != s.id:
+                o["params"]["sessionId"] = s.id
+            return s
+
         if method == "session/request_permission":
-            sid = obj.get("params", {}).get("sessionId")
-            await self._broadcast_to_session(sid, obj)
+            sess = _resolve(obj)
+            await self._broadcast_to_session(sess.id if sess else obj.get("params", {}).get("sessionId"), obj)
             return
         if method != "session/update":
             return
         upd = obj.get("params", {}).get("update", {})
-        sid = obj.get("params", {}).get("sessionId")
-        sess = self.sessions.get(sid)
+        sess = _resolve(obj)
+        sid = sess.id if sess else obj.get("params", {}).get("sessionId")
         kind = upd.get("sessionUpdate")
 
         if kind == "tool_call":
@@ -516,6 +677,40 @@ class Engine:
         if sess is not None:
             if kind in ("agent_message_chunk", "agent_thought_chunk", "tool_call", "tool_call_update"):
                 sess.status = "working"
+            # Name the sub-step so the indicator can distinguish "still
+            # reasoning" from "writing the answer" from "running a tool" --
+            # on a local reasoning model those are wildly different waits
+            # (measured: 2652 chars of reasoning for a 20-char answer).
+            if kind == "agent_thought_chunk":
+                sess.phase = "reasoning"
+                # Rolling detail derived from text already in hand -- no
+                # second inference pass, because summarising the reasoning
+                # with another model call would cost more than the turn it
+                # describes.
+                #
+                # Accumulate first, THEN take the tail. Individual chunks are
+                # far too small to be meaningful on their own: measured 1511
+                # chars arriving as 374 chunks, i.e. ~4 chars each, so using
+                # the chunk directly showed the user "Okay". Keeping only a
+                # bounded tail of the buffer means this stays O(1) per chunk
+                # rather than growing with the reasoning.
+                chunk = (upd.get("content") or {}).get("text") or ""
+                buf = (getattr(sess, "_reason_buf", "") + chunk)[-600:]
+                sess._reason_buf = buf
+                # Last sentence-ish fragment that is long enough to read.
+                parts = [p.strip() for p in buf.replace("\n", " ").split(". ") if p.strip()]
+                tail = next((p for p in reversed(parts) if len(p) > 25), parts[-1] if parts else "")
+                if tail:
+                    sess.phase_detail = tail[:110]
+            elif kind == "agent_message_chunk":
+                sess.phase = "responding"
+                sess.phase_detail = ""
+            elif kind in ("tool_call", "tool_call_update"):
+                sess.phase = "tool"
+                sess.phase_detail = str(
+                    (upd.get("_meta", {}).get("goose", {}).get("toolCall", {}) or {}).get("toolName")
+                    or upd.get("title", "")
+                )[:110]
             sess.last_activity = time.monotonic()
         await self._broadcast_to_session(sid, obj)
 
@@ -558,6 +753,10 @@ class Engine:
             "params": {
                 "session": session_id,
                 "status": sess.status,
+                # Additive: older clients ignore unknown keys, so this is
+                # safe to send unconditionally.
+                "phase": getattr(sess, "phase", "idle"),
+                "phaseDetail": getattr(sess, "phase_detail", ""),
                 "tier": sess.tier,
                 "lastActivity": sess.last_activity,
             },
@@ -565,7 +764,28 @@ class Engine:
         for c in list(sess.subscribers):
             await c.send(notif)
 
+    async def _set_phase(self, sess, phase, detail=None):
+        """Name the current long-running step and tell the client immediately.
+
+        Every call site is a place the engine used to go silent for seconds
+        to minutes with no notification at all.
+        """
+        if sess is None:
+            return
+        sess.phase = phase
+        if detail is not None:
+            sess.phase_detail = detail
+        await self._push_status(sess.id)
+
     # -- idle reaping (Phase 7a) + hardware-state watch (Phase 5b) --------
+
+    # How long an ad hoc "use this model now" tier (qubi/use_model) can sit
+    # idle before it's torn down. These are meant to be exploratory/
+    # throwaway -- clicking through several installed models in the browser
+    # should not leave that many resident goose+Ollama processes running
+    # forever, which is exactly what would happen with no reaping at all
+    # (unlike the named tiers, nothing else ever removes one of these).
+    ADHOC_TIER_IDLE_S = 900
 
     async def _idle_reap_loop(self):
         while True:
@@ -576,6 +796,22 @@ class Engine:
                 if t.proc is not None and idle_s and (time.monotonic() - t.last_activity) > idle_s:
                     log(f"{name}: idle {idle_s}s+, reaping")
                     await t.stop()
+            for name in [n for n in self.tiers if n not in self.cfg["tiers"]]:
+                t = self.tiers[name]
+                if t.proc is None or (time.monotonic() - t.last_activity) <= self.ADHOC_TIER_IDLE_S:
+                    continue
+                log(f"{name}: ad hoc tier idle {self.ADHOC_TIER_IDLE_S}s+, reaping")
+                await t.stop()
+                del self.tiers[name]
+                for sess in self.sessions.values():
+                    alias = sess.tier_sessions.pop(name, None)
+                    if alias:
+                        self.session_by_alias.pop(alias, None)
+                    # A session left pointing at a tier that no longer
+                    # exists would KeyError on its next prompt -- fall back
+                    # to light, the same default a brand-new session gets.
+                    if sess.tier == name:
+                        sess.tier = "light"
 
     async def _hw_watch_loop(self):
         while True:
@@ -611,14 +847,27 @@ class Engine:
             # mechanism as a manual tier switch.
             light = self.tiers["light"]
             bound_sessions = [s for s in self.sessions.values() if s.tier == "light"]
+            # A dock/undock bounce stops and respawns the light tier under a
+            # different model tag while sessions stay bound to it. Previously
+            # every bound session just stalled with no notification at all.
+            for sess in bound_sessions:
+                await self._set_phase(
+                    sess, "reloading_hardware",
+                    "switching to CPU-only inference" if self.cpu_only else "switching to GPU inference")
             await light.stop()
             await light.ensure_started(cpu_override=self.cpu_only,
                                        extra_extensions=self._light_extras())
             for sess in bound_sessions:
                 try:
-                    await light.call("session/load", {"sessionId": sess.id, "cwd": REPO_ROOT, "mcpServers": []})
+                    # session/load is correct HERE (unlike a tier switch):
+                    # this is the same tier being respawned, so the pinned
+                    # model on the session row is the model we want back --
+                    # only the process died. Uses the light tier's own alias.
+                    await light.call("session/load", {"sessionId": sess.tier_sid("light"), "cwd": REPO_ROOT, "mcpServers": []})
+                    await self._set_phase(sess, "idle", "")
                 except Exception as e:
-                    log(f"session {sess.id}: reload onto {'cpu' if now_gaming else 'gpu'} light tier failed: {e}")
+                    await self._set_phase(sess, "error", "failed to reload after a hardware change")
+                    log(f"session {sess.id}: reload onto {'cpu' if self.cpu_only else 'gpu'} light tier failed: {e}")
 
     # -- client-facing dispatch --------------------------------------------
 
@@ -650,6 +899,11 @@ class Engine:
                 "gaming": self.gaming,
                 "state": self.hw_state,
                 "cpuOnly": self.cpu_only,
+                # Filtered to the persistent, named tiers -- self.tiers can
+                # also hold ephemeral "model:<tag>" entries from
+                # qubi/use_model, and those must never appear in a client's
+                # tier-switch dropdown: they exist for one conversation's
+                # direct model pick, not as a selectable, reusable tier.
                 "tiers": {
                     n: {
                         "running": t.proc is not None and t.proc.returncode is None,
@@ -658,6 +912,7 @@ class Engine:
                         "model": t.tier_cfg["cpu_model"] if (n == "light" and self.cpu_only) else t.tier_cfg["model"],
                     }
                     for n, t in self.tiers.items()
+                    if n in self.cfg["tiers"]
                 },
             })
         elif method == "qubi/theme":
@@ -670,17 +925,117 @@ class Engine:
             if sess is None:
                 sess = Session(sid, params.get("tier", "light"))
                 self.sessions[sid] = sess
+                self.session_by_alias[sid] = sess
             sess.subscribers.add(client)
             client.subscriptions.add(sid)
             await reply({"subscribed": sid})
         elif method == "qubi/set_tier":
             await self._set_tier(client, params.get("session"), params.get("tier"), reply)
+        elif method == "qubi/installed_models":
+            await reply({"models": await self._installed_models()})
+        elif method == "qubi/use_model":
+            await self._use_model(params.get("session"), params.get("model"), reply)
         elif method == "qubi/extensions":
             await reply(self._read_extensions())
         elif method == "qubi/session_usage":
             await reply(await self._read_session_usage(params.get("session")))
         else:
             await reply(error={"code": -32601, "message": f"unknown qubi method {method}"})
+
+    async def _installed_models(self):
+        """Every model Ollama actually has locally, newest first.
+
+        Straight from Ollama's REST API rather than `ollama list`, so the
+        result is structured (size/modified) instead of a text table that
+        would need column-parsing.
+        """
+        def _fetch():
+            # Imported locally, matching _ollama_warm: this module's only
+            # other urllib use is also function-scoped, and there is no
+            # top-level `import urllib.request`.
+            import urllib.request
+            req = urllib.request.Request("http://127.0.0.1:11434/api/tags")
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read().decode())
+        try:
+            data = await asyncio.get_running_loop().run_in_executor(None, _fetch)
+        except Exception as e:
+            log(f"installed_models: {e}")
+            return []
+        out = []
+        for m in data.get("models", []):
+            out.append({
+                "name": m.get("name") or m.get("model"),
+                "sizeBytes": m.get("size") or 0,
+                "modifiedAt": m.get("modified_at") or "",
+                "parameterSize": (m.get("details") or {}).get("parameter_size") or "",
+            })
+        out.sort(key=lambda m: m["modifiedAt"], reverse=True)
+        return out
+
+    async def _use_model(self, session_id, model, reply):
+        """Switch ONE conversation onto a specific local model, right now,
+        without touching any tier's persistent configuration.
+
+        This is deliberately NOT the same operation as reassigning a named
+        tier's model (that used to be `qubi/set_tier_model`, since removed):
+        clicking a model in the browser's "use it now" flow must not mutate
+        ~/.config/qubi/config.json or change what `light`/`fast`/`heavy`
+        mean for every other session -- it should just answer the CURRENT
+        conversation with the chosen model, same idea as picking a tier from
+        the dropdown, except keyed by an exact model tag instead of a
+        pre-configured tier name.
+
+        Implemented as a synthetic, in-memory-only tier named `model:<tag>`,
+        created on first use and reused by any session that picks the same
+        model again. It never enters self.cfg["tiers"] and is therefore
+        invisible to qubi_config.save(), to qubi/status's tier list (see the
+        `n in self.cfg["tiers"]` filter there), and to a restart -- exactly
+        the "ephemeral, not a replacement" behaviour asked for. Everything
+        else (context replay across the switch, per-tier goose sessions so
+        the right model actually answers, idle reaping) is the exact same
+        generic machinery _switch_tier/_bind_tier_session already give every
+        real tier -- see Session.tier_sessions' own header comment for why a
+        fresh session/new per tier is required at all.
+        """
+        sess = self.sessions.get(session_id)
+        if sess is None:
+            await reply(error={"code": -32602, "message": f"unknown session {session_id}"})
+            return
+        if not model:
+            await reply(error={"code": -32602, "message": "model is required"})
+            return
+        installed = {m["name"] for m in await self._installed_models()}
+        if installed and model not in installed:
+            await reply(error={"code": -32602, "message": f"{model} is not installed in Ollama"})
+            return
+
+        tier_key = f"model:{model}"
+        if tier_key not in self.tiers:
+            # No extensions: this path is for "answer me directly with this
+            # model", not a tool-using session -- same reasoning as `fast`.
+            self.tiers[tier_key] = TierProcess(tier_key, {
+                "provider": "ollama",
+                "model": model,
+                "cpu_model": model,
+                "extensions": [],
+                "keep_alive": "-1",
+                "warm_at_start": False,
+                "idle_timeout_s": None,
+                "no_think_prefix": False,
+            }, self._on_tier_notification)
+
+        await self.tiers[tier_key].ensure_started()
+        old_tier = sess.tier
+        try:
+            await self._switch_tier(sess, tier_key)
+        except Exception as e:
+            await reply(error={"code": -32000, "message": f"switch to {model} failed: {e}"})
+            return
+        sess.status = "idle"
+        await self._set_phase(sess, "idle", "")
+        log(f"session {session_id}: using {model} directly (was {old_tier})")
+        await reply({"session": session_id, "model": model})
 
     def _read_extensions(self):
         """Enabled-extension count + names, straight from goose's own
@@ -717,13 +1072,21 @@ class Engine:
         """
         if not session_id:
             return {"totalTokens": 0, "accumulatedTotalTokens": 0}
+        # Sum across every tier's goose session for this conversation, not
+        # just the original id. Once a conversation switches tiers, the new
+        # tier's tokens accrue against ITS session row, so querying only the
+        # client-facing id would freeze the counter at whatever it read
+        # before the switch.
+        sess = self.sessions.get(session_id)
+        ids = sorted(set(sess.tier_sessions.values())) if sess else [session_id]
+        id_list = ", ".join(f"'{i}'" for i in ids)
         db_path = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sqlite3", "-json", db_path,
-                f"SELECT COALESCE(total_tokens, 0) AS totalTokens, "
-                f"COALESCE(accumulated_total_tokens, 0) AS accumulatedTotalTokens "
-                f"FROM sessions WHERE id = '{session_id}'",
+                f"SELECT COALESCE(SUM(total_tokens), 0) AS totalTokens, "
+                f"COALESCE(SUM(accumulated_total_tokens), 0) AS accumulatedTotalTokens "
+                f"FROM sessions WHERE id IN ({id_list})",
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
             )
             out, _ = await proc.communicate()
@@ -795,6 +1158,28 @@ class Engine:
                         "workingDir": row.get("working_dir"), "updatedAt": row.get("updated_at")}
         return list(live.values())
 
+    async def _switch_tier(self, sess, target_tier):
+        """Move a conversation onto another tier.
+
+        Binds (creating if necessary) a goose session on the target tier and
+        queues the prior conversation for replay. Deliberately NOT
+        session/load of the existing session: goose pins the model onto the
+        session row at creation, so loading the old session onto a new tier
+        keeps the OLD model answering -- which is why the `fast` tier was
+        still running qwen3 despite every config key saying llama3.2.
+
+        Re-entering a tier reuses that tier's existing goose session, so
+        bouncing light -> heavy -> light does not spawn a session each time
+        and the model still has its own side of the conversation.
+        """
+        previous_alias = sess.tier_sid()
+        was_new = target_tier not in sess.tier_sessions
+        await self._bind_tier_session(sess, target_tier)
+        if was_new and previous_alias:
+            # Fresh session on that tier => no memory of this conversation.
+            sess.pending_context = await self._transcript_for(previous_alias)
+        sess.tier = target_tier
+
     async def _set_tier(self, client, session_id, target_tier, reply):
         sess = self.sessions.get(session_id)
         if sess is None:
@@ -804,16 +1189,23 @@ class Engine:
             await reply(error={"code": -32602, "message": f"unknown tier {target_tier}"})
             return
         target = self.tiers[target_tier]
+        # Another silent gap: switching to a cold tier loads a model that can
+        # take minutes, and the client previously got nothing until the reply
+        # at the end of this function.
+        await self._set_phase(sess, "switching_tier",
+                              f"starting the {target_tier} tier "
+                              f"({target.tier_cfg.get('model', '?')})")
         await target.ensure_started(cpu_override=(target_tier == "light" and self.cpu_only),
                                     extra_extensions=self._light_extras() if target_tier == "light" else None)
-        try:
-            await target.call("session/load", {"sessionId": session_id, "cwd": REPO_ROOT, "mcpServers": []})
-        except Exception as e:
-            await reply(error={"code": -32000, "message": f"session/load on {target_tier} failed: {e}"})
-            return
         old_tier = sess.tier
-        sess.tier = target_tier
+        try:
+            await self._switch_tier(sess, target_tier)
+        except Exception as e:
+            await self._set_phase(sess, "error", "")
+            await reply(error={"code": -32000, "message": f"switch to {target_tier} failed: {e}"})
+            return
         sess.status = "idle"
+        await self._set_phase(sess, "idle", "")
         log(f"session {session_id}: switched {old_tier} -> {target_tier}")
         await reply({"session": session_id, "tier": target_tier})
         if sess.last_user_prompt is not None:
@@ -882,6 +1274,14 @@ class Engine:
         sid = params.get("sessionId")
         sess = self.sessions.get(sid)
         tier_name = sess.tier if sess else "light"
+        # Translate the client-facing id to the current tier's own goose
+        # session alias. For a session that has never switched tiers these
+        # are identical, so this is a no-op on the common path; after a
+        # switch it is what keeps session/cancel, session/set_mode etc.
+        # addressing the session the tier actually has open.
+        if sess is not None and sess.tier_sid() != sid:
+            params = dict(params)
+            params["sessionId"] = sess.tier_sid()
         try:
             r = await self.tiers[tier_name].call(method, params)
             # session/load resumes a session the engine may know nothing
@@ -896,6 +1296,7 @@ class Engine:
                 if sess is None:
                     sess = Session(sid, tier_name)
                     self.sessions[sid] = sess
+                    self.session_by_alias[sid] = sess
                 sess.subscribers.add(client)
                 client.subscriptions.add(sid)
                 log(f"session {sid}: client subscribed via session/load")
@@ -912,30 +1313,89 @@ class Engine:
             sess._routed = True
             log(f"session {sess.id}: routed -> {tier_choice} (score={score}, {reasons})")
             if tier_choice == "heavy" and sess.tier != "heavy":
+                # The worst silent gap in the whole engine: a cold heavy tier
+                # means spawning `goose acp`, an initialize handshake and
+                # loading a multi-GB model, all before the prompt is even
+                # sent. Announce it instead of letting the panel sit blank.
+                heavy_model = self.tiers["heavy"].tier_cfg.get("model", "heavy model")
+                await self._set_phase(sess, "starting_model",
+                                      f"loading {heavy_model} for a heavier request")
                 await self.tiers["heavy"].ensure_started()
-                await self.tiers["heavy"].call("session/load", {"sessionId": sess.id, "cwd": REPO_ROOT, "mcpServers": []})
-                sess.tier = "heavy"
+                # session/new on heavy, not session/load of the light
+                # session -- loading would restore light's pinned model and
+                # the "heavy" tier would answer as qwen3:4b.
+                await self._switch_tier(sess, "heavy")
 
         if sess.busy:
             fut = asyncio.get_running_loop().create_future()
             sess.prompt_queue.append((client, text, req_id, fut))
-            sess.status = "awaiting_permission"  # queued behind another driver
-            await self._push_status(sess.id)
+            # Was "awaiting_permission", which is what a real permission
+            # prompt uses -- a queued turn rendered as "awaiting permission"
+            # in any UI that showed status verbatim. It is a queue, say so.
+            sess.status = "queued"
+            await self._set_phase(sess, "queued",
+                                  "waiting for the current reply to finish")
             return await fut
 
         sess.busy = True
         sess.status = "working"
-        await self._push_status(sess.id)
+        sess.phase_detail = ""
+        sess._reason_buf = ""
+        await self._set_phase(sess, "thinking", "")
+        # The alias can legitimately be missing here: a fresh ad hoc
+        # "model:<tag>" tier from qubi/use_model has no session yet.
+        # Rebinding lazily (rather than eagerly at switch time) means the
+        # cost is paid on the next prompt, not on a settings click.
+        if sess.tier not in sess.tier_sessions:
+            await self.tiers[sess.tier].ensure_started(
+                cpu_override=(sess.tier == "light" and self.cpu_only),
+                extra_extensions=self._light_extras() if sess.tier == "light" else None)
+            await self._bind_tier_session(sess, sess.tier)
+        # Per-tier reasoning suppression. qwen3 narrates its reasoning as
+        # ordinary content no matter what: GOOSE_LOCAL_ENABLE_THINKING=false
+        # and Ollama's own think:false were both measured to only move that
+        # text out of the `thinking` field and into the visible answer, and
+        # neither makes the turn shorter. `/no_think` is the one switch that
+        # measurably cuts generation (196 -> 104 tokens on the same prompt).
+        # It is a property of the TIER, not a global: the fast tier wants it,
+        # the heavy tier must never get it.
+        #
+        # Applied here, at the last moment before dispatch, because this is
+        # the only place the outgoing prompt is built -- session/prompt is
+        # the one ACP method the engine rebuilds from scratch rather than
+        # forwarding verbatim, so anything a client attaches upstream is
+        # discarded before it reaches this point.
+        outgoing = text
+        if self.tiers[sess.tier].tier_cfg.get("no_think_prefix"):
+            outgoing = f"/no_think {text}"
+        # First prompt after a tier switch: the target tier's goose session
+        # is brand new and therefore has no memory of the conversation, so
+        # replay it as a preamble. Consumed once.
+        if sess.pending_context:
+            # Fenced and explicitly labelled as reference material. An
+            # earlier, looser wording ("here is the conversation so far …
+            # continue it") made the model continue the *transcript* rather
+            # than answer: a follow-up came back as "OKteal", echoing the
+            # previous turn's "OK" before its actual answer.
+            outgoing = (
+                "[context from earlier in this conversation, handled by a different model]\n"
+                "<<<TRANSCRIPT\n"
+                f"{sess.pending_context}\n"
+                "TRANSCRIPT>>>\n"
+                "That transcript is background only -- do not repeat, quote or continue it.\n"
+                f"Answer only this new message from the user:\n{outgoing}"
+            )
+            sess.pending_context = None
         try:
             r = await self.tiers[sess.tier].call("session/prompt", {
-                "sessionId": sess.id,
-                "prompt": [{"type": "text", "text": text}],
+                "sessionId": sess.tier_sid(),
+                "prompt": [{"type": "text", "text": outgoing}],
             }, timeout=300)
         except Exception as e:
             r = {"error": {"code": -32000, "message": str(e)}}
         sess.busy = False
         sess.status = "done" if "error" not in r else "error"
-        await self._push_status(sess.id)
+        await self._set_phase(sess, "done" if "error" not in r else "error", "")
         if req_id is not None:
             reply = {"jsonrpc": "2.0", "id": req_id}
             reply["error" if "error" in r else "result"] = r.get("error") or r.get("result")

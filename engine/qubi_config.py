@@ -32,6 +32,53 @@ ALLOWED_GAMING_BUDGETS = ["cpu"]
 DEFAULT_CONFIG = {
     "$schema_version": 1,
     "tiers": {
+        # Below `light`: the tier the chat panel's thinking toggle routes to
+        # when reasoning is switched OFF. Exists as a separate tier rather
+        # than a flag on `light` because the only thing that actually makes
+        # a qwen3 turn shorter is a prompt-level switch plus a smaller/terser
+        # model, and both are per-tier settings -- see BLOCKERS.md on why
+        # think:false and GOOSE_LOCAL_ENABLE_THINKING=false do not help.
+        #
+        # `no_think_prefix` prepends qwen3's documented `/no_think` switch.
+        # It defaults to FALSE because measuring it here showed the opposite
+        # of what BLOCKERS.md recorded -- against qwen3:4b through Ollama's
+        # own /api/generate it DOUBLED the work rather than halving it
+        # (716 -> 1440 eval tokens, 2704 -> 5366 chars of reasoning, same
+        # prompt), because the model starts reasoning about the switch. The
+        # option stays because it is a per-tier knob a different model may
+        # honour properly; it is just not a win on qwen3.
+        #
+        # For the record, the other two levers were measured too and neither
+        # gives a usable fast tier on qwen3:4b:
+        #   think:true   1827 tokens  23.2s   7223 chars reasoning, 18 char answer
+        #   think:false  1058 tokens  13.2s      0 chars reasoning, 4010 char answer
+        # think:false is cheaper but relocates the reasoning into the answer
+        # body, which is worse for a chat panel than a collapsed thought
+        # bubble. The only real fix is a model that does not reason at all,
+        # so point `model` at a small instruct model (llama3.2:3b,
+        # qwen2.5:3b-instruct, gemma3:4b) to make this tier live up to its
+        # name. Until then it behaves exactly like `light` minus extensions.
+        "fast": {
+            "provider": "ollama",
+            # llama3.2:3b has no reasoning mode at all, which is the entire
+            # point of this tier. Measured against qwen3:4b on the same
+            # prompts: "what is 6 times 7" went 1827 tokens / 23.2s -> 2
+            # tokens / 2.8s, and "name three Wayland compositors" 716 tokens
+            # -> 13 tokens / 147ms, with zero reasoning characters both
+            # times. The trade is accuracy: a 3B model is noticeably weaker
+            # on facts (it answered that compositor question wrong), so this
+            # tier is for speed-over-rigour, and anything that matters should
+            # go to light/heavy.
+            "model": "llama3.2:3b",
+            "cpu_model": "llama3.2:3b",
+            # No escalate extension: this tier exists to answer in one shot.
+            # Every extension is another tool-call round trip.
+            "extensions": [],
+            "keep_alive": "-1",
+            "warm_at_start": False,
+            "idle_timeout_s": None,
+            "no_think_prefix": False,
+        },
         "light": {
             "provider": "ollama",
             "model": "qwen3:4b",
