@@ -237,6 +237,8 @@ in
 
     root = mkOption {
       type = types.path;
+      default = pkgs.callPackage ./mobile.nix { };
+      defaultText = lib.literalExpression "pkgs.callPackage ./mobile.nix { }";
       description = ''
         Directory to serve. Must contain only the PWA: it is published
         as-is, so never point it at a checkout.

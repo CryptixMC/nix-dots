@@ -30,6 +30,9 @@ class QubiMethodsMixin:
                 # See protocol.py. Additive keys; older clients ignore them.
                 "protocol": PROTOCOL,
                 "version": VERSION,
+                # For clients with no filesystem of their own (the mobile
+                # PWA) that still have to pass a cwd to session/load.
+                "defaultCwd": paths.default_cwd(self.cfg),
                 # `gaming` kept for existing clients that read it; `state`
                 # and `cpuOnly` are the finer-grained truth (a client that
                 # only looks at `gaming` cannot tell undocked from docked,

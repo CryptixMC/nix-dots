@@ -3,16 +3,14 @@
 let
   home = config.home.homeDirectory;
 
-  # The PWA's files still live at the repo root (they move under
-  # quickshell/modules/qubi/mobile/ with the QML). Copied into the store so
-  # the static server publishes exactly these four files -- it used to
-  # serve the whole checkout, .git included, to the tailnet.
+  # The PWA itself comes from the qubi tree. The only thing added here is
+  # the URL it used to live at, which the copy installed on the phone still
+  # has as its start_url. (Served from the store: the static server used to
+  # publish the whole checkout, .git included, to the tailnet.)
   mobileRoot = pkgs.runCommand "qubi-mobile-root" { } ''
     mkdir -p $out
-    cp ${../../../mobile_gui.html} $out/mobile_gui.html
-    cp ${../../../manifest.json} $out/manifest.json
-    cp ${../../../icon-192.png} $out/icon-192.png
-    cp ${../../../icon-512.png} $out/icon-512.png
+    cp -r ${pkgs.callPackage ../../../quickshell/modules/qubi/nix/mobile.nix { }}/. $out/
+    ln -s index.html $out/mobile_gui.html
   '';
 in
 {

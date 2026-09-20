@@ -15,6 +15,7 @@
     {
       packages = forAllSystems (pkgs: rec {
         qubi = pkgs.callPackage ./nix/package.nix { };
+        qubi-mobile = pkgs.callPackage ./nix/mobile.nix { };
         default = qubi;
       });
 
