@@ -4,54 +4,23 @@ let
   scriptWithPath = import ../../../lib/scriptWithPath.nix { inherit lib pkgs; };
   mkUserScript = import ../../../lib/mkUserScript.nix;
 
-  # Hardcoded per Phase 1b's design (llmfit is run once per state during
-  # bring-up, not looked up live) — see the "Local-First AI Workstation"
-  # plan doc for the full candidate lists these were chosen from.
+  # Hardcoded per-state model tags -- llmfit is run once during bring-up, not looked up live.
   #
-  # Undocked: superseded 2026-09-16 by Part II's Stage 2 roster benchmark.
-  # qwen2.5-coder (7b/14b) reliably printed tool-call JSON as prose instead
-  # of invoking it — 0% real tool-calling success across every test this
-  # repo ever ran against it. qwen3-coder:latest (30.5B MoE, ~3B active) was
-  # excluded from all earlier CPU testing purely for its 18GB total size;
-  # once actually measured CPU-only it passed 5/6 real tasks (append/read/
-  # edit-verify, with and without thinking) — slow (71-928s) but correct
-  # and tool-calling-reliable, which qwen2.5-coder never was at any speed.
-  # This drives the chat overlay/general-assistant role when undocked — CPU
-  # inference has no "fits in VRAM" speedup to chase, so there's no reason
-  # to split from qubi-code's own undocked coding pick (same model, see
-  # modules/home-manager/apps/goose.nix's gooseCode).
+  # qwen3-coder:latest -- reliable tool-calling undocked, unlike qwen2.5-coder (prints JSON as prose).
   undockedModel = "qwen3-coder:latest";
 
-  # Docked: superseded again 2026-09-17 by the /goal speed target (general
-  # chat + light coding should hit ~50 tok/s where achievable). Native
-  # measurement on this exact hardware: qwen3.6:latest generates at only
-  # 31.25 tok/s despite being the reasoning-strongest model available —
-  # dense-enough and large enough (23GB) that it doesn't fully fit this
-  # card's 16GB VRAM. qwen3:4b, dense and small enough to load 100% GPU
-  # (4.0GB resident), measured at 81.0 tok/s native generation and passed
-  # 3/3 real goose-bench tasks (append/read/edit-verify, thinking off) —
-  # a genuine reversal of qwen3:4b's original-session rejection, which was
-  # measured against the since-fixed 15K-token bloated config, not a real
-  # model limitation. This value drives the chat overlay's default docked
-  # model (general chat/assistant role) — NOT qubi-code's docked planner,
-  # which keeps qwen3.6:latest deliberately (planning benefits from more
-  # reasoning depth more than chat needs raw speed; see goose.nix).
+  # qwen3:4b -- fits fully in this card's 16GB VRAM (81 tok/s) vs qwen3.6:latest's 31 tok/s.
+  # Deliberately differs from qubi-code's docked planner (goose.nix), which keeps
+  # qwen3.6:latest for reasoning depth over raw chat speed.
   dockedModel = "qwen3:4b";
 
-  # qubi-state-sync is provided by modules/home-manager/apps/goose.nix's
-  # home.packages, landing on the user's normal profile PATH — referenced
-  # by bare name here (via a login shell for PATH resolution) rather than
-  # stitched across the NixOS/home-manager module boundary by store path,
-  # matching how amd.nix's root-context scripts already call user-session
-  # commands (kanshi.service, hyprctl) by name via runuser. Verify this
-  # resolves correctly the first time these units actually fire.
+  # qubi-state-sync comes from goose.nix's home.packages (user PATH) -- called by bare
+  # name via login shell, not store path, matching amd.nix's root-context user-session calls.
   mkSyncScript =
     state: model:
     scriptWithPath {
       name = "ai-workstation-${state}-sync";
-      # PATH explicitly set (not inherited) since these run as root-context
-      # systemd oneshots, matching the convention in
-      # modules/nixos/hardware/amd.nix's scripts.
+      # Explicit PATH (root-context systemd oneshot), matching amd.nix's scripts.
       runtimeInputs = [
         pkgs.coreutils
         pkgs.util-linux
@@ -73,12 +42,8 @@ let
         fi
       '';
     };
-  # Suspend can catch ROCm/KFD mid-inference; resuming with a model still
-  # "loaded" against hardware that just went through a full power-state
-  # transition is the same shape of risk as the surprise-eGPU-removal
-  # dead-KFD state documented in TODO.md §7 (Phase 1a "Found and fixed
-  # along the way"). Evicting before suspend costs nothing (the model just
-  # reloads into VRAM on next use) and removes the risk entirely.
+  # Evicts loaded models before suspend -- resuming with a model still "loaded" risks the
+  # same dead-KFD state as surprise eGPU removal (TODO.md §7). Free: model just reloads on next use.
   suspendEvictScript = scriptWithPath {
     name = "ai-workstation-suspend-evict";
     runtimeInputs = [
@@ -116,9 +81,8 @@ in
     };
   };
 
-  # Triggered by an added line in egpu-bar-fix.service's success branch
-  # (modules/nixos/hardware/amd.nix) — not by its own udev rule, reusing
-  # the existing eGPU hotplug detection rather than building a second one.
+  # Triggered from egpu-bar-fix.service's success branch (amd.nix), reusing its eGPU
+  # hotplug detection rather than a second udev rule.
   systemd.services.ai-workstation-dock-sync = {
     description = "Write docked AI-workstation hardware state and notify Goose";
     serviceConfig = {
@@ -127,7 +91,7 @@ in
     };
   };
 
-  # Triggered by an added line in egpu-eject.service's Stage 1 (amd.nix).
+  # Triggered from egpu-eject.service's Stage 1 (amd.nix).
   systemd.services.ai-workstation-undock-sync = {
     description = "Write undocked AI-workstation hardware state and notify Goose";
     serviceConfig = {
@@ -136,12 +100,8 @@ in
     };
   };
 
-  # Reconciles state at boot — dock/undock-sync above only ever fire on a
-  # udev hotplug event (amd.nix's egpu-bar-fix/egpu-eject), so a boot with
-  # no hotplug event (the common case: the eGPU's presence doesn't change
-  # across a reboot) left qubi-state-sync never re-run, silently keeping
-  # config.yaml on whatever state a prior session last wrote. Same
-  # lspci-based detection ai-workstation-gaming-stop already uses.
+  # Reconciles state at boot -- dock/undock-sync only fire on udev hotplug events, so a
+  # boot with no hotplug leaves config.yaml stale. Same lspci detection as gaming-stop.
   systemd.services.ai-workstation-boot-sync = {
     description = "Reconcile AI-workstation dock/undock state at boot";
     wantedBy = [ "multi-user.target" ];
@@ -157,11 +117,8 @@ in
     };
   };
 
-  # Lets ai-workstation-gaming-stop (home-manager script, runs as cryptix)
-  # re-derive real docked/undocked state on game exit without duplicating
-  # the model-tag `let` bindings above in a second location — same scoped-
-  # NOPASSWD-for-one-command pattern already used for egpu-eject.service
-  # in modules/nixos/hardware/amd.nix.
+  # Lets ai-workstation-gaming-stop (home-manager, runs as cryptix) re-derive dock state
+  # on game exit without duplicating the model-tag bindings above. Same NOPASSWD pattern as amd.nix.
   security.sudo.extraRules = [
     {
       users = [ "cryptix" ];
@@ -174,15 +131,9 @@ in
           command = "${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service";
           options = [ "NOPASSWD" ];
         }
-        # Phase 5c (qubi-engine night): runtime cgroup cap on ollama.service
-        # while gaming -- CPUQuota/AllowedCPUs confine local-model CPU
-        # inference to this i7-1260P's 8 E-cores (see the comment above
-        # aiWorkstationGamingStart in goose.nix for the /sys/devices
-        # frequency evidence behind the 8-15 range), so the game's own
-        # threads keep the P-cores untouched. sudoers command matching is
-        # against the exact argument string, so the gaming-value and the
-        # empty-value (restore) invocations need their own separate exact
-        # rules -- no wildcard, matching this file's existing convention.
+        # Confines ollama.service to this i7-1260P's E-cores (8-15) while gaming, keeping
+        # P-cores free for the game (evidence: goose.nix's aiWorkstationGamingStart comment).
+        # sudoers matches exact strings -- gaming-value and restore need separate rules.
         {
           command = "${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15";
           options = [ "NOPASSWD" ];

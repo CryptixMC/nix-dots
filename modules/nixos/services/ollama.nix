@@ -2,40 +2,20 @@
 {
   services.ollama = {
     enable = true;
-    # The RX 6800 XT eGPU is hotplugged over Thunderbolt and isn't reliably
-    # present when ollama.service starts at boot, so it may come up CPU-only.
-    # egpu-bar-fix.service (modules/nixos/hardware/amd.nix) restarts ollama
-    # once the GPU's PCIe BAR is fixed up and the amdgpu driver is bound,
-    # so it picks up ROCm shortly after the eGPU is plugged in.
+    # eGPU is hotplugged over Thunderbolt and may not be present at boot, so ollama can
+    # start CPU-only; egpu-bar-fix.service (amd.nix) restarts it once the eGPU is bound.
     package = pkgs.ollama-rocm;
 
-    # Ollama's own runtime default (unrelated to a model's trained context
-    # length) silently caps every model at ~4096 tokens unless overridden —
-    # confirmed live via `journalctl -u ollama.service` showing
-    # `n_ctx_slot = 4096` for qwen2.5-coder:7b despite it reporting a
-    # trained `context length: 32768` in `ollama show`. Truncated context
-    # mid-agentic-task (tool schemas + history getting cut) is a plausible
-    # root cause for the tool-calling flakiness logged in TODO.md §7. 16384
-    # (not 32768) is chosen for RAM safety on this 38GB/no-swap laptop: at
-    # 32768 the largest pulled model's (qwen3.6:latest, 23GB weights)
-    # resident footprint including KV cache comes out to ~33.5GB, at/over
-    # the ~33GB free when undocked (no eGPU) — a real OOM risk. 16384 keeps
-    # every pulled model under ~28GB total while still quadrupling the
-    # previous silent default.
+    # Ollama's runtime default silently caps context at ~4096 regardless of a model's trained
+    # length. 16384 (not 32768) is the RAM-safe ceiling on this 38GB no-swap laptop -- 32768
+    # risks OOM on the largest pulled model (qwen3.6:latest) when undocked.
     environmentVariables.OLLAMA_CONTEXT_LENGTH = "16384";
 
-    # flash attention and q8_0 KV cache were verified safe on this gfx1030
-    # AMD RX 6800 XT eGPU via ROCm through a real live test (clean startup,
-    # flash_attn enabled, correct coherent inference output, zero errors) --
-    # roughly halves KV cache memory at this context length.
-    # keep-alive is set explicitly to 30 minutes since the previous undeclared
-    # default was 5 minutes, too short for comfortably back-to-back
-    # invocations without re-loading the model between turns.
-    # max_loaded_models is set to 2 to allow a primary model and a second
-    # model (such as a toolshim or subagent model) to stay resident together,
-    # at some memory risk on this 38GB no-swap laptop if two large models
-    # are both requested at once while undocked with no eGPU VRAM to offload
-    # into -- this is an accepted tradeoff, not an oversight.
+    # flash attention + q8_0 KV cache: verified safe on this gfx1030 eGPU via ROCm, roughly
+    # halves KV cache memory.
+    # keep-alive raised from Ollama's 5m default to 30m to avoid reloading between turns.
+    # max_loaded_models=2 lets a primary + secondary (toolshim/subagent) model stay resident;
+    # accepted OOM risk undocked if both are large, not an oversight.
     environmentVariables.OLLAMA_FLASH_ATTENTION = "1";
     environmentVariables.OLLAMA_KV_CACHE_TYPE = "q8_0";
     environmentVariables.OLLAMA_KEEP_ALIVE = "30m";
