@@ -5,8 +5,8 @@ import "../../theme"
 // Shared hover tooltip for right-side bar icons. Caller sets `anchor.item`
 // to its own root Item and drives `visible` from its own hover state —
 // this component only owns styling/layout, not when it's shown.
-// No drop-shadow (waybar's CSS has one): would need an unconfirmed Qt
-// effects module for a purely cosmetic detail, not worth the risk here.
+// No drop-shadow: would need an unconfirmed Qt effects module for a
+// purely cosmetic detail, not worth the risk here.
 PopupWindow {
     id: root
 

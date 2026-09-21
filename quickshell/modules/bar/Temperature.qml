@@ -2,10 +2,9 @@ import QtQuick
 import Quickshell.Io
 import "../../theme"
 
-// Mirrors waybar's "temperature" module (icons/critical-threshold 1:1 from
-// waybar.nix). No dedicated Quickshell temperature service exists, and
-// sysfs temp attributes don't reliably fire inotify on read, so this
-// polls (matching waybar's own `interval: 5`) rather than file-watching.
+// CPU temperature module. No dedicated Quickshell temperature service
+// exists, and sysfs temp attributes don't reliably fire inotify on read,
+// so this polls (every 5s) rather than file-watching.
 BarIcon {
     id: root
 

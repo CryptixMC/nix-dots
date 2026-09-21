@@ -1,7 +1,7 @@
 import QtQuick
 import "../../theme"
 
-// Mirrors waybar's clock format "{:%I:%M %p · %a %d}" (e.g. "02:47 PM · Tue 09").
+// Clock, formatted as "hh:mm AP · ddd dd" (e.g. "02:47 PM · Tue 09").
 // Calendar hover-tooltip is deferred — plain formatted time only for this pass.
 Item {
     id: root

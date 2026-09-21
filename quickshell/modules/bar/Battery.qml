@@ -2,10 +2,8 @@ import QtQuick
 import Quickshell.Services.UPower
 import "../../theme"
 
-// Mirrors waybar's "battery" module (bat = BAT0, states/icons/tooltips
-// 1:1 from waybar.nix). Waybar's `warning: 30` threshold has no matching
-// CSS rule in the current config, so it stays a no-op here too — only
-// critical (<=15%) gets the pink blink.
+// Battery module (bat = BAT0). Only critical (<=15%) gets the pink blink;
+// there is no separate "warning" tier.
 BarIcon {
     id: root
 

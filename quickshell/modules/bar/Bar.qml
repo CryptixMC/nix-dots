@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import "../../theme"
 
-// Mirrors waybar.nix: layer "top", position "top", height 26,
+// Bar layout: layer "top", position "top", height 26,
 // fixed-center clock, modules-left/center/right layout.
 PanelWindow {
     id: bar
@@ -23,8 +23,8 @@ PanelWindow {
     implicitHeight: Theme.spacing.barHeight
     exclusiveZone: Theme.spacing.barHeight
     color: Theme.color.barBg
-    // `layer` left at PanelWindow's default (top) — matches waybar's
-    // `layer = "top"`; override explicitly if the default doesn't hold.
+    // `layer` left at PanelWindow's default (top); override explicitly
+    // if the default doesn't hold.
 
     Rectangle {
         anchors {
@@ -60,8 +60,8 @@ PanelWindow {
         notifActiveCount: bar.notifActiveCount
         anchors {
             right: parent.right
-            // waybar's #tray padding-right: 4px is the bar's actual
-            // right-edge inset — the rightmost module is always tray.
+            // The rightmost module is always tray, so this inset is
+            // effectively the bar's right-edge padding.
             rightMargin: Theme.spacing.barRightInset
             verticalCenter: parent.verticalCenter
         }

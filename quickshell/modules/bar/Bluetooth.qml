@@ -2,10 +2,10 @@ import QtQuick
 import Quickshell.Bluetooth
 import "../../theme"
 
-// Beyond strict waybar parity: waybar's own "custom/bluetooth" module is a
-// static fake (hardcoded "Connected" tooltip) — BlueZ is confirmed live on
-// this host and Quickshell ships a real binding, so this is live instead.
-// Click opens a device flyout (BluetoothPopup.qml) instead of launching
+// BlueZ is confirmed live on this host and Quickshell ships a real
+// binding, so state (adapter power, connected devices) is live rather
+// than a static placeholder. Click opens a device flyout (BluetoothPopup.qml)
+// instead of launching
 // blueman-manager directly, same upgrade as Volume/Network — blueman is
 // still one click away via the flyout's "›" link.
 BarIcon {

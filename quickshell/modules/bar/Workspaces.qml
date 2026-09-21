@@ -2,9 +2,8 @@ import QtQuick
 import Quickshell.Hyprland
 import "../../theme"
 
-// Workspace dots, mirrors waybar's "hyprland/workspaces" module:
-// persistent-workspaces."*" = 5 plus any occupied workspace beyond that,
-// pink when focused, dim when occupied-but-inactive, faint otherwise.
+// Workspace dots: shows workspaces 1-5 plus any occupied workspace beyond
+// that, pink when focused, dim when occupied-but-inactive, faint otherwise.
 //
 // Root is an Item (not a bare Row) so it has a fixed implicitHeight matching
 // the bar — without it, this block's height shrank to the dots' own font
@@ -30,8 +29,8 @@ Item {
     Row {
         id: dotsRow
         anchors.verticalCenter: parent.verticalCenter
-        // Approximates waybar's per-dot label padding (0 3px each side, no
-        // separate inter-button gap in the CSS).
+        // Per-dot label padding (0 3px each side), no separate
+        // inter-button gap.
         spacing: Theme.spacing.workspaceDots
 
         Repeater {

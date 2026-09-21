@@ -1,6 +1,6 @@
 # Quickshell shell
 
-Replacement for Waybar + Walker, built with [Quickshell](https://quickshell.org). Default bar and launcher as of [TODO.md](../TODO.md) §3's "Once at parity" milestone — Waybar and Walker are hidden (packages/config disabled, not deleted) rather than removed, so either can be restored by reversing the changes noted there.
+Replacement for Waybar + Walker, built with [Quickshell](https://quickshell.org). Quickshell's own bar ([modules/bar/](modules/bar/)) and launcher ([modules/launcher/](modules/launcher/)) fully replaced Waybar and Walker; both were deleted outright, with no hidden config or "re-enable if needed" fallback left in the repo.
 
 Run standalone, without touching the rest of the system:
 

@@ -3,18 +3,18 @@ import Quickshell.Services.SystemTray
 import Quickshell.Widgets
 import "../../theme"
 
-// Mirrors waybar's "tray" module (icon-size 15). Structurally a dynamic
-// Repeater over SystemTray.items rather than a single BarIcon — Quickshell
-// renders each item's DBusMenu itself via .display(), no custom menu UI
-// needed for a first pass.
+// System tray module (icon-size 15). Structurally a dynamic Repeater over
+// SystemTray.items rather than a single BarIcon — Quickshell renders each
+// item's DBusMenu itself via .display(), no custom menu UI needed for a
+// first pass.
 Row {
     id: root
 
     property var barWindow: null
 
-    // waybar.nix's tray.spacing = 10 — this is the gap *between tray
-    // icons themselves*, distinct from (and not the same value as) the
-    // top-level modules-right spacing in RightModules.qml.
+    // This is the gap *between tray icons themselves*, distinct from
+    // (and not the same value as) the top-level modules-right spacing
+    // in RightModules.qml.
     spacing: Theme.spacing.trayGap
 
     Repeater {

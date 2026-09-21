@@ -1,11 +1,11 @@
 import QtQuick
 import Quickshell.Services.Pipewire
 
-// Mirrors waybar's "pulseaudio" module (icons 1:1 from waybar.nix), except
-// click now opens a small volume flyout (VolumePopup.qml) instead of
-// launching pavucontrol directly — pavucontrol is still one click away via
-// the flyout's "›" button. Headset/headphone icon variants are skipped —
-// no reliable signal to key off in this API, default icon array only.
+// Volume module. Click opens a small volume flyout (VolumePopup.qml)
+// instead of launching pavucontrol directly — pavucontrol is still one
+// click away via the flyout's "›" button. Headset/headphone icon variants
+// are skipped — no reliable signal to key off in this API, default icon
+// array only.
 BarIcon {
     id: root
 

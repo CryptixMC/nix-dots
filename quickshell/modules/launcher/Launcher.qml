@@ -10,9 +10,9 @@ import "../../theme"
 // call launcher toggle` — -p goes before the subcommand, after it errors
 // out) rather than process kill/relaunch — this runs inside the same
 // already-running Quickshell instance as the bar, so toggling needs to be
-// instant. Colors/dimensions are a 1:1 copy of modules/home-manager/apps/
-// walker.nix's walker/themes/float/style.css (see Colors.qml's launcher*
-// tokens) — rail/grid modes aren't replicated, out of scope for this pass.
+// instant. Colors/dimensions mirror the old Walker "float" theme's
+// styling (see Colors.qml's launcher* tokens) — rail/grid modes aren't
+// replicated, out of scope for this pass.
 // Ranking (frecency) and keyword/genericName/comment matching live in
 // UsageStore.qml and the filteredEntries property below — a later pass on
 // top of the original v1.

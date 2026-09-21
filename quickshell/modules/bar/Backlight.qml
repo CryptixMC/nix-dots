@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell.Io
 
-// Mirrors waybar's "backlight" module (icons 1:1 from waybar.nix).
+// Backlight module with three brightness-tier icons.
 // FileView + watchChanges instead of polling brightnessctl — as a side
 // effect this also live-updates from the XF86MonBrightness{Up,Down}
 // hardware-key binds in hyprland.nix, for free.

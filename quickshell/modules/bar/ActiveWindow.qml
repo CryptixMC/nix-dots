@@ -2,10 +2,9 @@ import QtQuick
 import Quickshell.Hyprland
 import "../../theme"
 
-// Mirrors waybar's "hyprland/window" module (format "{}", max-length 60).
-// Shows the single globally-focused window title on every monitor for this
-// pass — true per-output tracking (waybar's separate-outputs) is a
-// follow-up refinement.
+// Active-window title module (max-length 60). Shows the single
+// globally-focused window title on every monitor for this pass — true
+// per-output tracking is a follow-up refinement.
 Item {
     id: root
 
