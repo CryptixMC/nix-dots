@@ -1,13 +1,11 @@
 { pkgs, lib, ... }:
 
 let
-  # The ThinkPad USB-C Dock Gen 2 power button (Cypress 17ef:a38f) sends a
-  # USB Remote Wakeup signal — not a keypress — to wake the system from S3.
-  # For that signal to reach the ThinkPad, every hub and the root USB
-  # controller in the chain must have power/wakeup = "enabled".
-  # This script walks up the sysfs parent chain from the dock button device
-  # and enables wakeup on each node up to and including the root hub (usb*).
-  # NOTE: wake from S5 (powered-off) requires a BIOS "Wake on USB" setting.
+  # Dock power button (Cypress 17ef:a38f) sends USB Remote Wakeup, not a
+  # keypress; every hub up to the root USB controller needs
+  # power/wakeup=enabled for it to reach the ThinkPad. Walks the sysfs
+  # parent chain from the button device, enabling wakeup up to the root
+  # hub. Wake from S5 also needs a BIOS "Wake on USB" setting.
   dockWakeupScript = pkgs.writeShellScript "dock-wakeup" ''
     sysfs="/sys$1"
     while [ -e "$sysfs" ]; do
@@ -23,11 +21,9 @@ let
   '';
 
 
-  # The ThinkPad USB-C Dock Gen2's built-in Realtek RTL8153 (r8152) Ethernet
-  # controller sometimes comes up autonegotiated at 100 Mbps/Fast-Ethernet
-  # instead of Gigabit after boot or hotplug, even though the chip is
-  # natively Gigabit-capable. Forcing a clean autoneg restart on interface
-  # add reliably recovers the full link speed.
+  # The dock's r8152 controller sometimes autonegotiates to 100 Mbps
+  # instead of Gigabit after boot/hotplug; forcing a clean autoneg restart
+  # on interface add reliably recovers full link speed.
   ethGigabitFixScript = pkgs.writeShellScript "eth-gigabit-fix" ''
     PATH=${lib.makeBinPath [ pkgs.ethtool ]}:$PATH
     iface="$1"
@@ -35,16 +31,12 @@ let
     ethtool -s "$iface" speed 1000 duplex full autoneg on
   '';
 
-  # When the AMD GPU appears via Thunderbolt PCIe tunneling, its BAR 0
-  # (256MB VRAM aperture) is stuck at address 0x0 because the inner TB
-  # bridge (51:01.0) was given only a 3MB prefetchable window at enumeration
-  # time.  The outer TB bridge (50:00.0) has 482MB available, but the
-  # hotplug path never redistributes that space to inner bridges.
-  #
-  # Fix: once the GPU device appears (with BAR 0 = 0x0), remove the inner
-  # bridge that contains it and rescan from the outer bridge.  The kernel
-  # allocator then sees 482MB of free prefetchable space and gives the inner
-  # bridge the 258MB it needs for BAR 0 + overhead.
+  # eGPU BAR 0 (256MB VRAM aperture) comes up stuck at 0x0 over TB
+  # tunneling: the inner TB bridge (51:01.0) gets only a 3MB prefetchable
+  # window at enumeration, while the outer bridge (50:00.0) has 482MB
+  # unused that the hotplug path never redistributes. Fix: remove the
+  # inner bridge once the GPU appears and rescan from the outer bridge so
+  # the allocator regrants proper window space.
   egpuBarFixScript = pkgs.writeShellScript "egpu-bar-fix" ''
     PATH=${
       lib.makeBinPath [
@@ -85,9 +77,9 @@ let
 
     log "BAR 0 stuck at 0x0; attempting bridge window reallocation..."
 
-    # Walk up: GPU bus → find the bridge that is a direct child of 50:00.0.
-    # Topology: 50:00.0 → 51:01.0 → 52:00.0 → 53:00.0 → 54:00.0 (GPU)
-    # 50:00.0's SECONDARY bus is 51, so we want the bridge whose PRIMARY = 51.
+    # Topology: 50:00.0 -> 51:01.0 -> 52:00.0 -> 53:00.0 -> 54:00.0 (GPU).
+    # Walk up from the GPU bus to find the bridge whose PRIMARY bus equals
+    # 50:00.0's SECONDARY bus (51).
     GPU_BDF=$(basename "$GPU_SYS")            # e.g. 0000:54:00.0
     GPU_BUS=$(echo "$GPU_BDF" | cut -d: -f2)  # e.g. 54 (hex sysfs notation)
 
@@ -135,10 +127,9 @@ let
       echo "$(basename "$GPU_SYS")" > "$GPU_SYS/driver/unbind" 2>/dev/null || true
     fi
 
-    # Remove every bridge whose primary bus is 50:00.0's secondary bus.
-    # This lets the kernel allocate all three bridges from a clean slate,
-    # which means it can place the 256MB GPU BAR at the 256MB-aligned base
-    # of 50:00.0's window without interference from pre-existing allocations.
+    # Remove every bridge whose primary bus is 50:00.0's secondary bus, so
+    # the kernel allocates all three from a clean slate and can place the
+    # 256MB-aligned GPU BAR without interference from stale allocations.
     for dev in /sys/bus/pci/devices/0000:*; do
       bdf=$(basename "$dev" | sed 's/0000://')
       pri=$(setpci -s "$bdf" PRIMARY_BUS.B 2>/dev/null) || continue
@@ -162,14 +153,13 @@ let
       if [ "$BAR0" != "0x0000000000000000" ]; then
         log "Success — triggering driver bind"
         echo "$(basename "$d")" > /sys/bus/pci/drivers/amdgpu/bind 2>/dev/null || true
-        # ollama.service and kanshi may have been stopped by egpu-eject.service
-        # on the last unplug (or ollama simply started CPU-only before the
-        # eGPU was bound) — restart both so they pick the eGPU back up.
+        # ollama/kanshi may be stopped from the last eject (or ollama
+        # started CPU-only before the eGPU bound) — restart both so they
+        # pick up the eGPU.
         systemctl restart ollama.service 2>/dev/null || true
         runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" systemctl --user restart kanshi.service 2>/dev/null || true
-        # Fire-and-forget: a bug in the AI-workstation model-routing layer
-        # (modules/nixos/apps/ai-workstation.nix) must never block or fail
-        # this BAR-fix success path.
+        # Fire-and-forget: a bug in ai-workstation.nix's model-routing layer
+        # must never block or fail this BAR-fix success path.
         systemctl start ai-workstation-dock-sync.service --no-block 2>/dev/null || true
       else
         log "BAR 0 still 0x0 — manual intervention needed"
@@ -177,13 +167,11 @@ let
     done
   '';
 
-  # Gracefully detach the AMD eGPU *before* physically unplugging it so
-  # amdgpu's PCI-remove teardown (ring tests, CP halt) completes against
-  # hardware that's still electrically live, instead of timing out against
-  # a link that's already been yanked — which is what wedges the Hyprland
-  # compositor into a black screen that only a reboot clears (see README).
-  # Triggered by the SUPER+SHIFT+U keybind (primary) and by a udev rule on
-  # Thunderbolt device removal (best-effort backstop for a surprise yank).
+  # Detach the eGPU before physical unplug: amdgpu's PCI-remove teardown
+  # (ring tests, CP halt) must complete against live hardware, or a yanked
+  # link wedges Hyprland into an unrecoverable black screen. Triggered by
+  # SUPER+SHIFT+U (primary) or a udev rule on TB removal (best-effort
+  # backstop for a surprise yank).
   egpuEjectScript = pkgs.writeShellScript "egpu-eject" ''
     PATH=${
       lib.makeBinPath [
@@ -232,37 +220,30 @@ let
     systemctl stop ollama.service 2>/dev/null || true
     systemctl start ai-workstation-undock-sync.service --no-block 2>/dev/null || true
 
-    # Stage 1.5: a running game holds its own independent RADV/Vulkan DRM
-    # context on the eGPU (unrelated to ROCm/ollama above) that can just as
-    # easily hang the amdgpu unbind in Stage 3. Force-killing someone's game
-    # out from under them is worse UX than asking them to quit it first, so
-    # abort here with a clear notification instead of proceeding.
+    # Stage 1.5: a running game holds its own RADV/Vulkan DRM context
+    # (independent of ROCm/ollama) that can equally hang the Stage 3
+    # unbind; abort with a notification rather than force-killing the game.
     if pgrep -x gamescope >/dev/null 2>&1; then
       log "gamescope is running — refusing to eject until it's closed"
       hyprctl_user notify -1 8000 "rgb(f9e2af)" "Quit your game first, then retry SUPER+SHIFT+U"
       exit 1
     fi
 
-    # Stage 2: stop kanshi (it doesn't know about eGPU state, only EDID —
-    # without this it can immediately re-enable DP-6/HDMI-A-2 while they're
-    # still electrically present), disable the eGPU-attached outputs, and
-    # explicitly re-enable eDP-1. The explicit enable is required: kanshi's
-    # "docked" profile actively disables eDP-1 (`output "AU Optronics
-    # 0xFA9B*" disable` in kanshi's config) whenever the eGPU's monitors are
-    # up, so eDP-1 sits at disabled:true the whole time the eGPU is docked
-    # (confirmed live). Without this line, disabling DP-6/HDMI-A-2 would
-    # leave every output disabled — a self-inflicted black screen, exactly
-    # what this script exists to prevent.
+    # Stage 2: stop kanshi (EDID-only, doesn't know eGPU state, so it would
+    # re-enable DP-6/HDMI-A-2 while still live), disable the eGPU outputs,
+    # and explicitly re-enable eDP-1 — kanshi's "docked" profile disables
+    # eDP-1 while the eGPU is up, so skipping this leaves every output
+    # disabled.
     log "stopping kanshi, disabling eGPU-attached outputs, enabling eDP-1"
     as_user systemctl --user stop kanshi.service 2>/dev/null || true
     hyprctl_user keyword monitor DP-6,disable
     hyprctl_user keyword monitor HDMI-A-2,disable
     hyprctl_user keyword monitor eDP-1,preferred,auto,1
 
-    # Stage 3: unbind amdgpu while the PCIe link is still live. With every
-    # userspace consumer gone (stages 1-2), the ring tests and CP-halt that
-    # amdgpu_device_fini_hw() runs during unbind can complete against
-    # responsive hardware instead of hanging — this is the actual fix.
+    # Stage 3: unbind amdgpu while the PCIe link is still live — with
+    # stages 1-2's consumers gone, amdgpu_device_fini_hw()'s ring
+    # tests/CP-halt complete against responsive hardware instead of
+    # hanging. This is the actual fix.
     GPU_BDF=$(basename "$GPU_SYS")
     if [ -e "$GPU_SYS/driver" ]; then
       log "unbinding amdgpu from $GPU_BDF"
@@ -274,8 +255,8 @@ let
       log "amdgpu already unbound from $GPU_BDF"
     fi
 
-    # Stage 4: deauthorize the Thunderbolt tunnel — the exact manual fix
-    # documented in README.md, now safe since amdgpu is already unbound.
+    # Stage 4: deauthorize the Thunderbolt tunnel (the manual fix
+    # documented in README.md), now safe since amdgpu is already unbound.
     if [ "$ok" = "1" ]; then
       TB_DEV=""
       for d in /sys/bus/thunderbolt/devices/*; do
@@ -300,24 +281,13 @@ let
       fi
     fi
 
-    # Stage 4.5: bring ollama back, CPU-only. Stage 1 stopped it purely to
-    # get ROCm to drop its DRM handles before the unbind — that job is done
-    # by now, and leaving it stopped is what actually broke qubi undocked:
-    # nothing else in this repo ever started it again (the only other
-    # `systemctl ... ollama.service` start is egpu-bar-fix's, on the DOCK
-    # path), so every local qubi tier sat with no backend until the next
-    # reboot or re-dock.
-    #
-    # Gated on $ok, deliberately. On the success path the card is unbound
-    # and its Thunderbolt tunnel deauthorized, so ollama-rocm finds no GPU
-    # and comes up CPU-only — exactly what's wanted undocked. On the
-    # failure path the unbind timed out, which is the documented entry
-    # point to the dead-KFD state (see the egpu-dock-undock skill): amdgpu
-    # still looks bound with a valid BAR while ROCm/KFD is dead underneath,
-    # and pointing ollama-rocm at it is precisely how you get an
-    # unkillable D-state llama-server that survives `systemctl stop` and
-    # needs a full reboot. Leaving it stopped there is the safe end state,
-    # and matches the "do NOT unplug, go look" posture of the notify below.
+    # Stage 4.5: restart ollama CPU-only. Stage 1's stop was only to drop
+    # ROCm's DRM handles before unbind; leaving it stopped left qubi with
+    # no backend until reboot/re-dock. Gated on $ok: on failure the unbind
+    # timed out, risking amdgpu looking bound with dead KFD underneath
+    # (see the egpu-dock-undock skill) — pointing ollama-rocm at that
+    # produces an unkillable D-state llama-server, so leaving it stopped
+    # is the safer end state.
     if [ "$ok" = "1" ]; then
       log "restarting ollama.service (CPU-only while undocked)"
       systemctl restart ollama.service 2>/dev/null || true
@@ -334,13 +304,11 @@ let
     fi
   '';
 
-  # When the eGPU attaches, force full CPU + GPU performance so neither
-  # opportunistically clocks down mid-session (confirmed live: the GPU sat
-  # at 72% busy but only drew 52W of its 272W cap during ARC Raiders — the
-  # signature of a GPU periodically starved waiting on CPU-submitted work,
-  # not a GPU-bound ceiling). Scoped to only-while-docked via
-  # egpu-bar-fix/egpu-eject below, so undocked/battery use still
-  # power-saves normally.
+  # Force CPU+GPU to full performance while the eGPU is docked — confirmed
+  # live that opportunistic clocking left the GPU starved waiting on
+  # CPU-submitted work (72% busy, only 52W of its 272W cap). Scoped to
+  # docked-only via egpu-bar-fix/egpu-eject below; undocked/battery use
+  # still power-saves normally.
   egpuPerfOnScript = pkgs.writeShellScript "egpu-perf-on" ''
     PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.util-linux ]}:$PATH
     log() { echo "[egpu-perf-on] $*"; logger -t egpu-perf-on "$*"; }
@@ -350,10 +318,9 @@ let
     done
     log "CPU governor -> performance"
 
-    # amdgpu's DPM sysfs node only exists once the driver is bound, which
-    # egpu-bar-fix.service does as its last step -- this service runs
-    # after it (see systemd.services.egpu-perf-on below), but poll briefly
-    # anyway as a defensive fallback.
+    # amdgpu's DPM sysfs node only exists once bound (egpu-bar-fix.service's
+    # last step, which this runs after) — poll briefly as a defensive
+    # fallback.
     DPM=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       for d in /sys/bus/pci/devices/0000:*; do
@@ -402,50 +369,38 @@ in
   # Load the TB controller in initrd so authorization fires before userspace.
   boot.initrd.kernelModules = [ "thunderbolt" ];
 
-  # boltd requires the device to be enrolled imperatively (boltctl enroll).
-  # Without enrollment boltd silently blocks authorization, so use a udev
-  # rule instead and leave the daemon off.
+  # boltd requires imperative enrollment (boltctl enroll) or it silently
+  # blocks authorization; use a udev rule instead and leave the daemon off.
   services.hardware.bolt.enable = false;
 
   # --- Physical topology note (no code effect — READ THIS) ---
-  # This CPU (Alder Lake-P) has two independent, CPU-integrated TB4
-  # controllers (00:0d.2 / NHI#0 behind root port 00:07.0, and 00:0d.3 /
-  # NHI#1 behind 00:07.2) -- genuinely separate PCIe endpoints, not a
-  # shared upstream switch (confirmed via `lspci -tv`). The eGPU
-  # (Adaptertek Tamales2, Titan Ridge/JHL7440) must be on one of them; the
-  # ThinkPad USB-C Dock Gen 2 MUST be plugged into the laptop's OTHER,
-  # independent TB4 port directly -- NOT into the eGPU enclosure's own
-  # USB-C passthrough port on the back of the Tamales2 box. That
-  # passthrough port daisy-chains through the enclosure's *internal*
-  # Titan Ridge chip, sharing the same physical TB3 cable and internal
-  # PCIe switch as the GPU's own tunnel -- and Titan Ridge (a 2-port
-  # discrete TB3 controller, the same chip that's inside this enclosure)
-  # is well documented to share aggregate PCIe bandwidth across its
-  # ports. The laptop's own two CPU-integrated TB4 ports don't have that
-  # problem, but daisy-chaining the dock through the eGPU enclosure's
-  # internal chip reintroduces exactly that sharing behavior. If you ever
-  # re-cable this dock, plug it into the laptop directly, not through the
-  # eGPU box.
+  # This CPU has two independent, CPU-integrated TB4 controllers (00:0d.2 /
+  # NHI#0 behind root port 00:07.0, and 00:0d.3 / NHI#1 behind 00:07.2),
+  # not a shared upstream switch. Plug the eGPU (Adaptertek Tamales2,
+  # Titan Ridge/JHL7440) on one, and the ThinkPad USB-C Dock Gen 2 directly
+  # into the laptop's OTHER TB4 port — NOT into the eGPU enclosure's own
+  # USB-C passthrough port. That passthrough daisy-chains through the
+  # enclosure's internal Titan Ridge chip, which shares aggregate PCIe
+  # bandwidth across its ports with the GPU's own tunnel. If re-cabling,
+  # keep the dock plugged directly into the laptop.
 
   services.udev.extraRules = ''
     ACTION=="add", SUBSYSTEM=="thunderbolt", ATTR{unique_id}=="b9010000-0062-640e-83f2-8ddd4a93f908", ATTR{authorized}="1"
     # When the RX 6800 XT appears on the PCIe bus, start the BAR-fix service.
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x1002", ATTR{device}=="0x73bf", TAG+="systemd", ENV{SYSTEMD_WANTS}="egpu-bar-fix.service"
-    # Best-effort automatic backstop for a surprise physical unplug (the
-    # keybind-triggered egpu-eject.service is the reliable path — see
-    # hyprland.nix). Matched on the *thunderbolt* remove event rather than
-    # the PCI remove event: the PCI-level remove uevent only fires after
-    # amdgpu's own .remove() callback returns, and that callback is exactly
-    # what hangs on surprise removal, so a PCI-remove rule would likely
-    # never fire during the hang this is meant to catch.
+    # Best-effort backstop for a surprise unplug (SUPER+SHIFT+U /
+    # egpu-eject.service in hyprland.nix is the reliable path). Matched on
+    # the thunderbolt remove event, not PCI remove — the PCI-remove uevent
+    # only fires after amdgpu's .remove() returns, which is exactly what
+    # hangs on surprise removal.
     ACTION=="remove", SUBSYSTEM=="thunderbolt", ATTR{unique_id}=="b9010000-0062-640e-83f2-8ddd4a93f908", TAG+="systemd", ENV{SYSTEMD_WANTS}="egpu-eject.service"
     # Enable USB wakeup chain for ThinkPad USB-C Dock Gen2 power button.
     ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="a38f", RUN+="${dockWakeupScript} $env{DEVPATH}"
-    # Force a clean autoneg restart on the dock's r8152 Ethernet controller
-    # so it doesn't get stuck at 100 Mbps instead of Gigabit.
+    # Force a clean autoneg restart so the dock's r8152 controller doesn't
+    # stick at 100 Mbps instead of Gigabit.
     ACTION=="add", SUBSYSTEM=="net", DRIVERS=="r8152", RUN+="${ethGigabitFixScript} $env{INTERFACE}"
-    # Keep USB autosuspend off for the dock's Ethernet controller — autosuspend
-    # cycling on this device has been observed causing spurious carrier drops.
+    # Keep USB autosuspend off for the dock's Ethernet controller —
+    # autosuspend cycling has caused spurious carrier drops.
     ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="a387", ATTR{power/control}="on"
   '';
 
@@ -455,23 +410,18 @@ in
   # Pre-load the driver so it binds the moment the PCIe device appears.
   boot.kernelModules = [ "amdgpu" ];
 
-  # Pin the kernel version that the eGPU hotplug checklist (BAR-fix,
-  # AER/ASPM workarounds, DPIA hang workaround below) was validated
-  # against. Resolves to 6.18.50 today — identical to nixos-unstable's
-  # current default — so this is a no-op right now; it exists purely so a
-  # future `nix flake update` can't silently shift the running kernel out
-  # from under these Thunderbolt/amdgpu workarounds. If this attribute is
-  # ever pruned from nixpkgs (EOL'd versioned kernels get removed), re-run
-  # the full eGPU physical-state checklist against the new candidate
-  # kernel before bumping this pin deliberately.
+  # Pin the kernel the eGPU hotplug workarounds below were validated
+  # against, so `nix flake update` can't silently shift it out from under
+  # them. Currently a no-op (matches nixos-unstable's default 6.18.50). If
+  # nixpkgs ever prunes this attribute, re-validate the full eGPU checklist
+  # before bumping the pin.
   boot.kernelPackages = pkgs.linuxPackages_6_18;
 
   # --- Kernel Parameters ---
   boot.kernelParams = [
-    # Allow the kernel to reallocate PCI bridge windows for hot-plugged devices.
-    # Combined with the BIOS "512MB graphics memory" setting (which tells the
-    # Thunderbolt firmware to program larger bridge apertures), this should give
-    # the RX 6800 XT enough prefetchable window for its 256MB BAR 0.
+    # Allow the kernel to reallocate PCI bridge windows for hot-plugged
+    # devices — combined with the BIOS "512MB graphics memory" setting,
+    # gives the RX 6800 XT enough prefetchable window for its 256MB BAR 0.
     "pci=realloc,nocrs"
 
     # Release the EFI framebuffer so amdgpu can own the display output.
@@ -486,45 +436,31 @@ in
     # Runtime PM will lose the Thunderbolt link on GPU sleep.
     "amdgpu.runpm=0"
 
-    # The DC stack retries DPIA (TB DisplayPort) link training indefinitely when
-    # no monitor is attached at init, causing a hang on kernel 6.18+.
+    # DC stack retries DPIA (TB DisplayPort) link training indefinitely
+    # with no monitor attached at init, hanging on kernel 6.18+.
     "amdgpu.dcdebugmask=0x400"
     "amdgpu.sg_display=0"
 
-    # Enable kernel-native PCIe hotplug instead of ACPI-managed.
-    # Required for the kernel to detect the GPU on the PCIe bus after TB auth.
+    # Kernel-native PCIe hotplug (not ACPI-managed) — required to detect
+    # the GPU on the bus after TB auth.
     "pcie_ports=native"
 
-    # amdgpu has its own internal ASPM control, separate from the global
-    # pcie_aspm=off above — under sustained heavy PCIe traffic (e.g. gaming)
-    # the ASPM handshake between the platform and the GPU broke down,
-    # flooding dmesg with PCIe AER "BadTLP"/"BadDLLP" correctable errors on
-    # the inner TB bridge (0000:51:01.0) and eventually hard-hanging the
-    # system. This is a known gap in amdgpu's Linux ASPM handling for
-    # Thunderbolt-tunneled GPUs (works fine on Windows, where AMD's
-    # proprietary driver has the tuning). Disabling ASPM at both the global
-    # and amdgpu-internal level, plus PCIe port power management entirely,
-    # is the documented fix.
+    # amdgpu's internal ASPM (separate from global pcie_aspm=off) floods
+    # AER errors under load on TB-tunneled GPUs; disable both.
     "amdgpu.aspm=0"
     "pcie_port_pm=off"
 
-    # The Adaptertek Tamales2 board is a Thunderbolt 3 (Titan Ridge/JHL7440)
-    # device tunneled through this laptop's native TB4/USB4 controller. The
-    # Linux thunderbolt driver has no AER error_detected recovery callback,
-    # so when the tunneled PCIe link (0000:51:01.0) throws an Uncorrectable
-    # (Fatal) error under sustained load, the kernel's AER recovery attempt
-    # gets stuck ("AER: can't recover") and cascades into a hung_task and a
-    # full hang. A patch to skip AER on Thunderbolt/external-facing ports
-    # was proposed upstream (Kai-Heng Feng, 2022) but never merged — the
-    # discussion pivoted to a PM-aware AER suspend/resume fix that also
-    # never landed. Disabling AER entirely is the practical workaround: the
-    # PCIe link's own hardware-level retry/ACK mechanism is independent of
-    # AER and keeps working without it.
+    # Linux's thunderbolt driver has no AER error_detected recovery
+    # callback, so an Uncorrectable error on the tunneled link
+    # (0000:51:01.0) under load gets AER recovery stuck and hangs the
+    # system. No upstream fix landed; disabling AER entirely is the
+    # workaround — the PCIe link's own retry/ACK mechanism keeps working
+    # without it.
     "pci=noaer"
   ];
 
-  # Suppress "cannot get freq at ep 0x86" spam from the dock's USB audio chip.
-  # The feedback endpoint on this device doesn't implement GET_CUR for freq.
+  # Suppress "cannot get freq at ep 0x86" spam — the dock's USB audio
+  # feedback endpoint doesn't implement GET_CUR for freq.
   boot.extraModprobeConfig = ''
     options snd-usb-audio implicit_fb=1
   '';
@@ -543,12 +479,12 @@ in
   services.xserver.videoDrivers = [ "amdgpu" "modesetting" ];
 
   # --- BAR Reallocation Service ---
-  # Triggered by udev when the GPU appears; expands the inner TB bridge window
-  # so amdgpu can map BAR 0 (256MB VRAM aperture).
+  # Triggered by udev when the GPU appears; expands the inner TB bridge
+  # window so amdgpu can map BAR 0 (256MB VRAM aperture).
   systemd.services.egpu-bar-fix = {
     description = "Fix AMD eGPU PCIe BAR 0 allocation via bridge window expansion";
-    # Don't auto-start at boot; only fires when udev raises the GPU add event.
-    # We still set wants/after so it runs at the right point if triggered early.
+    # Don't auto-start at boot — only fires on udev's GPU add event;
+    # wants/after just order it correctly if triggered early.
     after = [ "sysinit.target" ];
     wants = [ "egpu-perf-on.service" ];
     serviceConfig = {
@@ -559,8 +495,8 @@ in
   };
 
   # --- Safe Eject Service ---
-  # Triggered by the SUPER+SHIFT+U keybind (hyprland.nix) and, best-effort,
-  # by udev on Thunderbolt device removal. See egpuEjectScript above.
+  # Triggered by SUPER+SHIFT+U (hyprland.nix) and, best-effort, by udev on
+  # TB removal. See egpuEjectScript above.
   systemd.services.egpu-eject = {
     description = "Gracefully detach the AMD eGPU before Thunderbolt disconnection";
     wants = [ "egpu-perf-off.service" ];
@@ -572,11 +508,10 @@ in
   };
 
   # --- eGPU-gated performance toggle ---
-  # Forces CPU governor=performance and GPU DPM=high while the eGPU is
-  # docked, reverts to power-saving defaults when it's ejected. Wired via
-  # `wants` above rather than new udev rules, piggybacking on both existing
-  # eject triggers (the SUPER+SHIFT+U keybind and the Thunderbolt-remove
-  # udev backstop). See egpuPerfOnScript/egpuPerfOffScript above.
+  # Forces CPU governor=performance and GPU DPM=high while docked, reverts
+  # on eject. Wired via `wants` above rather than new udev rules,
+  # piggybacking on the existing eject triggers. See
+  # egpuPerfOnScript/egpuPerfOffScript above.
   systemd.services.egpu-perf-on = {
     description = "Force CPU governor=performance and GPU DPM=high while the eGPU is docked";
     after = [ "egpu-bar-fix.service" ];
@@ -597,8 +532,8 @@ in
     };
   };
 
-  # Let the keybind trigger the eject service without a password prompt.
-  # Scoped to exactly this one command — no broader sudo grant.
+  # Let the keybind trigger the eject service without a password prompt —
+  # scoped to exactly this command, no broader sudo grant.
   security.sudo.extraRules = [
     {
       users = [ "cryptix" ];

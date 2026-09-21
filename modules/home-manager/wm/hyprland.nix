@@ -1,8 +1,7 @@
 { lib, pkgs, ... }:
 let
-  # See lib/hyprBinds.nix for the hl.dsp.*/mkLuaInline mechanics and why
-  # config sections can't go through this same path (settings.config.*
-  # instead) -- also recorded in the hyprland-lua-configtype-pitfall memory.
+  # hl.dsp.*/mkLuaInline mechanics and why `config` needs settings.config.*
+  # instead of a top-level call: lib/hyprBinds.nix, hyprland-lua-configtype-pitfall memory.
   hyprBinds = import ../../../lib/hyprBinds.nix { inherit lib; };
   inherit (hyprBinds)
     dsp
@@ -28,12 +27,10 @@ in
 
   wayland.windowManager.hyprland = {
     enable = true;
-    # Hyprland >=0.55 configures via Lua instead of the deprecated hyprlang
-    # (.conf) syntax. See https://wiki.hypr.land/Configuring/Start/
+    # Hyprland >=0.55 config format; hyprlang (.conf) is deprecated.
     configType = "lua";
 
     settings = {
-      # See https://wiki.hypr.land/Configuring/Basics/Monitors/
       monitor = [
         {
           output = "DP-6";
@@ -56,40 +53,27 @@ in
         }
       ];
 
-      # hl.env(name, value) takes two positional strings, unlike hyprlang's
-      # comma-joined `env = NAME,VALUE`. See
-      # https://wiki.hypr.land/Configuring/Advanced-and-Cool/Environment-variables/
+      # hl.env takes two positional strings, unlike hyprlang's `env = NAME,VALUE`.
       env = [
         { _args = [ "XCURSOR_SIZE" "24" ]; }
         { _args = [ "XCURSOR_THEME" "XCursor-Pro-Dark" ]; }
 
-        # Default every Vulkan/OpenGL app (every Steam game, no per-game
-        # launch options needed) to the AMD eGPU (1002:73bf @ 0000:54:00.0)
-        # when it's present. MESA_VK_DEVICE_SELECT is Mesa's own Vulkan
-        # device-selection layer (checked first); DRI_PRIME is the older,
-        # more universally-honored fallback for OpenGL and as a secondary
-        # Vulkan signal. Expected to fall through to the iGPU gracefully when
-        # the eGPU is undocked and this PCI ID doesn't exist — verify this
-        # empirically (see README.md) since it wasn't confirmed against docs.
+        # Route Vulkan/OpenGL apps (Steam games) to the AMD eGPU (1002:73bf @ 0000:54:00.0)
+        # when docked; MESA_VK_DEVICE_SELECT (Vulkan) + DRI_PRIME (OpenGL fallback).
+        # Should fall through to the iGPU when undocked -- verify empirically, not confirmed against docs.
         { _args = [ "MESA_VK_DEVICE_SELECT" "1002:73bf" ]; }
         { _args = [ "DRI_PRIME" "0000:54:00.0" ]; }
       ];
 
-      # general/decoration/animations(.enabled)/misc/render/cursor/input/
-      # dwindle/master are NOT top-level hl.<name>(...) calls — they must be
-      # nested under one hl.config({...}) call. See
-      # https://wiki.hypr.land/Configuring/Basics/Variables/
+      # general/decoration/animations/misc/render/cursor/input/dwindle/master
+      # must nest under one hl.config({...}) call, not separate top-level calls.
       config = {
         general = {
           gaps_in = 3;
           gaps_out = 5;
           border_size = 2;
-          # Flat dotted keys (not nested `col = {...}`): stylix's own
-          # hyprland module sets these the same way, and only a flat key at
-          # the identical Nix attribute path actually participates in that
-          # option merge — mkForce on a differently-shaped (nested) path
-          # would silently lose to stylix's value at Lua-table-iteration
-          # time instead of at Nix-module-merge time.
+          # Flat dotted key, not nested `col = {...}`: must match stylix's own
+          # hyprland module's attribute path exactly for mkForce to win the merge.
           "col.active_border" = lib.mkForce {
             colors = [
               "rgb(cf01ed)"
@@ -126,12 +110,12 @@ in
 
         animations.enabled = true;
 
-        dwindle.preserve_split = true; # You probably want this
+        dwindle.preserve_split = true;
 
         master.new_status = "master";
 
         misc = {
-          force_default_wallpaper = 0; # Set to 0 or 1 to disable the anime mascot wallpapers
+          force_default_wallpaper = 0;
           disable_hyprland_logo = lib.mkForce false; # stylix's hyprpaper target sets this to true
         };
 
@@ -148,16 +132,14 @@ in
 
           follow_mouse = 1;
 
-          sensitivity = 0; # -1.0 - 1.0, 0 means no modification.
+          sensitivity = 0;
 
           touchpad.natural_scroll = false;
         };
       };
 
-      # Bezier curves (hl.curve(name, {...})) and per-leaf animation configs
-      # (hl.animation({...})) are separate top-level calls, not nested under
-      # animations like hyprlang's `bezier =` / `animation =` keywords. See
-      # https://wiki.hypr.land/Configuring/Advanced-and-Cool/Animations/
+      # curve/animation are separate top-level calls, not nested under `animations`
+      # like hyprlang's `bezier =`/`animation =` keywords.
       curve = [
         {
           _args = [
@@ -327,17 +309,8 @@ in
         }
       ];
 
-      # Example per-device config, see
-      # https://wiki.hypr.land/Configuring/Advanced-and-Cool/Devices/
-      device = {
-        name = "epic-mouse-v1";
-        sensitivity = -0.5;
-      };
-
-      # See https://wiki.hypr.land/Configuring/Basics/Binds/ for more.
-      # bindm/bindel/bindl don't exist as separate Lua functions — the mouse/
-      # locked/repeating flags they used to carry are now opts on hl.bind
-      # itself (mouse=true, locked=true, repeating=true below).
+      # bindm/bindel/bindl don't exist as separate Lua functions -- their mouse/
+      # locked/repeating flags are opts on hl.bind itself instead.
       bind =
         [
           (mkExecBind "${mainMod} + Q" terminal)
@@ -345,64 +318,32 @@ in
           (mkBind "${mainMod} + M" (dsp "hl.dsp.exit()") null)
           (mkExecBind "${mainMod} + E" fileManager)
           (mkBind "${mainMod} + V" (dsp "hl.dsp.window.float()") null)
-          # Quickshell launcher (quickshell/modules/launcher/, see TODO.md
-          # §3) now owns Walker's old SUPER+R slot — walker.nix was removed
-          # (recoverable from git history, tag pre-qubi-split). Runs
-          # inside the already-running Quickshell instance (not a separate
-          # process), so it's shown/hidden via Quickshell's own IPC rather
-          # than exec/pkill: `quickshell ipc -p <path> call <target> <fn>`
-          # is the verified flag order — `ipc call -p <path> ...` errors
-          # out. Walker's rail/grid modes (old SHIFT+R/CTRL+R) have no
-          # Quickshell equivalent and were dropped along with Walker itself.
+          # Quickshell launcher (quickshell/modules/launcher/) replaced Walker on SUPER+R
+          # (walker.nix removed, recoverable at git tag pre-qubi-split). Shown/hidden via
+          # Quickshell's own IPC, not exec/pkill -- flag order is `ipc -p <path> call <target> <fn>`.
+          # Walker's rail/grid modes (old SHIFT+R/CTRL+R) have no equivalent and were dropped.
           (mkExecBind "${mainMod} + R" "quickshell ipc -p ~/nix-dots/quickshell call launcher toggle")
-          # Theme registry (quickshell/theme/, see the theme-registry
-          # migration): cycles the active theme live via IPC, no restart.
+          # Cycles the active theme live via IPC, no restart.
           (mkExecBind "${mainMod} + T" "quickshell ipc -p ~/nix-dots/quickshell call theme next")
-          # Chat overlay (quickshell/modules/qubi/qml/chat/, see TODO.md's Phase 3
-          # section): talks to the `goose` CLI, same IPC-toggle convention
-          # as the launcher/theme binds above. D is the primary bind per
-          # user request; K kept as an existing-habit alias, both toggle
-          # the same overlay.
+          # Chat overlay (see the qubi repo): talks to the `goose` CLI. D is primary, K an alias.
           (mkExecBind "${mainMod} + D" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
           (mkExecBind "${mainMod} + K" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
-          # SUPER+H (session history), SUPER+B (model browser) and
-          # SUPER+X (MCP/extensions manager) were removed deliberately:
-          # all three are now reachable from inside the chat overlay
-          # itself (hamburger button, and the status bar's MCP and tier
-          # readouts), so SUPER+D is the single entry point. The overlays
-          # are still instantiated in shell.qml and their IpcHandler
-          # targets still exist, so
-          #   quickshell ipc -p ~/nix-dots/quickshell call sessions toggle
-          # remains a working manual escape hatch if a keybind is ever
-          # wanted back.
-          # Reserved for parallel agent branches (not built yet — confirmed
-          # each target/function fails gracefully today, "Target not
-          # found."/"Function not found.", exit 0):
-          # clipboard-transform picker (quickshell/modules/qubi/qml/clipboard/).
-          # SUPER+X was already taken by the extensions manager above, so
-          # this one deliberately uses U instead (bare U was unused; SHIFT+U
-          # is the eGPU-eject bind below).
+          # SUPER+H/B/X (session history/model browser/MCP manager) were dropped:
+          # all reachable from inside the chat overlay itself, SUPER+D is the single entry point.
+          # `quickshell ipc -p ~/nix-dots/quickshell call sessions toggle` still works manually.
+          # Reserved for not-yet-built parallel-agent-branch features (target/function
+          # calls fail gracefully today: "Target/Function not found.", exit 0):
+          # clipboard-transform picker (see the qubi repo) -- U instead of X since X was taken above.
           (mkExecBind "${mainMod} + U" "quickshell ipc -p ~/nix-dots/quickshell call clipboard transform")
-          # screen-context capture (quickshell/modules/qubi/qml/screenctx/).
+          # screen-context capture (see the qubi repo).
           (mkExecBind "${mainMod} + I" "quickshell ipc -p ~/nix-dots/quickshell call screenctx capture")
-          # research -> TODO capture (quickshell/modules/qubi/qml/notes/).
+          # research -> TODO capture (see the qubi repo).
           (mkExecBind "${mainMod} + N" "quickshell ipc -p ~/nix-dots/quickshell call notes capture")
-          # voice conversation mode (quickshell/modules/qubi/qml/voice/), straight
-          # into the full-screen overlay -- previously only reachable by
-          # opening the chat panel first and clicking its mic button. Reuses
-          # the same "voice toggle" IPC target the mic button and /voice
-          # already call (VoiceOverlay.qml's own IpcHandler), so this is a
-          # second entry point onto the exact same code path, not a new one.
-          # A fresh conversation opened this way defaults to the `fast`
-          # tier -- see VoiceOverlay.qml's onVisibleChanged -- since voice
-          # is a spoken back-and-forth where turnaround matters more than a
-          # reasoning trace nobody sees.
-          #
-          # side-by-side model comparison (quickshell/modules/qubi/qml/chat/
-          # ChatCompare.qml) lost this keybind slot to voice above; it's
-          # still reachable from the chat panel's hamburger menu
-          # (featureMenuItems in ChatOverlay.qml), and its own IPC target
-          # (`chat compare`) is unchanged for anyone who preferred the bind.
+          # Voice conversation mode (see the qubi repo): straight into the full-screen overlay,
+          # same IPC target as the chat panel's mic button. Defaults to the `fast` tier since
+          # voice is back-and-forth where turnaround matters more than a reasoning trace.
+          # (Side-by-side model comparison lost this slot to voice; still reachable from the
+          # chat panel's hamburger menu, IPC target `chat compare` unchanged.)
           (mkExecBind "${mainMod} + SHIFT + D" "quickshell ipc -p ~/nix-dots/quickshell call voice toggle")
           (mkBind "${mainMod} + P" (dsp "hl.dsp.window.pseudo()") null) # dwindle
           (mkBind "${mainMod} + J" (dsp "hl.dsp.layout(${toLua "togglesplit"})") null)
@@ -421,7 +362,7 @@ in
         # workspace with mainMod + SHIFT + [0-9]
         ++ workspaceBinds
         ++ [
-          # Example special workspace (scratchpad)
+          # Special workspace (scratchpad)
           (mkBind "${mainMod} + S" (dsp "hl.dsp.workspace.toggle_special(${toLua "magic"})") null)
           (mkBind "${mainMod} + SHIFT + S" (dsp "hl.dsp.window.move({ workspace = ${toLua "special:magic"} })") null)
 
@@ -473,79 +414,41 @@ in
           (mkBind "XF86AudioPlay" (exec "playerctl play-pause") { locked = true; })
           (mkBind "XF86AudioPrev" (exec "playerctl previous") { locked = true; })
 
-          # Screenshots: hyprshot captures (region/window/output) via
-          # --raw, piping the image straight to satty on stdin ("-f -") for
-          # annotation; satty's own UI/keybinds (Ctrl+S / Ctrl+C / Enter)
-          # handle save-to-file and copy-to-clipboard from there. --raw skips
-          # hyprshot's own save/notify/clipboard path entirely, so there's no
-          # double-write. SHIFT+Print is the no-editor fast path: straight to
-          # clipboard, nothing touches disk.
+          # hyprshot --raw pipes straight to satty on stdin for annotation (satty's own
+          # Ctrl+S/Ctrl+C/Enter handle save/copy), skipping hyprshot's save/notify/clipboard path.
+          # SHIFT+Print is the no-editor fast path: straight to clipboard, nothing touches disk.
           (mkExecBind "Print" "hyprshot -m region --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
           (mkExecBind "${mainMod} + Print" "hyprshot -m window --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
           (mkExecBind "${mainMod} + SHIFT + Print" "hyprshot -m output --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
           (mkExecBind "SHIFT + Print" "hyprshot -m region --clipboard-only")
 
-          # Gracefully eject the Thunderbolt eGPU before physically unplugging
-          # it — waits for a "safe to unplug" notification. See egpu-eject
-          # .service in modules/nixos/hardware/amd.nix for the teardown sequence.
-          # Absolute systemctl path required, not bare `systemctl`: sudo's
-          # NOPASSWD rule matches the exact path string, and a PATH-resolved
-          # bare command falls through to an interactive password/fingerprint
-          # prompt even though it's the identical binary — confirmed live
-          # while debugging the analogous ai-workstation-gaming-stop bug.
+          # Gracefully eject the Thunderbolt eGPU (egpu-eject.service, modules/nixos/hardware/amd.nix).
+          # Absolute systemctl path required: sudo's NOPASSWD rule matches the exact string,
+          # a PATH-resolved bare `systemctl` falls through to an interactive prompt instead.
           (mkExecBind "${mainMod} + SHIFT + U" "sudo ${pkgs.systemd}/bin/systemctl start egpu-eject.service")
 
-          # Launch the whole Steam client + every game inside one gamescope
-          # instance (Valve's own Deck-style session mode, already enabled via
-          # programs.steam.gamescopeSession in games.nix) nested inside this
-          # Hyprland session — no per-game launch options needed, and no need
-          # to fight the GDM autologin/defaultSession to reach the session
-          # picker. Device selection comes from the MESA_VK_DEVICE_SELECT/
-          # DRI_PRIME env vars above.
-          # ai-workstation-gaming-{start,stop} (modules/home-manager/apps/
-          # goose.nix) evict the loaded Ollama model from VRAM before the
-          # game launches and restore the correct docked/undocked AI tier
-          # once it exits.
+          # Steam + all games in one gamescope session (programs.steam.gamescopeSession,
+          # games.nix), nested in this Hyprland session. ai-workstation-gaming-{start,stop}
+          # (modules/home-manager/apps/goose.nix) evict Ollama from VRAM around the game.
           (mkExecBind "${mainMod} + G" "ai-workstation-gaming-start && gamescope --steam -W 1920 -H 1080 -f -- steam ; ai-workstation-gaming-stop")
 
         ];
     };
 
-    # Autostart lives here rather than in `settings`: exec-once/exec are not
-    # plain keywords in Lua-Hyprland, they're the hl.on("hyprland.start", ...)
-    # event API (settings.exec-once generates invalid Lua under configType =
-    # "lua" — see nix-community/home-manager#9468). This is raw Lua text
-    # passed through as-is, so hl.on/hl.exec_cmd are real calls here already.
+    # Autostart lives here, not `settings`: settings.exec-once generates invalid Lua under
+    # configType = "lua" (nix-community/home-manager#9468) -- hl.on("hyprland.start", ...)
+    # is the real event API, so this is raw Lua passed through as-is.
     extraConfig = ''
       hl.on("hyprland.start", function()
-          -- polkit_gnome ships no `bin/`, only `libexec/` + an XDG autostart
-          -- .desktop entry (meant for DEs that process XDG autostart, which
-          -- bare Hyprland doesn't) — exec the real path directly instead.
-          --
-          -- Quickshell (quickshell/, see TODO.md §3) is the default bar AND
-          -- launcher now (SUPER+R). waybar.nix/walker.nix were removed (git
-          -- history, tag pre-qubi-split, has them), so there's no `waybar`
-          -- or `elephant` process to autostart here anymore.
-          --
-          -- hyprpaper dropped: quickshell/modules/wallpaper/Wallpaper.qml
-          -- now renders the Background layer for every theme (including
-          -- static-only ones), sourced from themes/<name>/theme.json's
-          -- wallpaper block — running hyprpaper alongside it would race two
-          -- Background-layer clients for the same output. hyprpaper package
-          -- stays installed (modules/nixos/wm/hyprland.nix) as a manual
-          -- fallback if ever needed.
+          -- polkit_gnome ships no bin/, only libexec/ + an XDG autostart entry
+          -- bare Hyprland doesn't process -- exec the real path directly.
+          -- Quickshell is the bar and launcher (SUPER+R); no waybar/elephant to start.
+          -- hyprpaper dropped: quickshell/modules/wallpaper/Wallpaper.qml renders the
+          -- Background layer for every theme now; running both would race the same output.
+          -- hyprpaper package stays installed (modules/nixos/wm/hyprland.nix) as a fallback.
           hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
       end)
     '';
-
-    # See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Permissions/
-    # Please note permission changes here require a Hyprland restart and are
-    # not applied on-the-fly for security reasons.
-    # settings.permission = [
-    #   { _args = [ "/usr/(bin|local/bin)/grim" "screencopy" "allow" ]; }
-    #   { _args = [ "/usr/(lib|libexec|lib64)/xdg-desktop-portal-hyprland" "screencopy" "allow" ]; }
-    #   { _args = [ "/usr/(bin|local/bin)/hyprpm" "plugin" "allow" ]; }
-    # ];
   };
 }
