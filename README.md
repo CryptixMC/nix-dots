@@ -99,7 +99,6 @@ piggybacking on the existing `egpu-bar-fix`/`egpu-eject` triggers).
 - [Modules](#modules)
 - [Home Manager](#home-manager)
 - [How to Use](#how-to-use)
-- [Screenshots](#screenshots)
 - [Credits](#credits)
 
 ---
@@ -121,7 +120,8 @@ This repo uses Nix flakes for reproducible system and user configurations. Key f
 nix-dots/
 ├── hosts/          # Host-specific configs
 ├── modules/        # Modular NixOS & Home Manager configs
-├── quickshell/     # The desktop shell (bar, launcher, greeter, theme system)
+├── quickshell/     # The desktop shell (bar, launcher, lock, theme system)
+├── quickshell-greeter/ # Pre-login greeter (separate Quickshell tree, greetd)
 ├── themes/         # Custom themes (e.g., Ultraviolet)
 ├── pkgs/           # Locally-packaged derivations not (yet) in nixpkgs
 ├── lib/            # Shared Nix helpers used across modules
@@ -146,15 +146,10 @@ Quickshell's live-reload keeps working across the two checkouts.
 Stylix is configured system-wide (not via Home Manager) for consistent theming.
 The main theme is **Ultraviolet**, defined in `themes/ultraviolet/`.
 
-- **Wallpaper:** `themes/ultraviolet/alyssa.png`
-- **Color scheme:** `themes/ultraviolet/ultraviolet.yaml`
-- **Polarity:** `themes/ultraviolet/polarity.txt` (`dark`)
-- **Base16 colors:** `themes/ultraviolet/colors.yaml`
+- **Wallpaper:** `themes/ultraviolet/wallpapers/alyssa.png`
+- **Base16 colors:** `themes/ultraviolet/base16.yaml`
 
-Stylix is imported in `modules/nixos/style/stylix.nix` and enabled in each host config.
-
-_Screenshot: Stylix theme in action_
-![Stylix screenshot](screenshots/stylix-theme.png)
+Stylix is imported in `modules/style/stylix.nix` and enabled in each host config.
 
 ---
 
@@ -167,20 +162,15 @@ Example: `hosts/carbon/` contains:
 - `hardware-configuration.nix` (hardware details)
 - `home.nix` (user config)
 
-_Screenshot: Host-specific desktop_
-![Host screenshot](screenshots/host-carbon.png)
-
 ---
 
 ## Modules
 
 Reusable modules are in `modules/`:
 
-- `modules/nixos/` for system modules (apps, hardware, style, window managers)
+- `modules/nixos/` for system modules (core, hardware, services, apps, wm)
 - `modules/home-manager/` for user-level modules
-
-_Screenshot: Modular config structure_
-![Modules screenshot](screenshots/modules-structure.png)
+- `modules/style/` for Stylix, imported by both
 
 ---
 
@@ -188,9 +178,6 @@ _Screenshot: Modular config structure_
 
 User configuration is managed via Home Manager, integrated with flakes.
 See `hosts/carbon/home.nix` and `modules/home-manager/`.
-
-_Screenshot: Home Manager apps and settings_
-![Home Manager screenshot](screenshots/home-manager.png)
 
 ---
 
@@ -209,18 +196,7 @@ _Screenshot: Home Manager apps and settings_
 
 3. **Customize themes:**
    - Edit files in `themes/ultraviolet/`
-   - Update `modules/nixos/style/stylix.nix` as needed
-
----
-
-## Screenshots
-
-Add screenshots of your desktop, terminal, apps, etc. here for visual reference.
-
-- Stylix theme: ![Stylix screenshot](screenshots/stylix-theme.png)
-- Host desktop: ![Host screenshot](screenshots/host-carbon.png)
-- Modules structure: ![Modules screenshot](screenshots/modules-structure.png)
-- Home Manager: ![Home Manager screenshot](screenshots/home-manager.png)
+   - Update `modules/style/stylix.nix` as needed
 
 ---
 
