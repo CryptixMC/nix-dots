@@ -4,12 +4,18 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ../../modules/nixos/wm/hyprland.nix
-    ../../modules/nixos/apps/games.nix
-    ../../modules/nixos/apps/virtualization.nix
-    ../../modules/nixos/apps/docker.nix
-    ../../modules/nixos/apps/ai-workstation.nix
-    ../../modules/style/stylix.nix
+
+    ../../modules/nixos/core/bootloader.nix
+    ../../modules/nixos/core/networking.nix
+    ../../modules/nixos/core/locale.nix
+    ../../modules/nixos/core/users.nix
+    ../../modules/nixos/core/nix.nix
+    ../../modules/nixos/core/packages.nix
+    ../../modules/nixos/core/programs.nix
+
+    ../../modules/nixos/hardware/amd.nix
+    ../../modules/nixos/hardware/thinkpad-power.nix
+
     ../../modules/nixos/services/pipewire.nix
     ../../modules/nixos/services/printing.nix
     ../../modules/nixos/services/ssh.nix
@@ -23,17 +29,17 @@
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
     ../../modules/nixos/services/desktop-support.nix
-    ../../modules/nixos/core/bootloader.nix
-    ../../modules/nixos/core/networking.nix
-    ../../modules/nixos/core/locale.nix
-    ../../modules/nixos/core/users.nix
-    ../../modules/nixos/core/nix.nix
-    ../../modules/nixos/core/packages.nix
-    ../../modules/nixos/core/programs.nix
-    ../../modules/nixos/hardware/amd.nix
-    ../../modules/nixos/hardware/thinkpad-power.nix
     ../../modules/nixos/services/zram.nix
     ../../modules/nixos/services/qubi-health.nix
+
+    ../../modules/nixos/apps/games.nix
+    ../../modules/nixos/apps/virtualization.nix
+    ../../modules/nixos/apps/docker.nix
+    ../../modules/nixos/apps/ai-workstation.nix
+
+    ../../modules/nixos/wm/hyprland.nix
+
+    ../../modules/style/stylix.nix
   ];
 
   programs.claude-desktop.enable = true;
