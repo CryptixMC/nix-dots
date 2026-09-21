@@ -244,11 +244,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789935396,
-        "narHash": "sha256-TmYEEFTtXS3fj0stPA5PQoQt/+iShBSqIITz5wiEmY4=",
+        "lastModified": 1789937692,
+        "narHash": "sha256-KnEOIcAX+VHk6Vy3BfETNn4vTV/QAp1l/AMs4i1lKOc=",
         "ref": "refs/heads/main",
-        "rev": "42886d84e50d46939ae3c15f5d14fbb50cbe182b",
-        "revCount": 61,
+        "rev": "8cffdb6c125d55abf70eee5cc13719ba4f364818",
+        "revCount": 62,
         "type": "git",
         "url": "ssh://git@github.com/CryptixMC/qubi"
       },
@@ -285,11 +285,11 @@
         "tinted-zed": "tinted-zed"
       },
       "locked": {
-        "lastModified": 1789897823,
-        "narHash": "sha256-fq/1uTot8law3NV5o5Rh8skXyeiiRpzXT9bTUGhsfbQ=",
+        "lastModified": 1789937675,
+        "narHash": "sha256-/F9gQpAlPCxheQ9ht/5Fka2JEr/FfuOh9R7ySa9SAGc=",
         "owner": "danth",
         "repo": "stylix",
-        "rev": "5b298f723fe6c82aa294380545d6f559d5ab4534",
+        "rev": "abff36bfab11cbdcd0723f41c1b0921e211be6ac",
         "type": "github"
       },
       "original": {
@@ -388,11 +388,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1789931755,
-        "narHash": "sha256-Qskg6ZLpxABtlQmsr9VgcB9jijY7UKvJ5Lupf65Qvto=",
+        "lastModified": 1789936481,
+        "narHash": "sha256-sZkXuOrfFoEV0WTAOscdGo76hNpwQw0XTKSfql4h+VE=",
         "owner": "0xc000022070",
         "repo": "zen-browser-flake",
-        "rev": "0b67fd734266af5119a2aa2d1380730acbeff077",
+        "rev": "ca8aff84b17cdfb8240aa93a125cd11871030d8f",
         "type": "github"
       },
       "original": {

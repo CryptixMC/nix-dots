@@ -16,6 +16,11 @@
 
   security.polkit.enable = true;
 
+  # GNOME's desktopManager used to pull this in implicitly for its own
+  # power applet; Quickshell's Battery.qml reads UPower.displayDevice
+  # directly and needs the daemon running on the bus itself.
+  services.upower.enable = true;
+
   # Hyprland's own portal handles screencast/screenshot; the GTK portal
   # provides file choosers and the settings (dark-mode) interface.
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
