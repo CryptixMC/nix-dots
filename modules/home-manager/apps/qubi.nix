@@ -34,11 +34,34 @@ in
     # Written by modules/nixos/apps/ai-workstation.nix on every dock/
     # undock/gaming transition.
     hwStateFile = "/run/ai-workstation/state.json";
+    backend = "rust";
+  };
+
+  # Phase 3 Step 5 installed the Rust engine alongside the Python one; Step 6
+  # flips services.qubi.engine.backend to "rust" above, so Quickshell now
+  # reads QUBI_SOCKET pointed at this engine's socket. The Python engine's
+  # own unit stays installed/enabled -- this only changes which socket
+  # clients are told to use.
+  services.qubi.engineRust = {
+    enable = true;
+    package = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-engine;
   };
 
   services.qubi.mobile = {
     enable = true;
     root = mobileRoot;
     tailscaleServe.enable = true;
+  };
+
+  # Phase 2 DOCKED Step 4: heavy tier, docked-only (stopped/started by
+  # qubi-gpu-release/qubi-gpu-attach on eGPU undock/dock, see
+  # modules/nixos/hardware/amd.nix). Render node is this host's stable
+  # by-path symlink for the eGPU (matches the iGPU pin convention used by
+  # the greeter fix elsewhere in this tree) -- never the raw renderD*
+  # name, which can renumber.
+  services.qubi.llama.heavy = {
+    enable = true;
+    modelFile = "Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf";
+    renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
   };
 }

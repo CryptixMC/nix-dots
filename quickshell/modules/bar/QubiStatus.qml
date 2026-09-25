@@ -44,8 +44,15 @@ BarIcon {
         return `claude: ${fh}%/5h${fhReset ? ` (${fhReset})` : ""} · ${wk}%/wk${wkReset ? ` (${wkReset})` : ""}`;
     }
 
-    glyph: "Q"
     glyphColorOverride: (model.state === "warming" || model.protocolMismatch) ? Theme.color.accentPink : (model.state === "off" || model.state === "gaming") ? Theme.color.moduleDisabledFg : model.state === "idle" ? Theme.color.rightModuleFg : Theme.color.accentPurple
+
+    glyphComponent: Component {
+        QubiGlyph {
+            width: Theme.font.sizeBase
+            height: Theme.font.sizeBase
+            nodeColor: root.glyphColorOverride
+        }
+    }
 
     CriticalBlink on opacity {
         running: model.state === "warming"

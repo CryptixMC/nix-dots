@@ -12,6 +12,11 @@ Item {
 
     property string glyph: ""
     property color glyphColorOverride: "transparent"
+    // Swappable glyph rendering, same escape hatch as popupComponent below
+    // -- most modules just set `glyph` and get the default Text, but a
+    // module whose mark isn't a font codepoint (QubiStatus's hub-and-spoke
+    // network drawing) can hand in real vector content instead.
+    property Component glyphComponent: null
     property string clickCommand: ""
     property string scrollUpCommand: ""
     property string scrollDownCommand: ""
@@ -46,8 +51,15 @@ Item {
     implicitWidth: Theme.spacing.barIconHitSize
     implicitHeight: Theme.spacing.barIconHitSize
 
+    Loader {
+        anchors.centerIn: parent
+        active: root.glyphComponent !== null
+        sourceComponent: root.glyphComponent
+    }
+
     Text {
         anchors.centerIn: parent
+        visible: root.glyphComponent === null
         text: root.glyph
         font.family: Theme.font.family
         font.pixelSize: Theme.font.sizeBase

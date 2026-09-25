@@ -42,44 +42,14 @@ let
         fi
       '';
     };
-  # Evicts loaded models before suspend -- resuming with a model still "loaded" risks the
-  # same dead-KFD state as surprise eGPU removal (TODO.md §7). Free: model just reloads on next use.
-  suspendEvictScript = scriptWithPath {
-    name = "ai-workstation-suspend-evict";
-    runtimeInputs = [
-      pkgs.ollama
-      pkgs.coreutils
-    ];
-    text = ''
-      log() { echo "[ai-workstation-suspend-evict] $*"; logger -t ai-workstation-suspend-evict "$*"; }
-
-      loaded=$(ollama ps 2>/dev/null | tail -n +2 | awk '{print $1}')
-      if [ -z "$loaded" ]; then
-        log "no loaded models — nothing to evict"
-        exit 0
-      fi
-
-      echo "$loaded" | while read -r model; do
-        log "evicting $model before suspend"
-        ollama stop "$model" 2>/dev/null || true
-      done
-    '';
-  };
+  # NOTE: the former ai-workstation-suspend-evict (Ollama model eviction before
+  # suspend) was removed in the Phase 2 closeout alongside Ollama itself — the heavy
+  # tier is now llama.cpp (services.qubi.llama.heavy), not Ollama.
 in
 {
   systemd.tmpfiles.rules = [
     "d /run/ai-workstation 0755 cryptix users -"
   ];
-
-  systemd.services.ai-workstation-suspend-evict = {
-    description = "Evict loaded Ollama models before suspend (avoids KFD corruption on resume)";
-    before = [ "sleep.target" ];
-    wantedBy = [ "sleep.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = suspendEvictScript;
-    };
-  };
 
   # Triggered from egpu-bar-fix.service's success branch (amd.nix), reusing its eGPU
   # hotplug detection rather than a second udev rule.

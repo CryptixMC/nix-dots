@@ -25,7 +25,6 @@
     ../../modules/nixos/services/greetd.nix
     ../../modules/nixos/services/fprintd.nix
     ../../modules/nixos/services/quickshell-lock.nix
-    ../../modules/nixos/services/ollama.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
     ../../modules/nixos/services/desktop-support.nix
@@ -57,6 +56,7 @@
       pciSlot.inner = "0000:51:01.0";
       thunderboltUniqueId = "b9010000-0062-640e-83f2-8ddd4a93f908";
     };
+    gpu.userControl = true;
     gaming.cpuRange = "8-15";
     searxng = {
       enable = true;

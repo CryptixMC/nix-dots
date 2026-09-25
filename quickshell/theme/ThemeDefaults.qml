@@ -29,7 +29,7 @@ QtObject {
             workspaceDots: 6, workspaceDotSize: 6, workspaceDotBorder: 0,
             activeWindowPad: 14, activeWindowLabelInset: 7, separatorInset: 6,
             tooltipMinWidth: 138, tooltipPadX: 22, tooltipPadY: 18, tooltipLineGap: 2,
-            trayGap: 10, trayIconSize: 15,
+            trayGap: 10, trayIconSize: 15, trayMenuWidth: 200,
             volumePopupWidth: 220, volumePopupPadY: 20, volumePopupInsetX: 10, volumePopupGap: 8,
             volumeSliderWidth: 110, volumeSliderHeight: 16, volumePercentLabelWidth: 32,
             toastWidth: 320, toastWindowPadY: 16, toastCardPadY: 16, toastWindowInset: 8, toastCardInset: 8,

@@ -20,7 +20,6 @@ import "../../theme"
 Row {
     id: root
 
-    property var barWindow: null
     property var notifServer: null
     property int notifActiveCount: 0
 
@@ -28,9 +27,7 @@ Row {
     // hover-highlight region, not by a gap.
     spacing: Theme.spacing.flush
 
-    Tray {
-        barWindow: root.barWindow
-    }
+    Tray {}
 
     QubiStatus {}
     Media {}

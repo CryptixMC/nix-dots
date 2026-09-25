@@ -55,7 +55,6 @@ PanelWindow {
     }
 
     RightModules {
-        barWindow: bar
         notifServer: bar.notifServer
         notifActiveCount: bar.notifActiveCount
         anchors {
