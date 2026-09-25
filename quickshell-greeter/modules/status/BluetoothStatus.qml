@@ -15,8 +15,19 @@ Row {
 
     Text {
         anchors.verticalCenter: parent.verticalCenter
-        text: "󰂯"
-        color: root.enabled ? Colors.mutedFg : Qt.rgba(200 / 255, 200 / 255, 200 / 255, 0.25)
+        // \u{} escape rather than a literal glyph byte (this codepoint
+        // range corrupted to an empty string when written raw earlier this
+        // session). F009C was also wrong on its own terms -- re-verified
+        // against nerd-fonts' real glyphnames.json in the main shell's own
+        // Bluetooth.qml this session: F009C is md-bell_outline, not a
+        // bluetooth glyph at all, it just happened to render *something*.
+        // F00B2 (md-bluetooth_off, a slashed bluetooth) is the pair the
+        // main shell actually settled on; this file just hadn't caught up.
+        text: root.enabled ? "\u{F00AF}" : "\u{F00B2}" // md-bluetooth / md-bluetooth_off
+        // textDim (base0F, == moduleDisabledFg) when off, matching
+        // Bluetooth.qml's glyphColorOverride -- a dim violet, not the
+        // near-invisible base04 grey this file used before.
+        color: root.enabled ? Colors.textBody : Colors.textDim
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeLarge
         renderType: Text.NativeRendering
@@ -26,7 +37,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.connectedDevices.length > 0
         text: root.connectedDevices.length > 0 ? `${root.connectedDevices.length} connected` : ""
-        color: Colors.mutedFg
+        color: Colors.textBody
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeBase
     }

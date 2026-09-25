@@ -20,7 +20,13 @@ NotificationServer {
     // explicitly opted into tracking via this signal (confirmed empirically:
     // Notify() succeeded and returned an ID, but nothing landed in
     // trackedNotifications until this was added).
+    //
+    // recordNotification() also snapshots into NotificationState.history --
+    // trackedNotifications itself isn't a history (an entry leaves it the
+    // moment it's dismissed/expired), so the Notification Centre's history
+    // list needs its own capture taken right here, at arrival time.
     onNotification: notification => {
         notification.tracked = true;
+        NotificationState.recordNotification(notification);
     }
 }

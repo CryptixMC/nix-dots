@@ -15,9 +15,19 @@ BarIcon {
     readonly property bool enabled: adapter?.state === BluetoothAdapterState.Enabled
     readonly property var connectedDevices: adapter ? adapter.devices.values.filter(d => d.connected) : []
 
-    glyph: "󰂯"
-    // No confirmed "bluetooth-off" nerd-font glyph — dim the same glyph
-    // instead of guessing one.
+    // Filled once the adapter's actually on, per the design system's
+    // outline-at-rest/filled-when-selected rule -- but the earlier claim
+    // that F009C is "md-bluetooth_outline" was wrong (re-verified against
+    // nerd-fonts' real glyphnames.json this session: F009C is actually
+    // md-bell_outline, an entirely different icon that happened to render
+    // something plausible-looking instead of erroring). No bluetooth
+    // outline glyph exists in the MDI set at all -- md-bluetooth_off (a
+    // bluetooth glyph with a slash through it) is the real "disabled"
+    // icon MDI actually provides for this family, so that's the pair now.
+    // \u{} escape, not a literal glyph byte -- this exact codepoint range
+    // silently corrupted to an empty string when written as raw UTF-8
+    // earlier this session (see FilesTree.qml's chevron).
+    glyph: root.enabled ? "\u{F00AF}" : "\u{F00B2}" // md-bluetooth / md-bluetooth_off
     glyphColorOverride: enabled ? "transparent" : Theme.color.moduleDisabledFg
 
     onClickFn: () => popup.visible = !popup.visible

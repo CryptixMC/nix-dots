@@ -1,7 +1,32 @@
 singleton LauncherState 1.0 LauncherState.qml
 singleton UsageStore 1.0 UsageStore.qml
 singleton GamesLibrary 1.0 GamesLibrary.qml
+singleton FilesState 1.0 FilesState.qml
+singleton FilesOps 1.0 FilesOps.qml
+singleton Fuzzy 1.0 Fuzzy.qml
+singleton SystemState 1.0 SystemState.qml
+singleton JobRunner 1.0 JobRunner.qml
+singleton PackageDeclarations 1.0 PackageDeclarations.qml
+singleton PackageOps 1.0 PackageOps.qml
 Launcher 1.0 Launcher.qml
 GamesTab 1.0 GamesTab.qml
 FilesTab 1.0 FilesTab.qml
+FilesTree 1.0 FilesTree.qml
+FilesPane 1.0 FilesPane.qml
+FilesContextMenu 1.0 FilesContextMenu.qml
+FilesPrompt 1.0 FilesPrompt.qml
 SystemTab 1.0 SystemTab.qml
+SystemAbout 1.0 SystemAbout.qml
+SystemInstall 1.0 SystemInstall.qml
+InstallPackages 1.0 InstallPackages.qml
+InstallInstalled 1.0 InstallInstalled.qml
+InstallFlatpak 1.0 InstallFlatpak.qml
+InstallPending 1.0 InstallPending.qml
+SystemThemes 1.0 SystemThemes.qml
+SystemKeybinds 1.0 SystemKeybinds.qml
+SystemMonitor 1.0 SystemMonitor.qml
+SystemDisplay 1.0 SystemDisplay.qml
+SystemServices 1.0 SystemServices.qml
+SystemMaintenance 1.0 SystemMaintenance.qml
+SystemPower 1.0 SystemPower.qml
+SystemJobs 1.0 SystemJobs.qml

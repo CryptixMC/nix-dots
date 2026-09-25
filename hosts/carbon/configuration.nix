@@ -1,4 +1,5 @@
 {
+  inputs,
   ...
 }:
 {
@@ -25,12 +26,11 @@
     ../../modules/nixos/services/fprintd.nix
     ../../modules/nixos/services/quickshell-lock.nix
     ../../modules/nixos/services/ollama.nix
-    ../../modules/nixos/services/searxng.nix
     ../../modules/nixos/services/libinput.nix
     ../../modules/nixos/services/flatpak.nix
     ../../modules/nixos/services/desktop-support.nix
     ../../modules/nixos/services/zram.nix
-    ../../modules/nixos/services/qubi-health.nix
+    ../../modules/nixos/services/bluetooth.nix
 
     ../../modules/nixos/apps/games.nix
     ../../modules/nixos/apps/virtualization.nix
@@ -40,11 +40,29 @@
     ../../modules/nixos/wm/hyprland.nix
 
     ../../modules/style/stylix.nix
+
+    inputs.qubi.nixosModules.qubi
   ];
 
   programs.claude-desktop.enable = true;
 
   system.stateVersion = "25.11";
+
+  services.qubi = {
+    user = "cryptix";
+    egpu = {
+      enable = true;
+      gpuDeviceId = "1002:73bf";
+      pciSlot.outer = "0000:50:00.0";
+      pciSlot.inner = "0000:51:01.0";
+      thunderboltUniqueId = "b9010000-0062-640e-83f2-8ddd4a93f908";
+    };
+    gaming.cpuRange = "8-15";
+    searxng = {
+      enable = true;
+      secretKeyFile = "/etc/qubi/searxng.env";
+    };
+  };
 
   services.logind.settings.Login = {
     HandleLidSwitch = "ignore";
@@ -54,5 +72,4 @@
   # Guarantee Magic SysRq (e.g. REISUB) works as a last-resort recovery
   # path if the eGPU wedges the session and SSH/Tailscale is unreachable.
   boot.kernel.sysctl."kernel.sysrq" = 1;
-
 }

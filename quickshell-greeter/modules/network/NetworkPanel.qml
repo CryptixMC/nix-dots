@@ -18,7 +18,7 @@ Rectangle {
     property bool panelVisible: false
     visible: panelVisible
     width: 300
-    radius: 8
+    radius: 3 // v2 bevel -- was 8, predates the restyle
     color: Colors.panelBg
     border.width: 1
     border.color: Colors.panelBorder
@@ -104,8 +104,8 @@ Rectangle {
                 Rectangle {
                     width: parent.width
                     height: 32
-                    radius: 4
-                    color: row.modelData.connected ? Qt.rgba(176 / 255, 71 / 255, 255 / 255, 0.12) : "transparent"
+                    radius: 3 // v2 bevel -- was 4, predates the restyle
+                    color: row.modelData.connected ? Colors.bandSelected : "transparent"
 
                     Row {
                         anchors {
@@ -119,7 +119,11 @@ Rectangle {
 
                         Text {
                             text: row.modelData.security === WifiSecurityType.Open ? "󰤨" : "󰤪"
-                            color: Colors.mutedFg
+                            // textBody, matching Network.qml's real
+                            // default -- was violet, but there's no
+                            // per-row accent state here (only the
+                            // selected-row band above signals "connected").
+                            color: Colors.textBody
                             font.family: Colors.fontFamily
                             font.pixelSize: Colors.fontSizeBase
                             renderType: Text.NativeRendering
@@ -152,7 +156,7 @@ Rectangle {
                     visible: root.pskPromptFor === row.modelData.name
                     width: parent.width
                     height: 32
-                    radius: 4
+                    radius: 3 // v2 bevel -- was 4, predates the restyle
                     color: Colors.inputBg
                     border.width: 1
                     border.color: Colors.inputBorder

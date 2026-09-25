@@ -14,8 +14,8 @@
     ../../modules/home-manager/apps/zed.nix
     ../../modules/home-manager/apps/goose.nix
     ../../modules/home-manager/apps/goose-bench.nix
-    ../../modules/home-manager/apps/opencode.nix
     ../../modules/home-manager/apps/qubi.nix
+    ../../modules/home-manager/apps/claude-usage.nix
 
     ../../modules/style/stylix.nix
   ];

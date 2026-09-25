@@ -69,7 +69,7 @@ FloatingWindow {
                 rightMargin: 24
             }
             text: Qt.formatDateTime(new Date(), "hh:mm AP · ddd dd")
-            color: Colors.mutedFg
+            color: Colors.clockFg
             font.family: Colors.fontFamily
             font.pixelSize: Colors.fontSizeBase
 
@@ -81,54 +81,57 @@ FloatingWindow {
             }
         }
 
-        // Network icon + panel, top-left — GDM's own login-screen network
-        // affordance is in this same corner.
-        Text {
-            id: networkIcon
+        // System status cluster, top-left — every pre-login setting/status
+        // (network, battery, brightness, volume, bluetooth) together in one
+        // place, alongside the Wi-Fi icon, rather than split across two
+        // corners the way Wi-Fi (top-left) and everything else (top-right,
+        // under the clock) used to be. GDM's own login-screen network
+        // affordance is in this same top-left corner; the rest joins it
+        // here. Wi-Fi is the only one with a click target/panel — the
+        // others stay read-only at the login screen, nothing else here
+        // needs to be interactive pre-login.
+        Row {
+            id: statusRow
             anchors {
                 top: parent.top
                 left: parent.left
                 topMargin: 24
                 leftMargin: 24
             }
-            text: "󰖩"
-            color: Colors.mutedFg
-            font.family: Colors.fontFamily
-            font.pixelSize: Colors.fontSizeLarge
-            renderType: Text.NativeRendering
-
-            MouseArea {
-                anchors.fill: parent
-                onClicked: networkPanel.panelVisible = !networkPanel.panelVisible
-            }
-        }
-
-        NetworkPanel {
-            id: networkPanel
-            anchors {
-                top: networkIcon.bottom
-                left: parent.left
-                topMargin: 8
-                leftMargin: 24
-            }
-        }
-
-        // Status row, top-right below the clock — read-only at the login
-        // screen (nothing here needs to be interactive pre-login besides
-        // Wi-Fi, which already has its own picker above).
-        Row {
-            anchors {
-                top: clock.bottom
-                right: parent.right
-                topMargin: 8
-                rightMargin: 24
-            }
             spacing: 16
+
+            Text {
+                id: networkIcon
+                text: "󰖩"
+                // textBody, matching the real bar's Network.qml -- no
+                // glyphColorOverride there at all, so it's always plain
+                // grey regardless of connection state, not an accent
+                // colour.
+                color: Colors.textBody
+                font.family: Colors.fontFamily
+                font.pixelSize: Colors.fontSizeLarge
+                renderType: Text.NativeRendering
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: networkPanel.panelVisible = !networkPanel.panelVisible
+                }
+            }
 
             Battery {}
             Brightness {}
             Volume {}
             BluetoothStatus {}
+        }
+
+        NetworkPanel {
+            id: networkPanel
+            anchors {
+                top: statusRow.bottom
+                left: parent.left
+                topMargin: 8
+                leftMargin: 24
+            }
         }
     }
 }

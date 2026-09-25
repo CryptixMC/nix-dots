@@ -8,7 +8,7 @@ import "../../theme"
 Rectangle {
     width: parent.width
     height: 40
-    radius: 6
+    radius: 3 // v2 bevel -- was 6, predates the restyle
     color: Colors.inputBg
     border.width: 1
     border.color: Colors.inputBorder
@@ -21,7 +21,7 @@ Rectangle {
             verticalCenter: parent.verticalCenter
         }
         text: AuthState.prompt.length > 0 ? AuthState.prompt : "Password"
-        color: Colors.mutedFg
+        color: Colors.textDim // launcherPlaceholderFg's role -- same base0F
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeBase
     }

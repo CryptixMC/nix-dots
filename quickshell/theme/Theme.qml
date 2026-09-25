@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../modules/wallpaper/scenes/registry.js" as SceneRegistry
 
 // Facade over ThemeLoader's discovered/assembled theme entries. Quickshell
 // renders before ThemeLoader's async discovery+yq+FileView chain resolves,
@@ -25,24 +26,83 @@ Item {
         ?? ThemeLoader.themes[ThemeState.defaultTheme]
         ?? root.fallback
 
+    // False until ThemeLoader's async chain (find -> yq Process -> JSON
+    // parse) has actually produced the active theme -- roughly the first
+    // 100-300ms of a session or a reload. Until then `current` is
+    // `fallback`, which is a genuine ultraviolet-v1 build and therefore
+    // uses the BASELINE role mapping: lineStrong resolves to base06, a
+    // near-WHITE, where ultraviolet-v2's theme.json remaps it to base0C
+    // (purple). Any consumer painting a large area in a role that a
+    // theme.json remaps will visibly flash the baseline colour first —
+    // the wallpaper scenes gate on this to avoid that (see Orbital.qml).
+    // Small UI chrome doesn't bother: a 200ms grey-vs-purple hairline is
+    // invisible, a 200ms white globe is not.
+    readonly property bool resolved: ThemeLoader.themes[ThemeState.activeThemeName] !== undefined
+        || ThemeLoader.themes[ThemeState.defaultTheme] !== undefined
+
     readonly property var base16: root.current.base16
-    readonly property var color: root.current.color
+
+    // A fixed set of surface-background tokens get alpha-scaled when the
+    // user's "slight transparency" toggle (ThemeState.menuTranslucent) is on
+    // — applied here rather than in ThemeDefaults.buildColor() so it's one
+    // session-preference switch, not baked per-theme-name into the cache.
+    readonly property var _translucentBgTokens: ["barBg", "tooltipBg", "launcherBg"]
+    readonly property real _menuTranslucentAlphaFactor: 0.75
+
+    function _asRgba(v) {
+        // ThemeDefaults.alpha() returns a real Qt.rgba() (.r/.g/.b/.a
+        // readable); ThemeDefaults.opaque() returns a bare "#RRGGBB" string
+        // with no alpha info. The active theme (ultraviolet-v2) uses the
+        // bare-string form for exactly these tokens, so both shapes must
+        // resolve to something scalable.
+        if (typeof v === "string") {
+            const rgb = ThemeDefaults.hexToRgb(v);
+            return { r: rgb.r, g: rgb.g, b: rgb.b, a: 1.0 };
+        }
+        return { r: v.r, g: v.g, b: v.b, a: v.a };
+    }
+
+    function _applyTranslucency(colorMap) {
+        if (!ThemeState.menuTranslucent)
+            return colorMap;
+        const out = Object.assign({}, colorMap);
+        for (const key of root._translucentBgTokens) {
+            const raw = out[key];
+            if (raw === undefined || raw === "transparent")
+                continue;
+            const c = root._asRgba(raw);
+            out[key] = Qt.rgba(c.r, c.g, c.b, c.a * root._menuTranslucentAlphaFactor);
+        }
+        return out;
+    }
+
+    readonly property var color: root._applyTranslucency(root.current.color)
     readonly property var radius: root.current.radius
     readonly property var spacing: root.current.spacing
     readonly property var font: root.current.font
     readonly property var motion: root.current.motion
     readonly property var effect: root.current.effect
     readonly property var qubi: root.current.qubi ?? ({})
+    // Every scene in the registry is pickable from every theme's picker —
+    // independent of `w`/themeName, unlike `available` below.
+    readonly property var availableScenes: SceneRegistry.scenes
+
     // Resolves a user-picked wallpaper override (Themes tab, via
     // ThemeState.setWallpaperOverride) ahead of the theme's own theme.json-
-    // declared default. Engine is inferred from the override filename's
-    // extension since only plain image/gif files are ever offered as
-    // pickable overrides (see ThemeEntryLoader.qml's wallpaper-file
-    // discovery) — a shader wallpaper needs a paired uniform set a plain
-    // click can't supply, so it's never a candidate here.
+    // declared default. The override is checked against the scene
+    // registry FIRST (a scene name, e.g. "NeuralNet", isn't a file and
+    // won't be in `w.available`) — otherwise engine is inferred from the
+    // override filename's extension, since a plain image/gif is the only
+    // other kind of override ever offered (see ThemeEntryLoader.qml's
+    // wallpaper-file discovery) — a shader wallpaper needs a paired
+    // uniform set a plain click can't supply, so it's never a candidate.
     function resolveWallpaper(w, themeName) {
         const overrideFile = ThemeState.wallpaperOverrides[themeName];
-        if (!overrideFile || !w.available || !w.available.includes(overrideFile))
+        if (!overrideFile)
+            return w;
+        if (SceneRegistry.names.includes(overrideFile))
+            return Object.assign({}, w, { engine: "scene", scene: overrideFile });
+        if (!w.available || !w.available.includes(overrideFile))
             return w;
         const isGif = overrideFile.toLowerCase().endsWith(".gif");
         return Object.assign({}, w, {
@@ -57,17 +117,20 @@ Item {
     // Live-syncs Hyprland's own border colors to the active theme via
     // `hyprctl keyword` (applies immediately, no Hyprland restart needed)
     // — the one non-Quickshell surface this theme system also drives live.
-    // Deliberately reuses color tokens Theme.color already exposes
-    // (accentPink/accentPurple/tooltipMuted) rather than adding a new
-    // theme.json schema section: border colors are just another
-    // consequence of the base16 palette, so no theme author action is
-    // needed to get this "for free". Only accentPink/accentPurple/
-    // tooltipMuted are used here specifically because they're `opaque()`
-    // outputs (plain "#RRGGBB" strings) in ThemeDefaults.buildColor() —
-    // alpha()-derived tokens are real Qt color values, not strings, and
-    // hyprctl's keyword syntax wants bare hex.
-    function hexOf(hexString) {
-        return hexString.replace("#", "");
+    // Reads the dedicated hyprBorder* tokens rather than borrowing UI roles
+    // — see ThemeDefaults.buildColor() for why. Their baselines reproduce
+    // the previous accentPink/accentPurple/tooltipMuted values exactly, so
+    // themes that don't mention them are unaffected.
+    //
+    // hyprctl wants bare RRGGBBAA. A token here may be either a plain
+    // "#RRGGBB" string (opaque() output) or a real Qt color (alpha()
+    // output), and Qt stringifies a color with alpha as "#AARRGGBB" — so
+    // normalise both shapes and move the alpha pair from front to back.
+    // Doing it this way is what lets a token carry its own alpha instead of
+    // the hardcoded "aa" suffix this used to append.
+    function hyprHex(color) {
+        const s = String(color).replace("#", "");
+        return s.length === 8 ? s.substring(2) + s.substring(0, 2) : s + "ff";
     }
 
     // `hyprctl keyword` is legacy-hyprlang-only and errors ("keyword can't
@@ -79,11 +142,15 @@ Item {
     // shape hyprland.nix's own static `col.active_border`/
     // `col.inactive_border` settings already use.
     function syncHyprlandBorders() {
-        const from = root.hexOf(root.color.accentPink);
-        const to = root.hexOf(root.color.accentPurple);
-        const inactive = root.hexOf(root.color.tooltipMuted);
-        const activeExpr = `hl.config({general = {["col.active_border"] = {colors = {"rgb(${from})", "rgb(${to})"}, angle = 45}}})`;
-        const inactiveExpr = `hl.config({general = {["col.inactive_border"] = "rgba(${inactive}aa)"}})`;
+        const from = root.hyprHex(root.color.hyprBorderActiveFrom);
+        const to = root.hyprHex(root.color.hyprBorderActiveTo);
+        const inactive = root.hyprHex(root.color.hyprBorderInactive);
+        // Still a two-stop gradient even when a theme sets both stops to the
+        // same colour (ultraviolet-v2 does, to render flat) — keeping the
+        // table shape constant means this expression never has to change
+        // shape, and it stays identical to hyprland.nix's static setting.
+        const activeExpr = `hl.config({general = {["col.active_border"] = {colors = {"rgba(${from})", "rgba(${to})"}, angle = 45}}})`;
+        const inactiveExpr = `hl.config({general = {["col.inactive_border"] = "rgba(${inactive})"}})`;
         Quickshell.execDetached(["hyprctl", "eval", activeExpr]);
         Quickshell.execDetached(["hyprctl", "eval", inactiveExpr]);
     }
@@ -275,14 +342,80 @@ Item {
         printErrors: false
     }
 
+    // Live-syncs a resolved, greeter-safe snapshot of the current wallpaper
+    // to /var/lib/quickshell-greeter/ -- the pre-login screen runs as an
+    // unprivileged system user with no access into $HOME (0700, and it
+    // should stay that way), so it can't read this session's theme state or
+    // repo checkout directly. This is the one door between them: cryptix
+    // (this session) owns the shared directory (systemd.tmpfiles.rules in
+    // greetd.nix) and writes into it; the greeter only ever reads. See
+    // quickshell-greeter/modules/greeter/Wallpaper.qml for the read side.
+    readonly property string greeterShareDir: "/var/lib/quickshell-greeter"
+
+    // "scene" and "shader" degrade to that theme's own gif-else-image
+    // fallback -- the same fallback theme.json already declares for
+    // exactly this purpose (every scene/shader wallpaper block ships a
+    // `gif` and an `image` alongside `scene`/`shader`, e.g. themes/
+    // ultraviolet-v2/theme.json). Porting the actual scene renderer
+    // (SystemStats.qml, the whole Orbital tree) into a pre-login security
+    // boundary isn't worth it for a few seconds of login screen; an
+    // animated GIF of the same plate is the honest next-best thing, which
+    // is why this checks `gif` before `image` rather than jumping straight
+    // to the static fallback.
+    function greeterWallpaperFile() {
+        const w = root.wallpaper;
+        if (!w)
+            return null;
+        if (w.engine === "gif")
+            return { file: w.gif, isGif: true };
+        if (w.engine === "static")
+            return { file: w.image, isGif: false };
+        if (w.gif)
+            return { file: w.gif, isGif: true };
+        if (w.image)
+            return { file: w.image, isGif: false };
+        return null;
+    }
+
+    function syncGreeterWallpaper() {
+        const w = root.wallpaper;
+        const resolved = root.greeterWallpaperFile();
+        if (!w || !resolved || !resolved.file)
+            return;
+        const src = `${w.dir}/${resolved.file}`;
+        const destName = resolved.isGif ? "current.gif" : "current.png";
+        const dest = `${root.greeterShareDir}/${destName}`;
+        const stale = resolved.isGif ? "current.png" : "current.gif";
+        // rm the OTHER extension so a static<->gif switch doesn't leave a
+        // stale file the sidecar no longer points at, then copy+lock down
+        // the new one in one shell-out -- same execDetached-a-real-command
+        // style as syncHyprlandBorders()/syncGhosttyTheme() above, not a
+        // QML file-copy API (Quickshell doesn't expose one).
+        Quickshell.execDetached(["bash", "-c", `rm -f '${root.greeterShareDir}/${stale}' && cp -f '${src}' '${dest}' && chmod 640 '${dest}'`]);
+        greeterWallpaperMeta.setText(JSON.stringify({ file: destName, isGif: resolved.isGif }));
+    }
+
+    FileView {
+        id: greeterWallpaperMeta
+        path: `${root.greeterShareDir}/wallpaper.json`
+        watchChanges: false
+        printErrors: false
+    }
+
     onColorChanged: {
         root.syncHyprlandBorders();
         root.syncGhosttyTheme();
         root.syncZedTheme();
     }
+    // Separate from onColorChanged: a wallpaper override can change
+    // (ThemeState.setWallpaperOverride) without the active theme -- and
+    // therefore `color` -- changing at all, e.g. picking a different
+    // wallpaper file for the theme that's already active.
+    onWallpaperChanged: root.syncGreeterWallpaper()
     Component.onCompleted: {
         root.syncHyprlandBorders();
         root.syncGhosttyTheme();
         root.syncZedTheme();
+        root.syncGreeterWallpaper();
     }
 }

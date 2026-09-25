@@ -153,14 +153,14 @@ let
       if [ "$BAR0" != "0x0000000000000000" ]; then
         log "Success — triggering driver bind"
         echo "$(basename "$d")" > /sys/bus/pci/drivers/amdgpu/bind 2>/dev/null || true
-        # ollama/kanshi may be stopped from the last eject (or ollama
-        # started CPU-only before the eGPU bound) — restart both so they
-        # pick up the eGPU.
-        systemctl restart ollama.service 2>/dev/null || true
+        # kanshi may be stopped from the last eject — restart it so it picks
+        # up the eGPU. ollama is NOT restarted here: qubi-gpu-attach below
+        # does it (along with the hw-state resync), and doing it in both
+        # places raced two restarts of the same unit against each other.
         runuser -u cryptix -- env XDG_RUNTIME_DIR="/run/user/$(id -u cryptix)" systemctl --user restart kanshi.service 2>/dev/null || true
-        # Fire-and-forget: a bug in ai-workstation.nix's model-routing layer
-        # must never block or fail this BAR-fix success path.
-        systemctl start ai-workstation-dock-sync.service --no-block 2>/dev/null || true
+        # Fire-and-forget: a bug in Qubi's model-routing layer must never
+        # block or fail this BAR-fix success path.
+        systemctl start qubi-gpu-attach.service --no-block 2>/dev/null || true
       else
         log "BAR 0 still 0x0 — manual intervention needed"
       fi
@@ -217,8 +217,7 @@ let
 
     # Stage 1: stop ollama so ROCm releases its DRM handles before unbind.
     log "stopping ollama.service"
-    systemctl stop ollama.service 2>/dev/null || true
-    systemctl start ai-workstation-undock-sync.service --no-block 2>/dev/null || true
+    systemctl start qubi-gpu-release.service 2>/dev/null || true
 
     # Stage 1.5: a running game holds its own RADV/Vulkan DRM context
     # (independent of ROCm/ollama) that can equally hang the Stage 3

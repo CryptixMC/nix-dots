@@ -69,42 +69,77 @@ in
       # must nest under one hl.config({...}) call, not separate top-level calls.
       config = {
         general = {
-          gaps_in = 3;
-          gaps_out = 5;
-          border_size = 2;
+          gaps_in = 2;
+          gaps_out = 4;
+          border_size = 1; # stroke-hairline
           # Flat dotted key, not nested `col = {...}`: must match stylix's own
           # hyprland module's attribute path exactly for mkForce to win the merge.
+          #
+          # Still a two-stop gradient, but BOTH stops are the same colour, so it
+          # renders flat. Keeping the gradient shape (rather than collapsing to a
+          # plain string) is deliberate twice over: it preserves the attribute
+          # path stylix merges against above, and it matches the table shape
+          # Theme.qml's syncHyprlandBorders() writes live via `hyprctl eval` on
+          # every theme switch -- so the static config and the live one can't
+          # drift into different shapes.
           "col.active_border" = lib.mkForce {
             colors = [
-              "rgb(cf01ed)"
-              "rgb(4301ed)"
+              "rgb(b047ff)" # line-strong
+              "rgb(b047ff)"
             ];
             angle = 45;
           };
-          "col.inactive_border" = lib.mkForce "rgba(595959aa)";
+          "col.inactive_border" = lib.mkForce "rgba(8850ff5c)"; # line -- violet hairline
           resize_on_border = false;
           allow_tearing = false;
           layout = "dwindle";
         };
 
+        # Ultraviolet is flat: depth comes from the surface stair and hairlines,
+        # never from shadow, blur or opacity. Matches the shell's own radius
+        # token (themes/ultraviolet-v2/theme.json radius.panel = 3) so the
+        # compositor frame and the panels inside it share one bevel.
         decoration = {
-          rounding = 5;
+          rounding = 3;
           rounding_power = 2;
           active_opacity = 1.0;
-          inactive_opacity = 0.85;
+          inactive_opacity = 1.0; # was 0.85 -- opacity is not a hierarchy device
 
           shadow = {
-            enabled = true;
-            range = 4;
+            enabled = false;
+            range = 0;
             render_power = 3;
             color = lib.mkForce "rgba(1a1a1aee)"; # stylix also sets this
           };
 
           blur = {
-            enabled = true;
+            enabled = false;
             size = 3;
             passes = 1;
             vibrancy = 0.1696;
+          };
+        };
+
+        # Grouped/tabbed windows are a separate colour namespace from
+        # general.col.*_border -- stylix's own hyprland module (modules/
+        # hyprland/hm.nix) sets these off base0D/base03, which is why the
+        # inactive side came out grey (base03 = 212121) even after the main
+        # border went violet. Flat dotted keys at the exact same attribute
+        # path stylix uses (group."col.border_inactive", not a nested
+        # `col = {...}`), same reasoning as general.col.active_border above.
+        #
+        # col.border_locked_active and groupbar.text_color are left alone:
+        # stylix already puts the former on base0C (b047ff, already
+        # correct) and the latter on base05 (body text grey, which is the
+        # intended v2 colour for text anyway) -- forcing them would just
+        # restate values that already match.
+        group = {
+          "col.border_active" = lib.mkForce "rgb(b047ff)"; # line-strong, matches general's active border
+          "col.border_inactive" = lib.mkForce "rgba(8850ff5c)"; # line -- violet hairline, was rgb(212121)
+
+          groupbar = {
+            "col.active" = lib.mkForce "rgb(b047ff)";
+            "col.inactive" = lib.mkForce "rgba(8850ff5c)"; # was rgb(212121)
           };
         };
 
@@ -203,38 +238,48 @@ in
         }
       ];
 
+      # Hyprland's `speed` is in DECISECONDS, so the design system's motion
+      # caps read as: d-micro 120ms = 1.2, d-state 200ms = 2.0, d-surface
+      # 320ms = 3.2. Nothing below is allowed past 3.2. Leaves already under
+      # the cap (fades, workspaces, *Out) keep the values they had -- the cap
+      # is a ceiling, not a target.
       animation = [
         {
           leaf = "global";
           enabled = true;
-          speed = 10;
+          speed = 3.2; # was 10
           bezier = "default";
         }
         {
           leaf = "border";
           enabled = true;
-          speed = 5.39;
+          speed = 2; # was 5.39 -- a border recolour is a state change
           bezier = "easeOutQuint";
         }
         {
           leaf = "windows";
           enabled = true;
-          speed = 4.79;
+          speed = 3.2; # was 4.79
           bezier = "easeOutQuint";
         }
+        # No `style = "popin 87%"` on either leaf. Ultraviolet bans scale as a
+        # motion device -- a window growing from 87% represents nothing
+        # physical -- so windows fade instead. Omitting `style` entirely leaves
+        # Hyprland on its own default (a plain slide/fade) rather than naming
+        # one; this is the single most noticeable day-to-day change in the
+        # restyle, and putting `style = "popin 87%";` back on both leaves is
+        # the whole revert.
         {
           leaf = "windowsIn";
           enabled = true;
-          speed = 4.1;
+          speed = 3.2; # was 4.1
           bezier = "easeOutQuint";
-          style = "popin 87%";
         }
         {
           leaf = "windowsOut";
           enabled = true;
           speed = 1.49;
           bezier = "linear";
-          style = "popin 87%";
         }
         {
           leaf = "fadeIn";
@@ -257,13 +302,13 @@ in
         {
           leaf = "layers";
           enabled = true;
-          speed = 3.81;
+          speed = 3.2; # was 3.81
           bezier = "easeOutQuint";
         }
         {
           leaf = "layersIn";
           enabled = true;
-          speed = 4;
+          speed = 3.2; # was 4
           bezier = "easeOutQuint";
           style = "fade";
         }
@@ -422,6 +467,11 @@ in
           (mkExecBind "${mainMod} + SHIFT + Print" "hyprshot -m output --raw | satty -f - -o ~/Pictures/Screenshots/satty-%Y%m%d-%H%M%S.png --copy-command wl-copy")
           (mkExecBind "SHIFT + Print" "hyprshot -m region --clipboard-only")
 
+          # hyprpicker -a copies the picked colour straight to the
+          # clipboard (autocopy) and exits -- no separate satty-style
+          # annotate step needed for a plain colour pick.
+          (mkExecBind "${mainMod} + SHIFT + C" "hyprpicker -a")
+
           # Gracefully eject the Thunderbolt eGPU (egpu-eject.service, modules/nixos/hardware/amd.nix).
           # Absolute systemctl path required: sudo's NOPASSWD rule matches the exact string,
           # a PATH-resolved bare `systemctl` falls through to an interactive prompt instead.
@@ -440,14 +490,31 @@ in
     # is the real event API, so this is raw Lua passed through as-is.
     extraConfig = ''
       hl.on("hyprland.start", function()
-          -- polkit_gnome ships no bin/, only libexec/ + an XDG autostart entry
-          -- bare Hyprland doesn't process -- exec the real path directly.
           -- Quickshell is the bar and launcher (SUPER+R); no waybar/elephant to start.
           -- hyprpaper dropped: quickshell/modules/wallpaper/Wallpaper.qml renders the
           -- Background layer for every theme now; running both would race the same output.
           -- hyprpaper package stays installed (modules/nixos/wm/hyprland.nix) as a fallback.
-          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell & ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
+          --
+          -- polkit-gnome-authentication-agent-1 no longer starts here --
+          -- Quickshell registers its OWN polkit agent now
+          -- (quickshell/modules/auth/PolkitAgentService.qml, mounted in
+          -- shell.qml), confirmed live end-to-end: real pkexec-triggered
+          -- flows render in AuthPromptWindow with real polkit/PAM message
+          -- text, fingerprint races ahead of password exactly as
+          -- /etc/pam.d/polkit-1 configures, and the window closes cleanly
+          -- on cancel. Only one agent can hold the session's polkit slot at
+          -- a time, so running both would conflict -- see
+          -- PolkitAgentService.qml's own header for that detail and for
+          -- why its D-Bus path includes a per-instance suffix (registration
+          -- silently fails to survive a plain hot-reload at a fixed path).
+          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
+          -- Clipboard history: cliphist's own db, fed by every wl-copy
+          -- (including the hyprshot/satty --copy-command paths above and
+          -- hyprpicker -a). Quickshell's clipboard-history widget reads
+          -- `cliphist list`/`cliphist decode` against this same db.
+          hl.exec_cmd("wl-paste --type text --watch cliphist store")
+          hl.exec_cmd("wl-paste --type image --watch cliphist store")
       end)
     '';
   };

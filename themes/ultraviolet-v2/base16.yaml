@@ -1,0 +1,25 @@
+scheme: "Ultraviolet"
+author: "cryptix (https://github.com/CryptixMC/ultraviolet-theme)"
+
+# Dark backgrounds — near-black elevation stair
+base00: "050505"   # app background
+base01: "080808"   # sidebar / panel bg
+base02: "0f0f0f"   # editor / card bg
+base03: "212121"   # selection / border
+base04: "373737"   # disabled text / dark fg
+
+# Text tones — brightened for legibility on #050505
+base05: "c8c8c8"   # body text
+base06: "e0e0e0"   # labels / captions
+base07: "f5f5f5"   # headings / bright
+
+# Accent ramp — hot magenta → deep violet
+# All values ≥ 4.5:1 contrast on #050505 (WCAG AA)
+base08: "ff5de0"   # hot magenta — critical / brand pop
+base09: "e85cf0"   # bright fuchsia
+base0A: "d35cf7"   # orchid / magenta-violet
+base0B: "c050ff"   # mid violet
+base0C: "b047ff"   # signature violet — primary interactive
+base0D: "9f4eff"   # deeper violet
+base0E: "9150ff"   # rich violet
+base0F: "8850ff"   # darkest accent / annotations

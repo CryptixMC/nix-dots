@@ -5,10 +5,17 @@ import Quickshell.Hyprland
 import "../../theme"
 
 // One instance per screen (see shell.qml's Variants), rendering the active
-// theme's declared wallpaper.engine ("static"/"gif"/"shader") at the
-// Background layer — supersedes hyprpaper (dropped from autostart, see
-// hyprland.nix) since this now also covers static-only themes, not just
-// gif/shader ones.
+// theme's declared wallpaper.engine ("static"/"gif"/"shader"/"scene") at
+// the Background layer — supersedes hyprpaper (dropped from autostart,
+// see hyprland.nix) since this now also covers static-only themes, not
+// just gif/shader ones.
+//
+// A thin PanelWindow shell: the actual static/gif/shader/scene rendering
+// lives in WallpaperContent.qml, shared with LockView.qml (a
+// WlSessionLockSurface's contentItem, which has no layer-shell surface of
+// its own to be a second Wallpaper PanelWindow). This file's own job is
+// just the wlr-layer-shell plumbing and the per-monitor animation pause
+// below, neither of which the lock screen needs or wants.
 //
 // Animation pauses per-monitor (not a single global flag) whenever that
 // monitor's focused workspace has a fullscreen window, via
@@ -54,68 +61,9 @@ PanelWindow {
     readonly property bool fullscreenActive: root.monitor?.activeWorkspace?.hasFullscreen ?? false
     readonly property bool shouldAnimate: !root.fullscreenActive
 
-    Image {
-        id: baseImage
+    WallpaperContent {
         anchors.fill: parent
-        fillMode: Image.PreserveAspectCrop
-        visible: root.wp.engine !== "gif"
-        source: (root.wp.engine === "static" || root.wp.engine === "shader") ? `file://${root.wp.dir}/${root.wp.image}` : ""
-        asynchronous: true
-    }
-
-    AnimatedImage {
-        id: gifImage
-        anchors.fill: parent
-        fillMode: Image.PreserveAspectCrop
-        visible: root.wp.engine === "gif"
-        source: visible ? `file://${root.wp.dir}/${root.wp.gif}` : ""
-        playing: visible && root.shouldAnimate
-        cache: true
-    }
-
-    // The whole shader pipeline lives behind a Loader so a static/gif theme
-    // pays nothing for it. Previously ShaderEffectSource sat here
-    // unconditionally with `live: true` (ungated, unlike its sibling
-    // hideSource/visible bindings), which kept a full-screen RGBA FBO
-    // allocated per monitor on every theme, and the always-present
-    // ShaderEffect with an empty fragmentShader fell back to Qt's default
-    // shader — which samples a uniform named `source` this element doesn't
-    // declare, logging "ShaderEffect: 'source' does not have a matching
-    // property" on every reload.
-    Loader {
-        anchors.fill: parent
-        active: root.wp.engine === "shader"
-        visible: active
-
-        sourceComponent: Item {
-            ShaderEffectSource {
-                id: shaderSource
-                sourceItem: baseImage
-                hideSource: true
-                live: true
-                visible: false
-            }
-
-            ShaderEffect {
-                id: shaderOverlay
-                anchors.fill: parent
-
-                property variant baseSource: shaderSource
-                property real time: 0
-                property vector3d colorMauve: Qt.vector3d(0xcb / 255, 0xa6 / 255, 0xf7 / 255)
-                property vector3d colorLavender: Qt.vector3d(0xb4 / 255, 0xbe / 255, 0xfe / 255)
-                property vector3d colorBlue: Qt.vector3d(0x89 / 255, 0xb4 / 255, 0xfa / 255)
-                property real intensity: 1.3
-
-                fragmentShader: `file://${root.wp.dir}/${root.wp.shader}.qsb`
-
-                Timer {
-                    interval: 16
-                    running: root.shouldAnimate
-                    repeat: true
-                    onTriggered: shaderOverlay.time += interval / 1000
-                }
-            }
-        }
+        wp: root.wp
+        shouldAnimate: root.shouldAnimate
     }
 }

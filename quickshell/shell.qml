@@ -5,10 +5,11 @@ import Quickshell.Io
 import "modules/bar"
 import "modules/notifications"
 import "modules/launcher"
-import "file:/home/cryptix/Projects/qubi/qml"
+import Qubi
 import "theme"
 import "modules/lock"
 import "modules/wallpaper"
+import "modules/auth"
 
 ShellRoot {
     // One-line kill-switch: NotificationServer claims
@@ -35,20 +36,34 @@ ShellRoot {
         id: launcher
     }
 
+
+    // Quickshell registers itself as the session's polkit authentication
+    // agent here (PolkitAgentService.qml) and this renders the themed
+    // prompt whenever a flow is active. Mounted unconditionally so it's
+    // always ready regardless of which tab/widget triggers a privileged
+    // JobRunner.run() call -- see PolkitAgentService.qml's header for the
+    // "only one agent per session" constraint this depends on.
+    AuthPromptWindow {}
+
+    // Transient volume/mic/brightness overlay -- mounted unconditionally,
+    // same reasoning as AuthPromptWindow above (it's driven by hardware-key
+    // presses and Quick Settings panel drags, not any one tab's lifecycle).
+    Osd {}
+
     // Everything Qubi (chat, compare, sessions, model browser, extensions,
     // clipboard, ask-user, screen context, voice, notes) is one component
     // from its own tree -- github.com/CryptixMC/qubi, checked out standalone
-    // at ~/Projects/qubi (see that repo's README), imported here by absolute
-    // path so Quickshell's hot-reload still picks up live edits there.
+    // (see that repo's README). It ships its QML as a real `Qubi` module and
+    // the home-manager module puts it on QML_IMPORT_PATH, so there is no
+    // absolute path here; set programs.qubi.devCheckout for live hot reload.
     // It imports nothing from this shell; `theme` is the whole interface,
     // and themes/<name>/theme.json can override Qubi's tokens under a
     // `qubi` key. Its IPC targets are bound in hyprland.nix.
+    // defaultCwd/hwStateFile are Qubi's own config now -- they come from
+    // programs.qubi.defaultCwd and services.qubi.engine.hwStateFile, both
+    // already set in modules/home-manager/apps/qubi.nix.
     Qubi {
         theme: Theme
-        config: ({
-            defaultCwd: `${Quickshell.env("HOME")}/nix-dots`,
-            hwStateFile: "/run/ai-workstation/state.json"
-        })
     }
 
     // Deliberately no keybind — LockService (modules/lock/) is complete

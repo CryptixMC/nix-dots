@@ -90,7 +90,7 @@ PopupWindow {
                     width: parent.width
                     height: 6
                     radius: Theme.radius.sliderTrack
-                    color: Theme.color.workspaceInactive
+                    color: Theme.color.sliderTrackBg
                 }
 
                 Rectangle {

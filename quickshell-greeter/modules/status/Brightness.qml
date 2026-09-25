@@ -33,7 +33,7 @@ Row {
     Text {
         anchors.verticalCenter: parent.verticalCenter
         text: root.icons[Math.min(root.icons.length - 1, Math.floor(root.percent / (100 / root.icons.length)))]
-        color: Colors.mutedFg
+        color: Colors.textBody
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeLarge
         renderType: Text.NativeRendering
@@ -42,7 +42,7 @@ Row {
     Text {
         anchors.verticalCenter: parent.verticalCenter
         text: `${root.percent}%`
-        color: Colors.mutedFg
+        color: Colors.textBody
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeBase
     }

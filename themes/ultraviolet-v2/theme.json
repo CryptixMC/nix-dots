@@ -1,0 +1,75 @@
+{
+  "color": {
+    "ground": "base00",
+    "groundApp": "base01",
+    "line": "#8850ff5c",
+    "lineSoft": "#8850ff2b",
+    "lineStrong": "base0C",
+    "textBody": "base05",
+    "textLabel": "base0B",
+    "textStrong": "base07",
+    "textDim": "base0F",
+    "textDisabled": "base04",
+    "invertBg": "base0C",
+    "invertBgHover": "base0B",
+    "invertBgActive": "base0D",
+    "bandHover": "#8850ff14",
+    "bandSelected": "#8850ff2e",
+    "live": "base07",
+    "focus": "base07",
+    "critical": "base08",
+    "dot": "base0F",
+
+    "barBg": "base00",
+    "barBorder": "#8850ff5c",
+    "fg": "base05",
+    "workspaceInactive": "base0F",
+    "workspaceOccupied": "base05",
+    "workspaceFocused": "base0C",
+    "accentPink": "base08",
+    "accentPurple": "base0C",
+    "purpleHover": "base0B",
+    "windowTitleFg": "base0F",
+    "windowSeparator": "#8850ff5c",
+    "clockFg": "base0B",
+    "rightModuleFg": "base05",
+    "tooltipBg": "base00",
+    "tooltipBorder": "#8850ff5c",
+    "tooltipMuted": "base0F",
+    "tooltipFg": "base05",
+    "moduleDisabledFg": "base0F",
+    "launcherBg": "base00",
+    "launcherBorder": "#8850ff5c",
+    "launcherInputBg": "base00",
+    "launcherInputBorder": "#8850ff5c",
+    "launcherPlaceholderFg": "base0F",
+    "launcherItemSelectedBg": "#8850ff2e",
+    "launcherTabActiveBg": "base0C",
+    "launcherTabActiveFg": "base00",
+    "hyprBorderActiveFrom": "base0C",
+    "hyprBorderActiveTo": "base0C",
+    "hyprBorderInactive": "#8850ff5c"
+  },
+
+  "radius": { "panel": 3, "popup": 3, "input": 3, "sliderTrack": 1, "tabPill": 1, "workspaceDot": 1 },
+
+  "spacing": { "workspaceDotBorder": 1 },
+
+  "motion": {
+    "hoverColor": { "duration": 120, "easing": "InOutQuad" },
+    "criticalBlink": { "duration": 500, "dimTo": 1, "restoreTo": 1 }
+  },
+
+  "effect": { "popupElevated": false, "popupShadowColor": "transparent", "popupShadowOffset": 0 },
+
+  "wallpaper": {
+    "engine": "scene",
+    "scene": "Orbital",
+    "image": "alyssa.png",
+    "gif": "orbital-2560x1600.gif"
+  },
+
+  "qubi": {
+    "motion": { "chatSlide": { "duration": 200, "easing": "InOutQuad" } }
+  }
+}

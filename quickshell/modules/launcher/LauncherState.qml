@@ -17,27 +17,45 @@ QtObject {
     readonly property var tabs: [
         {
             id: "apps",
-            glyph: "A",
+            // Outline/filled pairs, not a single glyph -- the design
+            // system's rule is every icon renders as its hollow outline
+            // variant at rest and swaps to the solid-filled twin only
+            // while selected. Written as \u{} escapes rather than literal
+            // glyph bytes: this exact codepoint range (Nerd Font Material
+            // Design Icons, U+F0000+) silently became empty strings when
+            // written as raw UTF-8 earlier in this session (see
+            // FilesTree.qml's chevron / SystemAbout.qml's hero glyph) --
+            // an escape sequence is plain ASCII source text, so it can't
+            // hit that byte-corruption path.
+            glyphOutline: "\u{F11D9}", // md-view_grid_outline
+            glyphFilled: "\u{F0570}", // md-view_grid
             label: "Applications",
             searchable: true
         },
         {
             id: "games",
-            glyph: "G",
+            glyphOutline: "\u{F0B83}", // md-controller_classic_outline
+            glyphFilled: "\u{F0B82}", // md-controller_classic
             label: "Games",
             searchable: true
         },
         {
             id: "files",
-            glyph: "F",
+            glyphOutline: "\u{F0256}", // md-folder_outline
+            glyphFilled: "\u{F024B}", // md-folder
             label: "Files",
             searchable: true
         },
         {
             id: "system",
-            glyph: "S",
+            glyphOutline: "\u{F08BB}", // md-cog_outline
+            glyphFilled: "\u{F0493}", // md-cog
             label: "System",
-            searchable: false
+            // true, not false -- the Keybinds and Install sections both
+            // want the shared search box; per-section content decides
+            // whether it actually reads searchQuery, same pattern Files/
+            // Games already use.
+            searchable: true
         }
     ]
 

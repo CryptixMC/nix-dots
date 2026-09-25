@@ -64,6 +64,24 @@ Item {
         persistence.writeAdapter();
     }
 
+    // User-toggleable "slight transparency" for menu surfaces (launcher, bar,
+    // tooltips) — applied centrally in Theme.qml's `color` facade, not baked
+    // per-theme, so it's one on/off switch that cascades everywhere at once.
+    readonly property bool menuTranslucent: persistence.adapter.menuTranslucent ?? false
+
+    function setMenuTranslucent(v) {
+        if (root.needsSeed) {
+            persistence.setText(JSON.stringify({
+                activeTheme: root.defaultTheme,
+                wallpaperOverrides: {},
+                menuTranslucent: false
+            }));
+            root.needsSeed = false;
+        }
+        persistence.adapter.menuTranslucent = v;
+        persistence.writeAdapter();
+    }
+
     FileView {
         id: persistence
 
@@ -75,6 +93,7 @@ Item {
         JsonAdapter {
             property string activeTheme: "ultraviolet"
             property var wallpaperOverrides: ({})
+            property bool menuTranslucent: false
         }
     }
 

@@ -14,6 +14,14 @@ Row {
     readonly property var device: UPower.displayDevice
     readonly property real percentage: (device?.percentage ?? 0) * 100
     readonly property var dischargeIcons: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
+    // Parity gap with the main shell's Battery.qml, which never made it
+    // over here: this file had no critical state at all, so a 5% battery
+    // rendered identically to a 95% one. Colour-only (no blink) -- matches
+    // both the design system's "critical is colour on the thing carrying
+    // the problem, nothing else changes" rule and this session's own
+    // ruling to drop the blink everywhere else in v2.
+    readonly property bool isCritical: percentage <= 15 && device?.state === UPowerDeviceState.Discharging
+    readonly property color tint: root.isCritical ? Colors.errorRed : Colors.textBody
 
     Text {
         anchors.verticalCenter: parent.verticalCenter
@@ -28,7 +36,7 @@ Row {
                 return "󰚥";
             return root.dischargeIcons[Math.min(9, Math.floor(root.percentage / 10))];
         }
-        color: Colors.mutedFg
+        color: root.tint
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeLarge
         renderType: Text.NativeRendering
@@ -37,7 +45,7 @@ Row {
     Text {
         anchors.verticalCenter: parent.verticalCenter
         text: `${Math.round(root.percentage)}%`
-        color: Colors.mutedFg
+        color: root.tint
         font.family: Colors.fontFamily
         font.pixelSize: Colors.fontSizeBase
     }

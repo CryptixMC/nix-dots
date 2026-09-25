@@ -1,0 +1,2 @@
+singleton PolkitAgentService 1.0 PolkitAgentService.qml
+AuthPromptWindow 1.0 AuthPromptWindow.qml

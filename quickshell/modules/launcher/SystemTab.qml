@@ -1,309 +1,252 @@
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import "../../theme"
 
-// Left column: system status (real, gathered live -- see sysInfo below,
-// replacing the earlier hardcoded "Ubuntu 22.04 / Quad-Core" placeholder
-// text that never reflected this actual NixOS/i7-1260P machine) + update
-// buttons. Right column: themes, moved here as a section per Liam's own
-// explicit correction (real quote, sessions.db transcript): "I want the
-// theme tab to be located as a section within system and not its own
-// tab." Theme picks now render as real preview images (ThemeLoader.themes
-// exposes each theme's own wallpaper.dir/.image without switching to it),
-// not the old plain-text pills -- the other explicit ask from the same
-// message ("instead of just text they should display an image of what
-// the theme looks like").
+// Left-nav sectioned panel, replacing the old flat two-column slab (system
+// info + updates on the left, themes on the right, no way to grow past
+// those two things without redesigning the whole layout). Left: a
+// SystemState.sections list, keyboard-navigable. Right: whichever
+// section's own component the active id loads.
 //
-// Update buttons launch in a real terminal (ghostty -e), not a hidden
-// background Process -- `nh os switch` needs root and Quickshell's own
-// Process has no pty, so a silent background run would just hang forever
-// at an unanswerable sudo password prompt. Same "wrap in ghostty -e"
-// pattern Launcher.qml already uses for runInTerminal desktop entries.
+// Wrapped in a Flickable with the same computedHeight clamp GamesTab/
+// FilesTab use -- the old flat version had neither, so it would have
+// silently overflowed the moment enough content landed in it (which it
+// now has, across 9 sections instead of 2 fixed columns).
 Item {
     id: root
     width: parent.width
-    height: Math.max(leftColumn.implicitHeight, rightColumn.implicitHeight)
+    readonly property real computedHeight: Math.min(inner.implicitHeight, Theme.spacing.launcherTabBodyMaxHeight)
+    height: root.computedHeight
+    implicitHeight: root.computedHeight
 
-    function runInTerminal(command) {
-        Quickshell.execDetached({
-            command: ["ghostty", "-e", "bash", "-lc", command]
-        });
+    property string searchQuery: ""
+
+    // Exposes the internal Loader read-only -- purely for debug-hook
+    // reach-through (IPC verification calls need `SystemTab.contentLoader.
+    // item` to get at whichever section is currently mounted); nothing in
+    // normal operation reads this from outside, callSection() below is the
+    // real internal-use accessor.
+    readonly property alias contentLoader: contentLoader
+
+    // "nav" | "content" -- which side owns Up/Down/Left/Right-within-zone,
+    // same pattern FilesTab's tree/grid split uses. Left from nav and
+    // Right at content's own end (or a section with no further Left/Right
+    // meaning of its own) are what cross tabs.
+    property string focusZone: "nav"
+
+    function callSection(fnName, fallback) {
+        const item = contentLoader.item;
+        if (item && typeof item[fnName] === "function")
+            return item[fnName]();
+        return fallback;
     }
 
-    Process {
-        id: sysInfoProc
-        // One combined command (not four separate Processes) so the four
-        // fields land in a single ordered stdout read -- simpler than
-        // coordinating onStreamFinished across four independent
-        // Process/StdioCollector pairs for what's fundamentally one
-        // snapshot of "the current system state".
-        command: ["bash", "-lc", "grep PRETTY_NAME /etc/os-release | cut -d'\"' -f2; uname -r; grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ *//'; awk '/MemTotal/{printf \"%.1f GiB\\n\", $2/1024/1024}' /proc/meminfo"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split("\n");
-                root.osName = lines[0] ?? "unknown";
-                root.kernel = lines[1] ?? "unknown";
-                root.cpuModel = lines[2] ?? "unknown";
-                root.ramTotal = lines[3] ?? "unknown";
-            }
+    function moveUp() {
+        if (root.focusZone === "nav") {
+            const idx = SystemState.sectionIndex(SystemState.activeSection);
+            if (idx > 0)
+                SystemState.activeSection = SystemState.sections[idx - 1].id;
+            return true;
         }
+        return root.callSection("moveUp", true);
     }
 
-    property string osName: "loading…"
-    property string kernel: "loading…"
-    property string cpuModel: "loading…"
-    property string ramTotal: "loading…"
+    function moveDown() {
+        if (root.focusZone === "nav") {
+            const idx = SystemState.sectionIndex(SystemState.activeSection);
+            if (idx < SystemState.sections.length - 1)
+                SystemState.activeSection = SystemState.sections[idx + 1].id;
+            return true;
+        }
+        return root.callSection("moveDown", true);
+    }
 
-    Row {
+    function moveLeft() {
+        if (root.focusZone === "content") {
+            if (root.callSection("moveLeft", false))
+                return true;
+            root.focusZone = "nav";
+            return true;
+        }
+        return false;
+    }
+
+    function moveRight() {
+        if (root.focusZone === "nav") {
+            root.focusZone = "content";
+            return true;
+        }
+        return root.callSection("moveRight", false);
+    }
+
+    function activate() {
+        if (root.focusZone === "nav") {
+            root.focusZone = "content";
+            return;
+        }
+        root.callSection("activate", undefined);
+    }
+
+    Flickable {
         anchors.fill: parent
-        spacing: Theme.spacing.themeRowGap * 2
+        contentWidth: width
+        contentHeight: inner.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
 
-        Column {
-            id: leftColumn
-            width: (root.width - Theme.spacing.themeRowGap * 2) / 2
-            spacing: 12
+        Row {
+            id: inner
+            width: parent.width
+            spacing: Theme.spacing.gameSectionGap
 
-            Text {
-                text: "System"
-                font.bold: true
-                font.pixelSize: 16
-                color: Theme.color.fg
-            }
-
-            Rectangle {
-                width: parent.width
-                height: infoText.implicitHeight + 20
-                radius: Theme.radius.input
-                color: Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.launcherBorder
-
-                Text {
-                    id: infoText
-                    anchors {
-                        left: parent.left
-                        right: parent.right
-                        top: parent.top
-                        margins: 10
-                    }
-                    text: `OS: ${root.osName}\nKernel: ${root.kernel}\nCPU: ${root.cpuModel}\nRAM: ${root.ramTotal}`
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeSmall
-                    textFormat: Text.PlainText
-                    wrapMode: Text.Wrap
-                }
-            }
-
-            Text {
-                text: "Update"
-                font.bold: true
-                font.pixelSize: 14
-                color: Theme.color.fg
-            }
-
-            component UpdateButton: Rectangle {
-                id: btn
-                required property string label
-                required property string command
-                width: parent.width
-                height: Theme.spacing.launcherRowHeight
-                radius: Theme.radius.input
-                color: mouse.containsMouse ? Theme.color.launcherItemSelectedBg : Theme.color.launcherInputBg
-                border.width: Theme.spacing.borderHairline
-                border.color: Theme.color.accentPurple
-
-                Behavior on color {
-                    ColorAnimation { duration: Theme.motion.hoverColor.duration }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    text: btn.label
-                    color: Theme.color.fg
-                    font.family: Theme.font.family
-                    font.pixelSize: Theme.font.sizeBase
-                }
-
-                MouseArea {
-                    id: mouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    // Opens a real terminal instead of running silently --
-                    // `nh os switch` needs a real sudo prompt and can take
-                    // minutes; a hidden Process gives no way to see either.
-                    onClicked: root.runInTerminal(btn.command)
-                }
-            }
-
-            UpdateButton {
-                label: "Update NH OS (nh os switch)"
-                command: "nh os switch; echo; echo '[done, press enter to close]'; read"
-            }
-
-            UpdateButton {
-                label: "Update NH Home (nh home switch)"
-                command: "nh home switch; echo; echo '[done, press enter to close]'; read"
-            }
-
-            UpdateButton {
-                label: "Update flake inputs (nix flake update)"
-                command: "cd ~/nix-dots && nix flake update; echo; echo '[done, press enter to close]'; read"
-            }
-        }
-
-        Column {
-            id: rightColumn
-            width: (root.width - Theme.spacing.themeRowGap * 2) / 2
-            spacing: Theme.spacing.themeRowGap
-
-            Text {
-                text: "Themes"
-                font.bold: true
-                font.pixelSize: 16
-                color: Theme.color.fg
-            }
-
-            Flow {
-                width: parent.width
-                spacing: Theme.spacing.themeWallpaperGap
+            Column {
+                id: nav
+                width: 150
+                spacing: 2
 
                 Repeater {
-                    model: ThemeLoader.discoveredThemeNames
+                    model: SystemState.sections
 
                     delegate: Rectangle {
-                        id: card
-                        required property string modelData
-                        readonly property var themeData: ThemeLoader.themes[modelData]
-                        readonly property bool isActive: ThemeState.activeThemeName === modelData
+                        id: navRow
+                        required property var modelData
+                        required property int index
+                        readonly property bool isActive: SystemState.activeSection === modelData.id
 
-                        width: Theme.spacing.themeWallpaperThumbWidth
-                        height: Theme.spacing.themeWallpaperThumbHeight + 22
+                        width: nav.width
+                        height: Theme.spacing.fileTreeRowHeight + 4
                         radius: Theme.radius.input
-                        color: "transparent"
+                        color: navRow.isActive ? Theme.color.launcherItemSelectedBg : (navMouse.containsMouse ? ThemeDefaults.alpha(Theme.base16.base02, 0.5) : "transparent")
+
+                        Behavior on color {
+                            ColorAnimation { duration: Theme.motion.hoverColor.duration }
+                        }
 
                         Rectangle {
-                            id: thumbFrame
-                            width: parent.width
-                            height: Theme.spacing.themeWallpaperThumbHeight
-                            radius: Theme.radius.input
-                            color: Theme.color.launcherInputBg
-                            border.width: card.isActive ? 2 : Theme.spacing.borderHairline
-                            border.color: card.isActive ? Theme.color.accentPurple : (cardMouse.containsMouse ? Theme.color.purpleHover : Theme.color.launcherBorder)
-                            clip: true
+                            width: Theme.spacing.launcherIndicatorWidth
+                            height: parent.height
+                            color: navRow.isActive && root.focusZone === "nav" ? Theme.color.accentPurple : "transparent"
+                        }
 
-                            Behavior on border.color {
-                                ColorAnimation { duration: Theme.motion.hoverColor.duration }
+                        Row {
+                            anchors {
+                                left: parent.left
+                                leftMargin: 8
+                                verticalCenter: parent.verticalCenter
                             }
-
-                            // Real preview image, not text -- ThemeLoader.
-                            // themes[name] carries that theme's OWN
-                            // wallpaper.dir/.image (via ThemeDefaults.build,
-                            // same shape Theme.wallpaper exposes for the
-                            // active theme) without needing to switch to it
-                            // first, so every theme's card shows its actual
-                            // default wallpaper.
-                            Image {
-                                anchors.fill: parent
-                                anchors.margins: thumbFrame.border.width
-                                visible: card.themeData?.wallpaper?.image
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                source: card.themeData?.wallpaper?.image ? `file://${card.themeData.wallpaper.dir}/${card.themeData.wallpaper.image}` : ""
-                            }
+                            spacing: 8
 
                             Text {
-                                anchors.centerIn: parent
-                                visible: !card.themeData?.wallpaper?.image
-                                text: "no preview"
-                                color: Theme.color.launcherPlaceholderFg
+                                text: navRow.isActive ? navRow.modelData.glyphFilled : navRow.modelData.glyphOutline
+                                renderType: Text.NativeRendering
+                                color: navRow.isActive ? Theme.color.accentPurple : Theme.color.launcherPlaceholderFg
+                                font.family: Theme.font.family
+                                font.pixelSize: Theme.font.sizeBase
+                            }
+                            Text {
+                                text: navRow.modelData.label
+                                color: navRow.isActive ? Theme.color.accentPurple : Theme.color.fg
                                 font.family: Theme.font.family
                                 font.pixelSize: Theme.font.sizeSmall
                             }
                         }
 
-                        Text {
-                            anchors {
-                                top: thumbFrame.bottom
-                                left: parent.left
-                                right: parent.right
-                                topMargin: 4
-                            }
-                            horizontalAlignment: Text.AlignHCenter
-                            text: card.modelData
-                            color: card.isActive ? Theme.color.accentPurple : Theme.color.fg
-                            font.family: Theme.font.family
-                            font.pixelSize: Theme.font.sizeSmall
-                            font.capitalization: Font.Capitalize
-                        }
-
                         MouseArea {
-                            id: cardMouse
+                            id: navMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: ThemeState.setTheme(card.modelData)
+                            onClicked: {
+                                SystemState.activeSection = navRow.modelData.id;
+                                root.focusZone = "content";
+                            }
                         }
                     }
                 }
             }
 
-            // Active theme's own wallpaper-file picker -- unchanged from
-            // the old standalone ThemesTab.qml, just relocated here.
-            Text {
-                text: "Wallpaper (active theme)"
-                font.bold: true
-                font.pixelSize: 14
-                color: Theme.color.fg
-                visible: Theme.wallpaper.available.length > 0
-            }
+            Item {
+                width: inner.width - nav.width - inner.spacing
+                height: Math.max(contentLoader.implicitHeight, 100)
 
-            Flow {
-                width: parent.width
-                spacing: Theme.spacing.themeWallpaperGap
-                visible: Theme.wallpaper.available.length > 0
-
-                Repeater {
-                    model: Theme.wallpaper.available
-
-                    delegate: Rectangle {
-                        id: wthumb
-                        required property string modelData
-                        readonly property bool isActive: (Theme.wallpaper.engine === "static" && Theme.wallpaper.image === modelData) || (Theme.wallpaper.engine === "gif" && Theme.wallpaper.gif === modelData)
-
-                        width: Theme.spacing.themeWallpaperThumbWidth
-                        height: Theme.spacing.themeWallpaperThumbHeight
-                        radius: Theme.radius.input
-                        color: "transparent"
-                        border.width: isActive ? 2 : Theme.spacing.borderHairline
-                        border.color: isActive ? Theme.color.accentPurple : (wthumbMouse.containsMouse ? Theme.color.purpleHover : Theme.color.launcherBorder)
-                        clip: true
-
-                        Behavior on border.color {
-                            ColorAnimation { duration: Theme.motion.hoverColor.duration }
-                        }
-
-                        Image {
-                            anchors.fill: parent
-                            anchors.margins: parent.border.width
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            source: `file://${Theme.wallpaper.dir}/${wthumb.modelData}`
-                        }
-
-                        MouseArea {
-                            id: wthumbMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: ThemeState.setWallpaperOverride(ThemeState.activeThemeName, wthumb.modelData)
+                Loader {
+                    id: contentLoader
+                    width: parent.width
+                    active: true
+                    sourceComponent: {
+                        switch (SystemState.activeSection) {
+                        case "about":
+                            return aboutComp;
+                        case "install":
+                            return installComp;
+                        case "themes":
+                            return themesComp;
+                        case "keybinds":
+                            return keybindsComp;
+                        case "monitor":
+                            return monitorComp;
+                        case "display":
+                            return displayComp;
+                        case "services":
+                            return servicesComp;
+                        case "maintenance":
+                            return maintenanceComp;
+                        case "power":
+                            return powerComp;
+                        case "jobs":
+                            return jobsComp;
+                        default:
+                            return null;
                         }
                     }
                 }
             }
         }
+    }
+
+    Component {
+        id: aboutComp
+        SystemAbout {}
+    }
+    Component {
+        id: installComp
+        SystemInstall {
+            searchQuery: root.searchQuery
+        }
+    }
+    Component {
+        id: themesComp
+        SystemThemes {}
+    }
+    Component {
+        id: keybindsComp
+        SystemKeybinds {
+            searchQuery: root.searchQuery
+        }
+    }
+    Component {
+        id: monitorComp
+        SystemMonitor {
+            active: SystemState.activeSection === "monitor"
+        }
+    }
+    Component {
+        id: displayComp
+        SystemDisplay {}
+    }
+    Component {
+        id: servicesComp
+        SystemServices {}
+    }
+    Component {
+        id: maintenanceComp
+        SystemMaintenance {}
+    }
+    Component {
+        id: powerComp
+        SystemPower {}
+    }
+    Component {
+        id: jobsComp
+        SystemJobs {}
     }
 }

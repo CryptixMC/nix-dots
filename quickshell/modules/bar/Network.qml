@@ -11,11 +11,21 @@ import Quickshell.Networking
 BarIcon {
     id: root
 
-    // No confirmed type-discrimination API for WifiDevice vs WiredDevice
-    // (e.g. `instanceof`) — duck-typed via presence of `networks`, which
-    // only a WifiDevice exposes.
-    readonly property var wifiDevices: Networking.devices.values.filter(d => d.networks !== undefined)
-    readonly property var wiredDevices: Networking.devices.values.filter(d => d.networks === undefined)
+    // `type` (DeviceType.Wifi/Wired), not duck-typing via `networks`
+    // presence -- confirmed live this session that `networks` is defined
+    // (non-undefined) on EVERY NetworkDevice regardless of type in this
+    // Quickshell version, so the old `d.networks !== undefined` check
+    // matched every device including plain ethernet, and `d.networks ===
+    // undefined` for wiredDevices matched NONE. In practice that meant
+    // `wifiDevices[0]` could silently be the ethernet device (whichever
+    // happened to sort first) -- NetworkPopup then read a real, connected,
+    // but entirely wifi-less device's `.networks`, which is why the
+    // network list rendered permanently empty even with wifi connected and
+    // real networks visible in `nmcli device wifi list`. `wiredDevices`
+    // was simultaneously always empty, so the wired-connection branches of
+    // the glyph/tooltip logic below could never fire either.
+    readonly property var wifiDevices: Networking.devices.values.filter(d => d.type === DeviceType.Wifi)
+    readonly property var wiredDevices: Networking.devices.values.filter(d => d.type === DeviceType.Wired)
 
     readonly property var connectedWifi: wifiDevices.find(d => d.connected) ?? null
     readonly property var connectedWired: wiredDevices.find(d => d.connected) ?? null
