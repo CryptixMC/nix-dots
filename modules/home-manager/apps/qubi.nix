@@ -28,6 +28,17 @@ in
     themesDir = "${home}/nix-dots/themes";
     voice.enable = true;
     # programs.qubi.goose.* is set in ./goose.nix.
+
+    # Phase 4 Step 7 gate: "adding mcp-searxng is config-only." Placeholder
+    # URL -- nix/nixos-module.nix's services.qubi.searxng module isn't
+    # enabled on this host, so nothing is listening at 127.0.0.1:8888 yet;
+    # this still proves the config-only wiring (the mcp-searxng process
+    # starts, a web_search tool is exposed, zero crates/ edits needed).
+    # Enable services.qubi.searxng (NixOS-level) separately for a fully
+    # working instance.
+    extensions.searxng = config.programs.qubi.mcp.presets.searxng {
+      url = "http://127.0.0.1:8888";
+    };
   };
 
   services.qubi.engine = {
