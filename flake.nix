@@ -116,6 +116,8 @@
             "lib/mkUserScript.nix"
             # -- (b) stale comment, not this check's file to fix --
             "lib/scriptWithPath.nix"
+            "quickshell/modules/bar/BarIcon.qml"
+            "quickshell/modules/bar/QubiGlyph.qml"
           ];
           allowRegex = "^(" + builtins.concatStringsSep "|" (map (p: nixpkgs.lib.escapeRegex p) qubiAllowlist) + ")$";
         in
