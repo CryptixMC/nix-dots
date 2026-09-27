@@ -56,6 +56,14 @@ in
   services.qubi.engineRust = {
     enable = true;
     package = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-engine;
+    # Phase 5 Step 1/4/6: real child-agent packages, wired here (deliberately
+    # left null in the qubi flake's own hm-module.nix -- see its comment on
+    # `package` above for why). Enables the "claude" and "qwen-local" agent
+    # manifest entries and the delegate_to_local mcp entry.
+    agents = {
+      claudeAgentAcpPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.claude-agent-acp;
+      qwenCodePackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qwen-code;
+    };
   };
 
   services.qubi.mobile = {

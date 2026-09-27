@@ -86,11 +86,12 @@
           #       keybind comments, and the quickshell `Qubi`/`QubiStatus`
           #       QML modules + theme-token passthrough).
           #   (d) transitional: these still legitimately configure Qubi today
-          #       (programs.qubi.goose.*, the qubi-state-sync coupling) but
-          #       are expected to SHRINK and eventually disappear as later
-          #       phases delete/replace goose.nix, claude-usage.nix and
-          #       ai-workstation.nix's qubi-state-sync call. Tolerated now,
-          #       not invisible -- re-check this list each phase.
+          #       (the qubi-state-sync coupling, now in qubi-hwstate.nix since
+          #       Phase 5 Step 10 removed goose.nix) but are expected to
+          #       SHRINK and eventually disappear as later phases delete/
+          #       replace claude-usage.nix and ai-workstation.nix's
+          #       qubi-state-sync call. Tolerated now, not invisible --
+          #       re-check this list each phase.
           #   (b) known stale comments (name files that no longer exist,
           #       e.g. a bygone qubi-health.nix) living in files outside
           #       this check's ownership; allowlisted so the guard can still
@@ -109,7 +110,7 @@
             "quickshell/modules/bar/QubiStatus.qml"
             "quickshell/modules/bar/RightModules.qml"
             # -- (d) transitional, expected to shrink --
-            "modules/home-manager/apps/goose.nix"
+            "modules/home-manager/apps/qubi-hwstate.nix"
             "modules/home-manager/apps/claude-usage.nix"
             "modules/nixos/apps/ai-workstation.nix"
             "lib/mkUserScript.nix"

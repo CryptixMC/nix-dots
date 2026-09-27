@@ -12,8 +12,7 @@
     ../../modules/home-manager/apps/ghostty.nix
     ../../modules/home-manager/apps/zen-browser.nix
     ../../modules/home-manager/apps/zed.nix
-    ../../modules/home-manager/apps/goose.nix
-    ../../modules/home-manager/apps/goose-bench.nix
+    ../../modules/home-manager/apps/qubi-hwstate.nix
     ../../modules/home-manager/apps/qubi.nix
     ../../modules/home-manager/apps/claude-usage.nix
 
