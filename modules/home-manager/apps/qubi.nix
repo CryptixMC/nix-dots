@@ -23,7 +23,16 @@ in
 
   programs.qubi = {
     enable = true;
-    defaultCwd = "${home}/nix-dots";
+    knownFolders = [
+      {
+        path = "${home}/nix-dots";
+        description = "system config, NixOS, Hyprland, Quickshell, home-manager, keybinds, themes";
+      }
+      {
+        path = "${home}/Projects/qubi";
+        description = "Qubi itself";
+      }
+    ];
     shellPath = "${home}/nix-dots/quickshell";
     themesDir = "${home}/nix-dots/themes";
     voice.enable = true;

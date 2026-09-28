@@ -14,6 +14,7 @@ NotificationServer {
     actionsSupported: true
     imageSupported: true
     persistenceSupported: false
+    inlineReplySupported: true
 
     // trackedNotifications stayed permanently empty without this — the
     // server doesn't auto-retain incoming notifications, each one must be
