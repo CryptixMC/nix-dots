@@ -1,4 +1,5 @@
 {
+  lib,
   pkgs,
   config,
   inputs,
@@ -30,6 +31,13 @@ in
       ln -s ${config.services.qubi.engineRust.package}/bin/qubi $out/bin/qubi
     '')
   ];
+
+  # home-manager writes sessionVariables as `export NAME="value"` without
+  # escaping, so the raw JSON's quotes split it into words and abort
+  # hm-session-vars.sh before QUBI_SOCKET (sorted after it) is exported.
+  home.sessionVariables.QUBI_KNOWN_FOLDERS = lib.mkForce (
+    lib.escape [ "\\" "\"" "$" "`" ] (builtins.toJSON config.programs.qubi.knownFolders)
+  );
 
   programs.qubi = {
     enable = true;
