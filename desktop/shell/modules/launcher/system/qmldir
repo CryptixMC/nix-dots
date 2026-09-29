@@ -1,0 +1,12 @@
+singleton SystemState 1.0 SystemState.qml
+SystemTab 1.0 SystemTab.qml
+SystemAbout 1.0 SystemAbout.qml
+SystemInstall 1.0 SystemInstall.qml
+SystemThemes 1.0 SystemThemes.qml
+SystemKeybinds 1.0 SystemKeybinds.qml
+SystemMonitor 1.0 SystemMonitor.qml
+SystemDisplay 1.0 SystemDisplay.qml
+SystemServices 1.0 SystemServices.qml
+SystemMaintenance 1.0 SystemMaintenance.qml
+SystemPower 1.0 SystemPower.qml
+SystemJobs 1.0 SystemJobs.qml

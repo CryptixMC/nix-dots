@@ -1,0 +1,6 @@
+singleton PackageDeclarations 1.0 PackageDeclarations.qml
+singleton PackageOps 1.0 PackageOps.qml
+InstallPackages 1.0 InstallPackages.qml
+InstallInstalled 1.0 InstallInstalled.qml
+InstallFlatpak 1.0 InstallFlatpak.qml
+InstallPending 1.0 InstallPending.qml

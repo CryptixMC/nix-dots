@@ -17,17 +17,19 @@ udev rules keyed on that vendor/device id:
   same way ROCm's can.
 
 ## The AI-routing layer on top
-`modules/nixos/apps/ai-workstation.nix` writes `/run/ai-workstation/state.json`
-(tmpfs, `{state, provider, model, updated}`) on every dock/undock event
-(triggered from `egpu-bar-fix`/`egpu-eject`'s own success branch, not a
-second udev rule) and at boot (`ai-workstation-boot-sync.service`, since a
-boot with no hotplug event never re-fires the trigger). `state` is one of
+`/run/ai-workstation/state.json` (tmpfs, `{state, provider, model, updated}`)
+is written on every dock/undock by Qubi's `qubi-gpu-attach` /
+`qubi-gpu-release` (from the qubi NixOS module), which `amd.nix` starts from
+`egpu-bar-fix`/`egpu-eject`'s success branch. `modules/nixos/apps/ai-workstation.nix`
+writes it at boot (`ai-workstation-boot-sync.service`, since a boot with no
+hotplug event never fires those) and after gaming (`ai-workstation-gaming-stop`
+starts the matching `-dock-sync`/`-undock-sync` unit). `state` is one of
 `docked`/`undocked`/`gaming` — `gaming` sets `model: null` deliberately
 (SUPER+G's gaming-start script), signaling "no local model routing, keep
-the GPU free for the game." `qubi-state-sync` reads this file and rewrites
-`~/.config/goose/config.yaml`'s active provider/model and live-switches
-the chat overlay's running `goose acp` process via its `qubi-model` IPC
-target.
+the GPU free for the game." `qubi-engine` (from the qubi flake input)
+watches this file and handles model selection itself; `qubi-state-sync`
+(`modules/home-manager/apps/qubi-hwstate.nix`) only sends the desktop
+notification.
 
 ## The dead-KFD failure mode — read this before assuming "eGPU is fine"
 A crash or bad disconnect can leave `amdgpu` cleanly bound with a valid
@@ -35,7 +37,7 @@ PCI BAR (looks fine at the driver/display level) while ROCm/KFD compute
 is **silently dead underneath** — `rocminfo` reports zero GPU agents
 despite the card showing up fine in `lspci`. This has now happened on
 this machine on **multiple separate occasions**, most recently live
-during a benchmark run on 2026-09-18 (see docs/history/BLOCKERS-2026-09-19.md for that incident).
+during a benchmark run on 2026-09-18.
 Symptoms once in this state:
 - `rocminfo | grep "Device Type:.*GPU"` → zero matches, while
   `lspci -d 1002:73bf` still shows the card.
@@ -56,7 +58,7 @@ deliberately advisory-only, on purpose (see below).
 
 ## Checking state safely
 Use `qubi-health` (CLI + `qubi-health.timer`, every 5 min,
-`modules/nixos/services/qubi-health.nix`) — prints one of `HEALTHY` /
+now provided by the qubi flake's NixOS module) — prints one of `HEALTHY` /
 `DEAD-KFD-REBOOT-REQUIRED` / `WEDGED-RUNNER` / `EGPU-ABSENT`. It is
 read-only by design: it must never kill, restart, or otherwise act on
 what it finds, since the only real fix (reboot) isn't something any

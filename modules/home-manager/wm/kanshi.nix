@@ -27,13 +27,8 @@
         ];
       }
       {
-        # Single eGPU monitor (not the full two-monitor desk dock) + laptop
-        # screen still active: kanshi requires an exact match of connected
-        # outputs, so neither "docked" (needs both desk monitors) nor
-        # "laptop" (laptop only) applies here -- without this, Hyprland
-        # falls back to hyprland.nix's static DP-6 position (0,420), tuned
-        # for the docked layout where eDP-1 is off, which overlaps eDP-1
-        # once it's on. Sit the external monitor directly above instead.
+        # One eGPU monitor plus the laptop screen. kanshi needs an exact output
+        # match; without this, Hyprland's static docked position overlaps eDP-1.
         profile.name = "egpu-samsung";
         profile.outputs = [
           {
@@ -52,8 +47,7 @@
         ];
       }
       {
-        # Same as "egpu-samsung" above, for when the Sceptre is the one
-        # plugged into the eGPU alone instead.
+        # Same as "egpu-samsung", with the Sceptre attached instead.
         profile.name = "egpu-sceptre";
         profile.outputs = [
           {

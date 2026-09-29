@@ -5,7 +5,7 @@ description: How to find real installed games, their metadata, and their logs on
 
 # Game and game-log discovery on this machine
 
-Grounded in `quickshell/modules/launcher/GamesLibrary.qml`'s already-live,
+Grounded in `desktop/shell/modules/launcher/games/GamesLibrary.qml`'s already-live,
 working discovery logic (the Launcher's Games tab) — reuse these exact
 paths and patterns rather than guessing new ones.
 

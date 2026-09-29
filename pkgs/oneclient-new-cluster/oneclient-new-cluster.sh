@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
 #
-# OneClient (Polyfrost) has no UI for creating a blank cluster: every cluster
-# in the app is auto-provisioned from Polyfrost's own bundle/version catalog
-# (see oneclient_core::clusters::provision::{ensure_from_bundles,ensure_from_versions}
-# in github.com/Polyfrost/OneLauncher). The only in-app path that even mentions
-# creating one is the drag-and-drop dialog, which just tells you to "create a
-# cluster first" with no way to do so.
-#
-# This replicates oneclient_cluster::manager::ClusterManager::create_core:
-# sanitize the name, pick a free folder under clusters/, create the standard
-# content dirs, and insert matching rows into setting_profiles + clusters.
+# OneClient has no UI for creating a blank cluster. This replicates
+# ClusterManager::create_core (Polyfrost/OneLauncher): sanitize the name, pick
+# a free folder, create content dirs, and insert the matching DB rows.
 
 set -euo pipefail
 

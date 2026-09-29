@@ -2,38 +2,28 @@
   "mcpServers": {
     "nixos": {
       "type": "stdio",
-      "command": "/home/cryptix/.local/state/qubi-mcp/mcp-nixos/bin/mcp-nixos",
-      "args": [],
-      "env": {}
+      "command": "mcp-nixos",
+      "args": []
     },
     "nix-lsp": {
       "type": "stdio",
-      "command": "/home/cryptix/.local/state/qubi-mcp/mcp-language-server/bin/mcp-language-server",
-      "args": [
-        "-lsp",
-        "/home/cryptix/.local/state/qubi-mcp/nixd/bin/nixd",
-        "-workspace",
-        "/home/cryptix/nix-dots"
-      ],
-      "env": {}
+      "command": "mcp-language-server",
+      "args": ["-lsp", "nixd", "-workspace", "."]
     },
     "context7": {
       "type": "stdio",
-      "command": "/home/cryptix/.local/state/qubi-mcp/context7-mcp/bin/context7-mcp",
-      "args": [],
-      "env": {}
+      "command": "context7-mcp",
+      "args": []
     },
     "ask-user": {
       "type": "stdio",
-      "command": "/home/cryptix/.nix-profile/bin/qubi-ask-user-mcp",
-      "args": [],
-      "env": {}
+      "command": "qubi-ask-user-mcp",
+      "args": []
     },
     "notes-capture": {
       "type": "stdio",
-      "command": "/home/cryptix/.nix-profile/bin/qubi-notes-capture-mcp",
-      "args": [],
-      "env": {}
+      "command": "qubi-notes-capture-mcp",
+      "args": []
     }
   }
 }
