@@ -360,16 +360,15 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1790703354,
-        "narHash": "sha256-PsbxVIGijZ6T71X5M4VljFuPBtNPTuEbMtan2yZ+dR8=",
-        "ref": "claude/amazing-einstein-x7qhd1",
-        "rev": "3ec2aa5450b8613dc88b02d7f4331cc841520cde",
-        "revCount": 109,
+        "lastModified": 1790707119,
+        "narHash": "sha256-2Tf/ov2foChbmflL298fdUdxaL1ekt1e6TToMZ2/Rhw=",
+        "ref": "refs/heads/main",
+        "rev": "e6164f29159de088fdb43fce4285a41926add9c9",
+        "revCount": 113,
         "type": "git",
         "url": "ssh://git@github.com/CryptixMC/qubi"
       },
       "original": {
-        "ref": "claude/amazing-einstein-x7qhd1",
         "type": "git",
         "url": "ssh://git@github.com/CryptixMC/qubi"
       }
