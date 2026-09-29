@@ -23,10 +23,11 @@ in
 {
   imports = [ inputs.qubi.homeModules.qubi ];
 
-  # The qubi hm-module only puts the Python package on PATH; the Rust
-  # `qubi` operator CLI lives in engineRust.package. Link just that binary,
-  # not the MCP helper bins that are only ever called by store path.
-  home.packages = [
+  # Older qubi hm-modules only put the Python package on PATH; the Rust
+  # `qubi` operator CLI lives in engineRust.package, so link just that
+  # binary. A qubi with `programs.qubi.cli` installs `qubi` itself (and
+  # keeps its helpers off PATH), so this stays out of its way.
+  home.packages = lib.optionals (!(options.programs.qubi ? cli)) [
     (pkgs.runCommand "qubi-cli" { } ''
       mkdir -p $out/bin
       ln -s ${config.services.qubi.engineRust.package}/bin/qubi $out/bin/qubi
