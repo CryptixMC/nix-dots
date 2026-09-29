@@ -14,8 +14,10 @@ description: Module layout, wrapper-script patterns, and hard-won Nix/home-manag
   non-destructive equivalents `nixos-rebuild build --flake .#carbon` and
   `nix build .#homeConfigurations.cryptix.activationPackage`).
 - Module placement: `modules/nixos/{core,hardware,services,apps}/*.nix`
-  for system-level config, `modules/home-manager/{apps,wm,style}/*.nix`
-  for user-level. A new module gets imported explicitly in
+  for system-level config, `modules/home-manager/{core,shell,apps,wm}/*.nix`
+  for user-level, `modules/style/stylix.nix` for both. Small settings go
+  into an existing module (e.g. `services/common.nix`) rather than a new
+  one-liner file. A new module gets imported explicitly in
   `hosts/carbon/configuration.nix` (system) or `hosts/carbon/home.nix`
   (home) — nothing auto-discovers files in these directories.
 
@@ -68,13 +70,15 @@ target's path will fail ("cannot stat") if it runs before
 instead of the `home.file`-managed symlink target when an activation
 script needs to read that content itself.
 
-## QML linting is a separate gate from `nix flake check`
-`qml-lint-repo` runs `qmllint` with `--incompatible-type error` and
-everything else disabled (it used to live in the now-removed `goose.nix`;
-if it's no longer on PATH, run `qmllint` with those flags directly) — narrowly tuned to catch the one bug class that has actually
-crashed the live shell (a boolean `anchors {}` block on a plain
-Rectangle/Item instead of a real Anchors-typed property), while staying
-silent on this repo's real, working QML that other qmllint categories
-false-positive on (Quickshell's C++-backed singleton types). Run it after
-every QML change — it is not part of `nix flake check` and never will be
-(it only evaluates Nix, never QML).
+## QML errors are invisible to `nix flake check`
+`nix flake check` only evaluates Nix. After a QML change, restart the shell
+(`quickshell -p desktop/shell`) and read its log for load/type errors. For a
+narrow static pass, `qmllint --incompatible-type error` (everything else
+disabled) catches the one bug class that has crashed the live shell: a
+boolean `anchors {}` block on a plain Rectangle/Item. Other qmllint
+categories false-positive on Quickshell's C++-backed singletons.
+
+QML directories under `desktop/shell/modules/` are directory imports; a
+folder with singletons has its own `qmldir`. A file in a subfolder only sees
+its own folder, so it needs `import ".."` (or the specific folder) to use
+types defined elsewhere.

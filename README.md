@@ -5,7 +5,7 @@ AMD RX 6800 XT Thunderbolt eGPU), Hyprland, a fully custom
 [Quickshell](https://quickshell.org) desktop, and Stylix theming.
 
 - **Roadmap / open work:** [TODO.md](TODO.md)
-- **Agent rules:** [AGENTS.md](AGENTS.md) (`CLAUDE.md` is a symlink to it)
+- **Rules for coding agents:** [AGENTS.md](AGENTS.md)
 
 ---
 
@@ -13,18 +13,21 @@ AMD RX 6800 XT Thunderbolt eGPU), Hyprland, a fully custom
 
 ```
 nix-dots/
-├── flake.nix              # inputs, carbon system, standalone home config, packages, checks
+├── flake.nix              # inputs and outputs: carbon system, home config, packages, checks
 ├── hosts/carbon/          # configuration.nix (system), home.nix (user), hardware-configuration.nix
 ├── modules/
-│   ├── nixos/             # system modules: core/ hardware/ services/ apps/ wm/
-│   ├── home-manager/      # user modules: core/ shell/ apps/ wm/
+│   ├── nixos/             # system: core/ hardware/ services/ apps/
+│   ├── home-manager/      # user: core/ shell/ apps/ wm/
 │   └── style/stylix.nix   # imported by both the system and the home config
-├── lib/                   # shared Nix helpers (hyprBinds, mkUserScript, scriptWithPath)
+├── desktop/
+│   ├── shell/             # Quickshell desktop: bar, launcher, notifications, lock, wallpaper
+│   ├── greeter/           # pre-login greeter (separate Quickshell tree, run by greetd)
+│   └── themes/            # theme folders shared by Stylix and the shell
+├── lib/                   # Nix helpers and the qubi boundary check
 ├── pkgs/                  # local derivations not in nixpkgs
-├── quickshell/            # the desktop shell: bar, launcher, notifications, lock, wallpaper, themes
-├── quickshell-greeter/    # pre-login greeter (separate Quickshell tree, run by greetd)
-├── themes/                # theme folders shared by Stylix and Quickshell
-└── .agents/skills/        # repo-specific agent skills (symlinked into .claude/skills/)
+├── .agents/skills/        # task guides for coding agents (see AGENTS.md)
+├── AGENTS.md  README.md  TODO.md
+└── .mcp.json              # MCP servers for coding agents
 ```
 
 Nothing auto-discovers modules: a new one gets imported explicitly in
@@ -53,24 +56,25 @@ nix fmt                                  # nixfmt-rfc-style
 ```
 
 Flakes only see git-tracked files — `git add` new files (staging is enough)
-before any Nix command.
+before any Nix command. CI (`.github/workflows/check.yml`) runs the qubi
+boundary check and `nixfmt --check` on every push.
 
 ---
 
 ## Desktop shell (Quickshell)
 
 Quickshell is the only shell — Waybar, Walker, ReGreet and polkit-gnome
-have all been replaced. Run it standalone with `quickshell -p ./quickshell`.
+have all been replaced. Run it standalone with `quickshell -p desktop/shell`.
 
 | Part | What it does |
 |---|---|
-| **Bar** (`modules/bar/`) | Workspaces, active window, media, clock/calendar, tray, CPU/RAM graphs, net speed, temperature, battery, backlight, volume/network/Bluetooth flyouts, quick settings, OSD |
-| **Launcher** (`modules/launcher/`) | Tabs: Applications · Games (Steam + Prism) · Files (tree + grid file manager) · System (about, install, themes, keybinds, monitor, display, services, maintenance, power, jobs) |
+| **Bar** (`modules/bar/`, flyouts in `bar/popups/`) | Workspaces, active window, media, clock/calendar, tray, CPU/RAM graphs, net speed, temperature, battery, backlight, volume/network/Bluetooth flyouts, quick settings, OSD |
+| **Launcher** (`modules/launcher/`, one folder per tab) | Applications · `games/` (Steam + Prism) · `files/` (tree + grid file manager) · `system/` (about, install, themes, keybinds, monitor, display, services, maintenance, power, jobs) |
 | **Notifications** (`modules/notifications/`) | Real notification daemon, toasts with action buttons and inline reply, notification centre with DND |
 | **Polkit agent** (`modules/auth/`) | Quickshell holds the session's polkit slot and renders its own prompt |
 | **Lock screen** (`modules/lock/`) | `WlSessionLock` + PAM (password or fingerprint) — built but not wired to a trigger yet, see [TODO §5](TODO.md#5-lock-screen) |
 | **Wallpaper** (`modules/wallpaper/`) | Engines: `static`, `gif`, `shader`, `scene` (live QML scenes — Orbital, Neural — driven by real system stats) |
-| **Greeter** (`quickshell-greeter/`) | greetd + cage login screen, deliberately decoupled from the desktop shell's theme code |
+| **Greeter** (`desktop/greeter/`) | greetd + cage login screen, deliberately decoupled from the desktop shell's theme code |
 
 Main keybinds (full list in `modules/home-manager/wm/hyprland.nix`, or the
 launcher's System → Keybinds):
@@ -87,7 +91,7 @@ launcher's System → Keybinds):
 
 ## Themes
 
-Each theme is a folder in `themes/<name>/`:
+Each theme is a folder in `desktop/themes/<name>/`:
 
 - `base16.yaml` — **required**; feeds Stylix at build time and Quickshell at runtime
 - `theme.json` — optional token overrides (colors, radii, motion, wallpaper engine)
@@ -97,7 +101,7 @@ Each theme is a folder in `themes/<name>/`:
 | Theme | Notes |
 |---|---|
 | `ultraviolet` | Colors-only base theme; also Stylix's build-time scheme (`modules/style/stylix.nix`) |
-| `ultraviolet-v2` | Same palette remapped to the Ultraviolet design system's Violet roles, Orbital scene wallpaper — see its [README](themes/ultraviolet-v2/README.md) |
+| `ultraviolet-v2` | Same palette (its `base16.yaml` links to v1's) remapped to the Ultraviolet design system's Violet roles, Orbital scene wallpaper — see its [README](desktop/themes/ultraviolet-v2/README.md) |
 | `catppuccin` | Catppuccin hand-mapped to this repo's base16 slot convention, shader wallpaper |
 
 Switching themes at runtime (`SUPER+T` or launcher → System → Themes)
@@ -114,11 +118,12 @@ Qubi, the local-AI assistant, lives in its own repo
 (`services.qubi` in `hosts/carbon/configuration.nix`, `programs.qubi` in
 `modules/home-manager/apps/qubi.nix`). The `qubi-boundary-guard` flake check
 fails if Qubi logic creeps into any `.nix`/`.qml` file outside the allowlist
-in `flake.nix`.
+in `lib/qubi-boundary-guard.nix`.
 
-The host-side bridge is `modules/nixos/apps/ai-workstation.nix`: it writes
-`/run/ai-workstation/state.json` (`docked` / `undocked` / `gaming`) on every
-eGPU dock/undock so Qubi can pick a model tier.
+Qubi picks a model tier from `/run/ai-workstation/state.json` (`docked` /
+`undocked` / `gaming`). The eGPU hotplug scripts in `amd.nix` update it on
+dock/undock through Qubi's own attach/release units;
+`modules/nixos/apps/ai-workstation.nix` sets it at boot and around gaming.
 
 ---
 
@@ -151,11 +156,14 @@ The full detail lives in comments next to each fix and in
 
 ---
 
-## Agent tooling
+## Coding agents
 
-- `AGENTS.md` — behavior rules for any coding agent in this repo (`CLAUDE.md` points at it)
-- `.agents/skills/` — `nix-dots-conventions`, `egpu-dock-undock`, `game-log-discovery`; symlinked into `.claude/skills/`
-- `.mcp.json` — local MCP servers (NixOS options, nixd LSP, Context7, ask-user, notes capture)
+Everything agent-related is tool-neutral, with thin pointers for tools that
+insist on their own filenames:
+
+- `AGENTS.md` — the rules, read natively by most agents; `.claude/CLAUDE.md` just imports it
+- `.agents/skills/` — task guides (`nix-dots-conventions`, `egpu-dock-undock`, `game-log-discovery`); `.claude/skills` links here
+- `.mcp.json` — MCP servers by command name; `modules/home-manager/apps/agents.nix` puts them on PATH
 
 ---
 

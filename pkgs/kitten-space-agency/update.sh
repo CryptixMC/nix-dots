@@ -2,19 +2,9 @@
 #!nix-shell -i bash -p curl jq gnused
 set -euo pipefail
 
-# Bumps pkgs/kitten-space-agency/default.nix to the latest KSA Linux build.
-#
-# The game itself checks for updates against RocketWerkz's own master
-# server on every launch (see 'checking for updates from ...' in
-# ~/Documents/My Games/Kitten Space Agency/logs/KittenSpaceAgency.log) —
-# that's a plain, unauthenticated JSON endpoint with no bot-check, so it's
-# used here directly as the version oracle instead of scraping anything.
-# It only returns a version number and a link to the (JS-gated) official
-# download page, not a raw file, so the actual tarball is still fetched
-# from files.ksa-archive.net — the same community mirror the AUR
-# kittenspaceagency-bin package sources from — and hashed independently.
-# If RocketWerkz's endpoint is ever unreachable, falls back to AUR's
-# manually-maintained Version field.
+# Bumps default.nix to the latest KSA Linux build. The version comes from the
+# game's own update-check endpoint (AUR as fallback); the tarball from the
+# community mirror, since the official download is JS-gated.
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 default_nix="$script_dir/default.nix"

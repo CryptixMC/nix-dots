@@ -6,37 +6,24 @@
   imports = [
     ./hardware-configuration.nix
 
-    ../../modules/nixos/core/bootloader.nix
+    ../../modules/nixos/core/system.nix
     ../../modules/nixos/core/networking.nix
-    ../../modules/nixos/core/locale.nix
-    ../../modules/nixos/core/users.nix
-    ../../modules/nixos/core/nix.nix
     ../../modules/nixos/core/packages.nix
     ../../modules/nixos/core/programs.nix
 
     ../../modules/nixos/hardware/amd.nix
     ../../modules/nixos/hardware/thinkpad-power.nix
 
+    ../../modules/nixos/services/common.nix
+    ../../modules/nixos/services/desktop.nix
     ../../modules/nixos/services/pipewire.nix
-    ../../modules/nixos/services/printing.nix
-    ../../modules/nixos/services/ssh.nix
-    ../../modules/nixos/services/tailscale.nix
-    ../../modules/nixos/services/xserver.nix
     ../../modules/nixos/services/greetd.nix
     ../../modules/nixos/services/fprintd.nix
     ../../modules/nixos/services/quickshell-lock.nix
-    ../../modules/nixos/services/libinput.nix
-    ../../modules/nixos/services/flatpak.nix
-    ../../modules/nixos/services/desktop-support.nix
-    ../../modules/nixos/services/zram.nix
-    ../../modules/nixos/services/bluetooth.nix
 
     ../../modules/nixos/apps/games.nix
     ../../modules/nixos/apps/virtualization.nix
-    ../../modules/nixos/apps/docker.nix
     ../../modules/nixos/apps/ai-workstation.nix
-
-    ../../modules/nixos/wm/hyprland.nix
 
     ../../modules/style/stylix.nix
 
@@ -69,7 +56,6 @@
     HandleLidSwitchExternalPower = "ignore";
   };
 
-  # Guarantee Magic SysRq (e.g. REISUB) works as a last-resort recovery
-  # path if the eGPU wedges the session and SSH/Tailscale is unreachable.
+  # Magic SysRq as last-resort recovery if the eGPU wedges the session.
   boot.kernel.sysctl."kernel.sysrq" = 1;
 }

@@ -17,11 +17,13 @@ udev rules keyed on that vendor/device id:
   same way ROCm's can.
 
 ## The AI-routing layer on top
-`modules/nixos/apps/ai-workstation.nix` writes `/run/ai-workstation/state.json`
-(tmpfs, `{state, provider, model, updated}`) on every dock/undock event
-(triggered from `egpu-bar-fix`/`egpu-eject`'s own success branch, not a
-second udev rule) and at boot (`ai-workstation-boot-sync.service`, since a
-boot with no hotplug event never re-fires the trigger). `state` is one of
+`/run/ai-workstation/state.json` (tmpfs, `{state, provider, model, updated}`)
+is written on every dock/undock by Qubi's `qubi-gpu-attach` /
+`qubi-gpu-release` (from the qubi NixOS module), which `amd.nix` starts from
+`egpu-bar-fix`/`egpu-eject`'s success branch. `modules/nixos/apps/ai-workstation.nix`
+writes it at boot (`ai-workstation-boot-sync.service`, since a boot with no
+hotplug event never fires those) and after gaming (`ai-workstation-gaming-stop`
+starts the matching `-dock-sync`/`-undock-sync` unit). `state` is one of
 `docked`/`undocked`/`gaming` — `gaming` sets `model: null` deliberately
 (SUPER+G's gaming-start script), signaling "no local model routing, keep
 the GPU free for the game." `qubi-engine` (from the qubi flake input)

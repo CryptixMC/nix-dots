@@ -1,21 +1,18 @@
 { pkgs, ... }:
 
 let
-  # Reads Claude Code's own OAuth credentials (~/.claude/.credentials.json,
-  # written by `claude login`/normal CLI use) and hits Anthropic's
-  # undocumented /api/oauth/usage endpoint for this account's rolling 5-hour
-  # and 7-day (weekly) subscription usage -- the same numbers claude.ai's
-  # own usage meter shows. No token refresh is attempted here: if the access
-  # token has expired, this just reports the failure and waits for the user
-  # to run `claude` normally again (which refreshes it as a side effect).
-  #
-  # Confirmed live: this endpoint rate-limits aggressively (a handful of
-  # manual test calls in one session was enough to get a 429 with an
-  # 1100+s retry-after). The caller (QubiStatus.qml) must poll this
-  # infrequently -- see its own comment for the interval this earned.
+  # Reports 5-hour and 7-day subscription usage from the undocumented
+  # /api/oauth/usage endpoint using Claude Code's OAuth token. No refresh:
+  # an expired token is reported until `claude` is run again.
+  # The endpoint rate-limits hard (429s with ~20 min retry-after); poll rarely.
   claudeUsageCheck = pkgs.writeShellScriptBin "claude-usage-check" ''
     set -euo pipefail
-    export PATH=${pkgs.lib.makeBinPath [ pkgs.curl pkgs.jq ]}:$PATH
+    export PATH=${
+      pkgs.lib.makeBinPath [
+        pkgs.curl
+        pkgs.jq
+      ]
+    }:$PATH
 
     creds="$HOME/.claude/.credentials.json"
     if [ ! -f "$creds" ]; then
@@ -39,9 +36,7 @@ let
       "https://api.anthropic.com/api/oauth/usage" || echo "000")
 
     body=$(cat "$body_file" 2>/dev/null || echo "")
-    # grep exits 1 when there's no retry-after header (true for every
-    # non-429 response) -- under `set -e`/pipefail that would otherwise
-    # kill the script right here before any output is ever produced.
+    # `|| true`: grep exits 1 without a retry-after header, which set -e would abort on.
     retry_after=$(grep -i '^retry-after:' "$headers_file" 2>/dev/null | tr -d '\r' | awk '{print $2}' || true)
 
     if [ "$http_code" != "200" ]; then
@@ -49,10 +44,7 @@ let
         401) msg="token expired -- run claude to refresh" ;;
         403) msg="token missing profile scope -- run claude login" ;;
         429)
-          # A plain `&&`-in-substitution here would trip `set -e` when
-          # retry_after is empty (the `[ -n ]` test fails, `&&` short-
-          # circuits, substitution "fails") -- same footgun as the grep
-          # above, so this stays a real if/else instead.
+          # Real if/else: an `&&` form would trip set -e when retry_after is empty.
           if [ -n "$retry_after" ]; then
             msg="rate limited by anthropic (retry in ''${retry_after}s)"
           else

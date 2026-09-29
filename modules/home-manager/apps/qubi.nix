@@ -10,10 +10,8 @@
 let
   home = config.home.homeDirectory;
 
-  # The PWA itself comes from the qubi tree. The only thing added here is
-  # the URL it used to live at, which the copy installed on the phone still
-  # has as its start_url. (Served from the store: the static server used to
-  # publish the whole checkout, .git included, to the tailnet.)
+  # mobile_gui.html is the start_url of the PWA already installed on the phone.
+  # Served from the store so no checkout (.git included) reaches the tailnet.
   mobileRoot = pkgs.runCommand "qubi-mobile-root" { } ''
     mkdir -p $out
     cp -r ${inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-mobile}/. $out/
@@ -23,10 +21,8 @@ in
 {
   imports = [ inputs.qubi.homeModules.qubi ];
 
-  # Older qubi hm-modules only put the Python package on PATH; the Rust
-  # `qubi` operator CLI lives in engineRust.package, so link just that
-  # binary. A qubi with `programs.qubi.cli` installs `qubi` itself (and
-  # keeps its helpers off PATH), so this stays out of its way.
+  # Qubi versions without `programs.qubi.cli` don't put the Rust CLI on PATH;
+  # link just that binary for them.
   home.packages = lib.optionals (!(options.programs.qubi ? cli)) [
     (pkgs.runCommand "qubi-cli" { } ''
       mkdir -p $out/bin
@@ -53,41 +49,30 @@ in
         description = "Qubi itself";
       }
     ];
-    shellPath = "${home}/nix-dots/quickshell";
-    themesDir = "${home}/nix-dots/themes";
+    shellPath = "${home}/nix-dots/desktop/shell";
+    themesDir = "${home}/nix-dots/desktop/themes";
     voice.enable = true;
 
-    # Phase 4 Step 7 gate: "adding mcp-searxng is config-only." Placeholder
-    # URL -- nix/nixos-module.nix's services.qubi.searxng module isn't
-    # enabled on this host, so nothing is listening at 127.0.0.1:8888 yet;
-    # this still proves the config-only wiring (the mcp-searxng process
-    # starts, a web_search tool is exposed, zero crates/ edits needed).
-    # Enable services.qubi.searxng (NixOS-level) separately for a fully
-    # working instance.
+    # Placeholder URL: nothing listens there until the NixOS-level
+    # services.qubi.searxng is enabled.
     extensions.searxng = config.programs.qubi.mcp.presets.searxng {
       url = "http://127.0.0.1:8888";
     };
   };
 
   services.qubi.engine = {
-    # Written by modules/nixos/apps/ai-workstation.nix on every dock/
-    # undock/gaming transition.
+    # Written by modules/nixos/apps/ai-workstation.nix on dock/undock/gaming.
     hwStateFile = "/run/ai-workstation/state.json";
     backend = "rust";
   };
 
-  # Phase 3 Step 5 installed the Rust engine alongside the Python one; Step 6
-  # flips services.qubi.engine.backend to "rust" above, so Quickshell now
-  # reads QUBI_SOCKET pointed at this engine's socket. The Python engine's
-  # own unit stays installed/enabled -- this only changes which socket
-  # clients are told to use.
+  # The Python engine stays installed; `backend = "rust"` only picks which
+  # socket QUBI_SOCKET points clients at.
   services.qubi.engineRust = {
     enable = true;
     package = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-engine;
-    # Phase 5 Step 1/4/6: real child-agent packages, wired here (deliberately
-    # left null in the qubi flake's own hm-module.nix -- see its comment on
-    # `package` above for why). Enables the "claude" and "qwen-local" agent
-    # manifest entries and the delegate_to_local mcp entry.
+    # Null by default in the qubi hm-module; setting them enables the
+    # "claude" and "qwen-local" agents and delegate_to_local.
     agents = {
       claudeAgentAcpPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.claude-agent-acp;
       qwenCodePackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qwen-code;
@@ -100,14 +85,8 @@ in
     tailscaleServe.enable = true;
   };
 
-  # Phase 2 DOCKED Step 4: heavy tier on the eGPU (stopped/started by
-  # qubi-gpu-release/qubi-gpu-attach on eGPU undock/dock, see
-  # modules/nixos/hardware/amd.nix, and started on demand by the engine for
-  # a heavy turn). Undocked, the same model runs on the CPU build instead
-  # (cpuFallback): slow, but heavy stays usable. Render node is this host's stable
-  # by-path symlink for the eGPU (matches the iGPU pin convention used by
-  # the greeter fix elsewhere in this tree) -- never the raw renderD*
-  # name, which can renumber.
+  # Heavy tier on the eGPU, stopped/started on undock/dock by amd.nix; undocked
+  # it falls back to CPU. Use the by-path render node: renderD* can renumber.
   services.qubi.llama.heavy = {
     enable = true;
     modelFile = "Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf";

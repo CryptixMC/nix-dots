@@ -13,10 +13,8 @@ let
     executable = true;
   };
 in
-# Bun `--compile` executables append their bundle as raw trailing data past a
-# fixed offset; autoPatchelf rewrites the ELF header and shifts that offset,
-# corrupting the embedded app (verified: patched binary silently falls back
-# to bare `bun`'s own CLI). Run the untouched binary in an FHS env instead.
+# A Bun --compile binary: patchelf shifts the offset of its embedded bundle and
+# breaks it, so run it unmodified in an FHS env.
 buildFHSEnv {
   inherit pname version;
 

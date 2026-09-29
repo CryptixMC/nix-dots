@@ -1,15 +1,8 @@
 { pkgs, lib, ... }:
 
 let
-  # Notifies on dock/undock/gaming state changes. Notification only --
-  # qubi-engine watches the same state file and handles model selection
-  # itself; config.yaml stays Nix-generated and static.
-  #
-  # Relocated out of the former goose.nix (Phase 5 Step 10, goose removal) --
-  # this is a hardware-state tenant, not goose-specific: ai-workstation.nix's
-  # dock/undock hooks call it by bare name via a login shell
-  # (`as_user bash -lc "qubi-state-sync"`), and it must stay on the user's
-  # PATH independent of whether goose is installed at all.
+  # Notifies on dock/undock/gaming state changes; qubi-engine handles model
+  # selection itself. ai-workstation.nix's hooks call it by bare name, so it must stay on PATH.
   qubiStateSync = pkgs.writeShellScriptBin "qubi-state-sync" ''
     set -euo pipefail
     PATH=${
@@ -70,17 +63,14 @@ let
       "$(date -Iseconds)" > "$STATE_FILE"
     qubi-state-sync || true
 
-    # Confines ollama.service to the 8 E-cores while gaming (AllowedCPUs=8-15,
-    # confirmed via cpuinfo_max_freq) so the game keeps the P-cores. Runtime
-    # set-property, self-heals if this script never runs again. Needs the
-    # matching NOPASSWD sudo rule in ai-workstation.nix.
+    # Pin ollama to the E-cores (8-15) so the game keeps the P-cores; runtime-only,
+    # so it resets on reboot. Needs the matching NOPASSWD rule in ai-workstation.nix.
     sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15 || \
       echo "[ai-workstation-gaming-start] cgroup cap failed (needs the ai-workstation.nix sudo rule + a switch) -- gaming proceeds without CPU/core isolation this time" >&2
   '';
 
-  # Re-derives live eGPU state and calls the same NixOS sync services the
-  # hotplug hooks use, rather than restoring a cached "previous" state
-  # (stale if the user undocked mid-game).
+  # Re-derives live eGPU state rather than restoring a cached one, which is
+  # stale if the eGPU was unplugged mid-game.
   aiWorkstationGamingStop = pkgs.writeShellScriptBin "ai-workstation-gaming-stop" ''
     set -euo pipefail
     # pkgs.sudo is the non-setuid store binary; keeping it out of PATH lets
@@ -95,8 +85,7 @@ let
       sudo ${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service
     fi
 
-    # Empty values reset set-property's runtime override to the unit file's
-    # own defaults.
+    # Empty values reset the runtime override to the unit's defaults.
     sudo ${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota= AllowedCPUs= || \
       echo "[ai-workstation-gaming-stop] cgroup restore failed (needs the ai-workstation.nix sudo rule + a switch)" >&2
   '';

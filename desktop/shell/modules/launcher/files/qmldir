@@ -1,0 +1,7 @@
+singleton FilesState 1.0 FilesState.qml
+singleton FilesOps 1.0 FilesOps.qml
+FilesTab 1.0 FilesTab.qml
+FilesTree 1.0 FilesTree.qml
+FilesPane 1.0 FilesPane.qml
+FilesContextMenu 1.0 FilesContextMenu.qml
+FilesPrompt 1.0 FilesPrompt.qml

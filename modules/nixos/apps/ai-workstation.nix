@@ -4,23 +4,18 @@ let
   scriptWithPath = import ../../../lib/scriptWithPath.nix { inherit lib pkgs; };
   mkUserScript = import ../../../lib/mkUserScript.nix;
 
-  # Hardcoded per-state model tags -- llmfit is run once during bring-up, not looked up live.
-  #
-  # qwen3-coder:latest -- reliable tool-calling undocked, unlike qwen2.5-coder (prints JSON as prose).
+  # Per-state model tags, chosen once rather than looked up live.
+  # qwen3-coder: reliable tool-calling (qwen2.5-coder prints JSON as prose).
   undockedModel = "qwen3-coder:latest";
 
-  # qwen3:4b -- fits fully in this card's 16GB VRAM (81 tok/s) vs qwen3.6:latest's 31 tok/s.
-  # Deliberately differs from Qubi's own docked planner, which keeps
-  # qwen3.6:latest for reasoning depth over raw chat speed.
+  # qwen3:4b fits fully in 16GB VRAM; Qubi's planner deliberately uses a larger model.
   dockedModel = "qwen3:4b";
 
-  # qubi-state-sync comes from qubi-hwstate.nix's home.packages (user PATH) -- called by bare
-  # name via login shell, not store path, matching amd.nix's root-context user-session calls.
+  # qubi-state-sync is on the user's PATH (qubi-hwstate.nix), so call it via a login shell.
   mkSyncScript =
     state: model:
     scriptWithPath {
       name = "ai-workstation-${state}-sync";
-      # Explicit PATH (root-context systemd oneshot), matching amd.nix's scripts.
       runtimeInputs = [
         pkgs.coreutils
         pkgs.util-linux
@@ -42,17 +37,13 @@ let
         fi
       '';
     };
-  # NOTE: the former ai-workstation-suspend-evict (Ollama model eviction before
-  # suspend) was removed in the Phase 2 closeout alongside Ollama itself — the heavy
-  # tier is now llama.cpp (services.qubi.llama.heavy), not Ollama.
 in
 {
   systemd.tmpfiles.rules = [
     "d /run/ai-workstation 0755 cryptix users -"
   ];
 
-  # Triggered from egpu-bar-fix.service's success branch (amd.nix), reusing its eGPU
-  # hotplug detection rather than a second udev rule.
+  # Started by boot-sync below and by the gaming-stop script (qubi-hwstate.nix).
   systemd.services.ai-workstation-dock-sync = {
     description = "Write docked AI-workstation hardware state and notify Goose";
     serviceConfig = {
@@ -61,7 +52,6 @@ in
     };
   };
 
-  # Triggered from egpu-eject.service's Stage 1 (amd.nix).
   systemd.services.ai-workstation-undock-sync = {
     description = "Write undocked AI-workstation hardware state and notify Goose";
     serviceConfig = {
@@ -70,8 +60,7 @@ in
     };
   };
 
-  # Reconciles state at boot -- dock/undock-sync only fire on udev hotplug events, so a
-  # boot with no hotplug leaves config.yaml stale. Same lspci detection as gaming-stop.
+  # Reconciles dock state at boot, when no hotplug event fires.
   systemd.services.ai-workstation-boot-sync = {
     description = "Reconcile AI-workstation dock/undock state at boot";
     wantedBy = [ "multi-user.target" ];
@@ -87,8 +76,7 @@ in
     };
   };
 
-  # Lets ai-workstation-gaming-stop (home-manager, runs as cryptix) re-derive dock state
-  # on game exit without duplicating the model-tag bindings above. Same NOPASSWD pattern as amd.nix.
+  # Lets the user-level gaming-stop script re-derive dock state on game exit.
   security.sudo.extraRules = [
     {
       users = [ "cryptix" ];
@@ -101,9 +89,8 @@ in
           command = "${pkgs.systemd}/bin/systemctl start ai-workstation-undock-sync.service";
           options = [ "NOPASSWD" ];
         }
-        # Confines ollama.service to this i7-1260P's E-cores (8-15) while gaming, keeping
-        # P-cores free for the game (see qubi-hwstate.nix's gaming start script).
-        # sudoers matches exact strings -- gaming-value and restore need separate rules.
+        # Pins ollama to the E-cores (8-15) while gaming. sudoers matches exact
+        # strings, so set and restore need separate rules.
         {
           command = "${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15";
           options = [ "NOPASSWD" ];

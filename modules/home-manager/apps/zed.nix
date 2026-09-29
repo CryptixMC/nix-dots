@@ -18,13 +18,8 @@
       "make"
     ];
     userSettings = {
-      # stylix.targets.zed (above) generates a build-time "Base16 <theme>"
-      # theme and points userSettings.theme at it; this overrides that with
-      # quickshell/theme/Theme.qml's live-synced theme instead (written to
-      # ~/.config/zed/themes/quickshell-live.json, using stylix.json's own
-      # 141-key output as its structural template) — same mkForce pattern
-      # already used below for ui_font_size/buffer_font_size to win over
-      # other stylix-set defaults.
+      # Overrides stylix's build-time theme with the one Theme.qml writes live to
+      # ~/.config/zed/themes/quickshell-live.json.
       theme = lib.mkForce "Quickshell Live";
 
       hour_format = "hour24";
@@ -85,7 +80,6 @@
         };
       };
 
-      # Top-level agent_servers controls the claude-acp panel defaults in Zed's UI
       agent_servers = {
         "claude-acp" = {
           type = "registry";
@@ -115,9 +109,8 @@
         }
       ];
 
-      # github_personal_access_token for mcp-server-github is intentionally omitted —
-      # it is preserved from the live settings.json via the merge activation script,
-      # but is not committed to git. Use sops-nix or agenix for a fully declarative setup.
+      # mcp-server-github's token is kept out of git; the merge activation script
+      # preserves it from the live settings.json.
       context_servers = {
         "mcp-server-supabase" = {
           enabled = true;

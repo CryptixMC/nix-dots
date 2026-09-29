@@ -15,6 +15,7 @@
     ../../modules/home-manager/apps/qubi-hwstate.nix
     ../../modules/home-manager/apps/qubi.nix
     ../../modules/home-manager/apps/claude-usage.nix
+    ../../modules/home-manager/apps/agents.nix
 
     ../../modules/style/stylix.nix
   ];
@@ -27,16 +28,10 @@
 
   stylix.targets.zen-browser.enable = false;
 
-  # Quickshell's Wallpaper.qml owns the background layer; stylix's hyprland target
-  # auto-enables hyprpaper.service, racing it for the same layer. Both overrides are
-  # required -- the hyprland target sets both services.hyprpaper.enable and
-  # stylix.targets.hyprpaper.enable as a side effect (stylix's modules/hyprland/hm.nix).
+  # Quickshell draws the wallpaper; stylix's hyprland target would enable hyprpaper
+  # to race it. Both overrides are needed since that target sets both options.
   stylix.targets.hyprland.hyprpaper.enable = lib.mkForce false;
   stylix.targets.hyprpaper.enable = lib.mkForce false;
-
-  home.file = {
-
-  };
 
   programs.home-manager.enable = true;
 }

@@ -15,7 +15,7 @@ Qubi's own roadmap lives in [its repo](https://github.com/CryptixMC/qubi).
 
 ### Theming ([§1](#1-theme-system))
 - [ ] Get every remaining app styled via Stylix (or the live-sync path)
-- [ ] Add a template/skeleton for new themes (`themes/<name>/` with `base16.yaml`, optional `theme.json`, `wallpapers/`)
+- [ ] Add a template/skeleton for new themes (`desktop/themes/<name>/` with `base16.yaml`, optional `theme.json`, `wallpapers/`)
 - [ ] Zen browser theming — needs a decision on bringing the live profile under home-manager first
 - Claude Desktop theming — not achievable from Nix; parked, not a bug
 
@@ -48,14 +48,14 @@ Qubi's own roadmap lives in [its repo](https://github.com/CryptixMC/qubi).
 ### Flake housekeeping
 - [ ] Point the `qubi` input back at `main` once the development branch merges (drop `?ref=…` in `flake.nix`)
 - [ ] Switch `qubi` from `git+ssh` to `github:CryptixMC/qubi` once the repo is public
-- [ ] Shrink the `qubi-boundary-guard` allowlist: remove the stale Qubi comments in `lib/scriptWithPath.nix`, `BarIcon.qml`, `QubiGlyph.qml`, then drop them from the list
-- [ ] Retire the transitional allowlist entries (`qubi-hwstate.nix`, `claude-usage.nix`, `ai-workstation.nix`, `lib/mkUserScript.nix`) as Qubi takes over that logic
+- [ ] Retire the transitional entries in `lib/qubi-boundary-guard.nix`'s allowlist (`qubi-hwstate.nix`, `claude-usage.nix`, `ai-workstation.nix`, `lib/mkUserScript.nix`, `lib/scriptWithPath.nix`, `BarIcon.qml`) as Qubi takes over that logic
+- [ ] Run `nix flake check` in CI once the `qubi` input is fetchable there (public repo or a deploy key); today CI only runs the boundary check and `nixfmt`
 
 ---
 
 ## 1. Theme system
 
-Everything reads from `themes/<name>/{base16.yaml, theme.json?, wallpapers/, components/?}`.
+Everything reads from `desktop/themes/<name>/{base16.yaml, theme.json?, wallpapers/, components/?}`.
 `base16.yaml` is required and feeds both Stylix (build time) and Quickshell
 (runtime, via `yq`). A colors-only theme is valid — `ultraviolet` ships
 neither `theme.json` nor `components/`.
@@ -112,7 +112,7 @@ Lessons worth keeping:
 
 ## 4. Greeter
 
-`quickshell-greeter/` — a separate Quickshell tree run as the unprivileged
+`desktop/greeter/` — a separate Quickshell tree run as the unprivileged
 `greeter` user by `services.greetd` + `cage` (no layer-shell there, so a
 single `FloatingWindow`). Its palette (`theme/Colors.qml`) is hand-picked
 rather than imported from the desktop shell, so an in-progress shell edit
@@ -132,7 +132,7 @@ can never break the login screen; visual drift is the accepted tradeoff.
 Runs **inside** the authenticated session via `Quickshell.Wayland`'s
 `WlSessionLock` (`ext-session-lock-v1`), unlike the pre-login greeter.
 
-- `quickshell/modules/lock/{LockService,LockView}.qml` + `modules/nixos/services/quickshell-lock.nix`.
+- `desktop/shell/modules/lock/{LockService,LockView}.qml` + `modules/nixos/services/quickshell-lock.nix`.
 - `LockService` drives `Quickshell.Services.Pam`'s `PamContext` against a bare `security.pam.services.quickshell-lock = {}` — confirmed to build a complete fprintd-then-password stack from the global `fprintAuth` default.
 - `LockView` shows a clock, prompt/error text and a password field on a flat themed background. No Escape-to-dismiss.
 - **Shipped inert on purpose**: the only trigger is `quickshell ipc call lock lock` (and the launcher's Power section, labeled as untested). A broken unlock path means being locked out, so it stays unwired until tested live once.
@@ -180,8 +180,8 @@ moment leaves an unkillable `llama-server`. **Reboot after any crashed
 removal.** `qubi-health` reports this state read-only.
 
 ### Phase 1b — state bridge into Qubi
-- [x] `/run/ai-workstation/state.json` (tmpfs), `ai-workstation-{dock,undock}-sync` oneshots with scoped NOPASSWD sudo rules
-- [x] Hooked into `egpu-bar-fix`/`egpu-eject` and the `SUPER+G` gaming keybind
+- [x] `/run/ai-workstation/state.json` (tmpfs): written on dock/undock by Qubi's `qubi-gpu-attach`/`qubi-gpu-release` (started from `egpu-bar-fix`/`egpu-eject`), and by `ai-workstation-{dock,undock}-sync` at boot and after gaming
+- [x] `SUPER+G` sets `gaming` and restores the docked/undocked state afterwards
 - [x] Verified end to end on real hardware for dock and undock
 - [ ] Full `SUPER+G` launch → play → exit cycle
 

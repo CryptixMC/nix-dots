@@ -33,8 +33,8 @@
     wl-clipboard
     cliphist # clipboard history, piped from wl-paste (watch hook in home-manager/wm/hyprland.nix)
     hyprpicker # colour picker, bound in wm/hyprland.nix
-    quickshell # the desktop shell — config lives in quickshell/
-    yq-go # base16.yaml -> JSON for quickshell/theme/ThemeLoader.qml
+    quickshell # the desktop shell (desktop/shell/)
+    yq-go # base16.yaml -> JSON for desktop/shell/theme/ThemeLoader.qml
     adwaita-icon-theme # named-icon lookups fall back to blanks without a real icon theme
     ghostty
     zenith
