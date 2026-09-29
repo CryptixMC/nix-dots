@@ -11,7 +11,7 @@ let
 in
 {
   # Rollback: re-enable this line and remove services.greetd/polkit config below to revert
-  # to ReGreet. See TODO.md §2.
+  # to ReGreet. See TODO.md §4.
   # programs.regreet.enable = true;
 
   services.greetd = {

@@ -1,183 +1,195 @@
 # TODO / Roadmap
 
-Living roadmap for the Quickshell desktop (bar, launcher, greeter, theme system) and its remaining app-theming/ecosystem threads. Tree first for a 30-second scan, details below. `[x]` = shipped, `[~]` = designed but not built, `[ ]` = open thread.
+Everything planned, in progress, or deliberately parked for this repo.
+Open work comes first; the numbered sections below keep the design notes
+and history behind each area (code comments link to them as `TODO.md §N`,
+so keep the numbering stable).
 
-## Tree
+`[ ]` open · `[~]` built, not yet verified live · `[x]` done
 
-- **Shell & Theme System**
-  - [x] Folder-based theme registry — `ultraviolet` + `catppuccin`, runtime-discovered ([§1](#1-theme-system))
-  - [x] Wallpaper engine — static / gif / shader, per-theme, fullscreen-pause
-  - [x] Live-sync: Hyprland borders, Ghostty colors, Zed chrome
-  - [ ] Zen browser theming — real preset found, genuinely can't be added risk-free without a profile-migration decision (confirmed via a real eval assertion, not just a hunch — see §1)
-  - [ ] Claude Desktop theming — hard limitation, documented not chased
-  - [x] Runtime theme-switcher UI — the Launcher's Themes tab ([§3](#3-launcher-tabs))
-- **Bar**
-  - [x] Waybar + Walker fully retired, Quickshell is the only shell
-  - [x] Swappable per-icon popup (`BarIcon.popupComponent`)
-  - [x] Network switcher flyout — click Wi-Fi icon, see/connect to known + open networks, password prompt for new secured ones, `nmtui` escape hatch
-  - [x] Bluetooth device flyout — click icon, connect/disconnect known devices, `blueman-manager` escape hatch for pairing new ones
-- **Launcher** ([§3](#3-launcher-tabs))
-  - [x] Tab bar — Applications / Games / Files / Themes
-  - [x] Games tab — real Steam + Prism Launcher libraries
-  - [x] Files tab — v1 tree/grid browser (flagged for a future redesign pass)
-  - [x] Themes tab — cycle themes + per-theme wallpaper picker
-  - [x] Icon/visual polish — `ThemedIcon` macOS-style tinting, themed glyph icons for files/folders, translucent card/icon backgrounds, real icon theme installed
-  - [x] Tab-switch sizing bugs — whole-screen-height blowup, then 0-height collapse, then cross-tab height accumulation, all traced to `Loader` sizing semantics and fixed
-- **Greeter** ([§4](#4-greeter))
-  - [x] Quickshell greeter replacing ReGreet (password-only v1)
-  - [x] Status icons — battery / brightness / volume / bluetooth
-  - [x] Animated wallpaper
-  - [x] Fingerprint prompt text shortened
-  - [x] Brightness sysfs read confirmed safe under the `greeter` user — world-readable, no ACL issue ever existed
-  - [x] Lock screen v1 built — `WlSessionLock` + real PAM (password/fingerprint), **deliberately not wired to any trigger yet** ([§5](#5-lock-screen))
-- **Fingerprint / PAM** — architectural ceiling, prior art, security note; `pam_fingwit` confirmed not packaged in nixpkgs, not chased further ([§2](#2-fingerprint--pam))
-- **AI Workstation** — eGPU-aware hardware state feeding [Qubi](https://github.com/CryptixMC/qubi)'s model routing ([§7](#7-ai-workstation))
-  - [x] Phase 1a: eGPU hotplug hardening — kernel pin, undock-during-game guard, dead-config cleanup, headless ROCm compute verified live
-  - [x] Phase 1b: the state-file bridge (`ai-workstation.nix`) into Qubi — dock/undock sync, gaming-time VRAM eviction, all live-tested end to end
-  - [ ] Gaming path (`SUPER+G`) — state-write logic tested manually, full launch→play→exit cycle not yet run
-  - [ ] Phase 1a remainder — D3 (docked) compute control, undocked clean-boot check, D3 surprise-unplug, suspend/resume
-  - Qubi's own roadmap (chat overlay, model routing, ACP backend, voice, ...) now lives in [its own repo](https://github.com/CryptixMC/qubi)
-- **Reference** — Omarchy, other Quickshell shells worth reading ([§6](#6-reference-repos))
+Qubi's own roadmap lives in [its repo](https://github.com/CryptixMC/qubi).
+
+---
+
+## Open work
+
+### Theming ([§1](#1-theme-system))
+- [ ] Get every remaining app styled via Stylix (or the live-sync path)
+- [ ] Add a template/skeleton for new themes (`themes/<name>/` with `base16.yaml`, optional `theme.json`, `wallpapers/`)
+- [ ] Zen browser theming — needs a decision on bringing the live profile under home-manager first
+- Claude Desktop theming — not achievable from Nix; parked, not a bug
+
+### Launcher ([§3](#3-launcher))
+- [ ] System → Install sub-tabs still stubbed ("not built yet"): Generations, Modules, Dev Shells, Services, Fonts, Overlays
+- [ ] Themes: a settings section once some `theme.json` actually declares options
+- [ ] Games: more launchers (Lutris/Heroic) if they ever get installed
+
+### Bar ([§6](#6-bar))
+- [~] Network and Bluetooth flyouts — built and linted, never clicked on a real screen
+- [ ] Bluetooth: pairing new devices from the flyout (needs a discovery trigger the API doesn't expose; `blueman-manager` covers it today)
+
+### Fingerprint / PAM ([§2](#2-fingerprint--pam))
+- [ ] Evaluate packaging `pam_fingwit` in place of the flat fprintd timeout (not in nixpkgs; security-sensitive, needs a deliberate hands-on session)
+- [ ] Find out why a fingerprint prompt reached the greeter even though `greetd.fprintAuth = false`
+
+### Lock screen ([§5](#5-lock-screen))
+- [~] v1 built, unlock path never tested live
+- [ ] Test the unlock path by hand (`quickshell ipc call lock lock`) with someone physically present
+- [ ] Then wire a real trigger: keybind, idle timeout, `loginctl lock-session`
+- [ ] Stranded-lock recovery, stabilize timer before engaging, per-monitor DPMS/idle handling
+- [ ] Wallpaper-engine background instead of a flat color
+
+### eGPU / AI workstation ([§7](#7-ai-workstation))
+- [ ] Run `SUPER+G` end to end through a real Steam/gamescope session (VRAM eviction + post-game state are only unit-tested)
+- [ ] Finish the Phase 1a checklist: docked (D3) compute control, undocked clean boot, D3 surprise-unplug, suspend/resume
+- [ ] Verify the dock-topology fix empirically (`iperf3` over dock Ethernet during a GPU-bound game, before/after)
+- [ ] Tune the `throttled` AC profile (PL1 35W / PL2 54W) using the package-throttle counter
+
+### Flake housekeeping
+- [ ] Point the `qubi` input back at `main` once the development branch merges (drop `?ref=…` in `flake.nix`)
+- [ ] Switch `qubi` from `git+ssh` to `github:CryptixMC/qubi` once the repo is public
+- [ ] Shrink the `qubi-boundary-guard` allowlist: remove the stale Qubi comments in `lib/scriptWithPath.nix`, `BarIcon.qml`, `QubiGlyph.qml`, then drop them from the list
+- [ ] Retire the transitional allowlist entries (`qubi-hwstate.nix`, `claude-usage.nix`, `ai-workstation.nix`, `lib/mkUserScript.nix`) as Qubi takes over that logic
 
 ---
 
 ## 1. Theme system
 
-Everything pulls from `themes/<name>/{base16.yaml, theme.json?, wallpapers/, components/?}`. `base16.yaml` is mandatory and feeds both Stylix (build-time) and Quickshell (runtime, via `yq`). `theme.json` and `components/` are optional — a colors-only theme is valid (`ultraviolet` ships neither).
+Everything reads from `themes/<name>/{base16.yaml, theme.json?, wallpapers/, components/?}`.
+`base16.yaml` is required and feeds both Stylix (build time) and Quickshell
+(runtime, via `yq`). A colors-only theme is valid — `ultraviolet` ships
+neither `theme.json` nor `components/`.
 
-**Live-synced today** (no rebuild needed, flips the instant `ThemeState.setTheme()`/`cycleTheme()` runs):
-- Hyprland active/inactive border colors (`hyprctl eval` + `hl.config(...)`, since this repo's Lua config backend doesn't support `hyprctl keyword`)
-- Ghostty terminal colors, via a `config-file` include Ghostty always loads after its own `theme = stylix` baseline
-- Zed **chrome only** (background/borders/tabs/panels/terminal ANSI) — written to `~/.config/zed/themes/quickshell-live.json` using Stylix's own generated `stylix.json` as the 141-key structural template. Syntax-highlighting colors and player-cursor colors deliberately stay static (whatever Stylix last generated for `ultraviolet`) — full syntax remapping is a lot of extra surface for a cosmetic win where the editor buffer itself is a small fraction of the screen most of the time.
+- [x] Folder-based theme registry, discovered at runtime (`ultraviolet`, `ultraviolet-v2`, `catppuccin`)
+- [x] Wallpaper engines: static / gif / shader / scene, per theme, paused under fullscreen apps
+- [x] Runtime switcher: launcher → System → Themes, plus a per-theme wallpaper picker (persisted per theme in `ThemeState.wallpaperOverrides`)
 
-**Zed's build-time half**: `zed.nix` sets `theme = lib.mkForce "Quickshell Live"`, overriding Stylix's own `theme = "Base16 <name>"` default. Needs `nh home switch` once to take effect (untested this pass whether an already-open Zed window hot-reloads the *content* of a custom theme file it already has selected — Zed's settings.json hot-reload is well-established, but a referenced theme file's content re-reading on change is a separate, unconfirmed mechanism).
+**Live-synced** the instant `ThemeState.setTheme()`/`cycleTheme()` runs:
+- Hyprland active/inactive border colors (`hyprctl eval` + `hl.config(...)` — the Lua config backend doesn't support `hyprctl keyword`)
+- Ghostty colors, via a `config-file` include loaded after its `theme = stylix` baseline
+- Zed **chrome only** — written to `~/.config/zed/themes/quickshell-live.json` using Stylix's generated `stylix.json` as the template; `zed.nix` forces `theme = "Quickshell Live"`. Syntax colors stay at whatever Stylix last generated — a lot of surface for a small cosmetic win.
 
-**Zen browser — real option confirmed, genuinely can't be added risk-free**: `nix eval` against the live flake confirms `programs.zen-browser.profiles.<name>.presets.catppuccin.{enable,accent,flavor}` are real options (accent: 14 named colors, flavor: Frappe/Latte/Macchiato/Mocha) using the real `catppuccin/zen-browser` userChrome theme, not just GTK inheritance. Tried adding it as a second, `isDefault = false` profile alongside the existing self-managed live one (`~/.config/zen/huedeu9v.Default Profile`) — reverted after a real eval failure: the module hard-asserts "exactly one default Zen profile" the instant *any* profile is declared, with no concept of the pre-existing external profile to count against that assertion. So `isDefault = false` alone doesn't evaluate, and `isDefault = true` risks changing which profile actually launches by default. There's no zero-risk path here without first deciding how to bring the live profile under home-manager's management (name it explicitly, or accept the migration) — confirmed by evidence now, not just a hunch. Baseline GTK dark-mode (`gsettings ... prefer-dark`, already set in `hyprland.nix`'s autostart) covers native dialogs regardless.
+**Zen browser**: `programs.zen-browser.profiles.<name>.presets.catppuccin` is a
+real option, but the module asserts "exactly one default profile" as soon as
+any profile is declared and doesn't know about the existing self-managed
+profile. `isDefault = false` fails to evaluate; `isDefault = true` risks
+changing which profile launches. Needs a migration decision first. GTK
+dark mode already covers native dialogs.
 
-**Claude Desktop**: Electron, no settings hook, no Stylix target. Only lever is GTK dialog chrome inheriting the system dark theme (already happening). Content-level theming isn't achievable from the Nix side — documented limitation, not a bug to keep chasing.
+**Claude Desktop**: Electron, no settings hook, no Stylix target. Only GTK
+dialog chrome follows the system theme.
 
 ---
 
 ## 2. Fingerprint / PAM
 
-- [x] Shortened fprintd timeout for `sudo`/TTY `login` (`modules/nixos/services/fprintd.nix`: `timeout = 5; max-tries = 2`). Explicitly disabled for `sshd` and `greetd`.
-- **Architectural ceiling**: PAM's conversation model is sequential for a plain terminal — whichever module runs first blocks until success/timeout. No stock "race both, take whichever's ready."
-- **Real prior art for a proper fix**: [Fingwit](https://github.com/xapp-project/fingwit)'s `pam_fingwit.so` — decides at runtime whether a scan is likely to succeed, skips straight to password if not, instead of blocking on a doomed read.
-  - [ ] Evaluate swapping in `pam_fingwit.so` in place of the flat timeout. Checked: **not packaged in nixpkgs** under any name (`nix eval`'s own "did you mean 'finit'?" confirms no close match). Packaging an unfamiliar, security-sensitive PAM module blind (no way to test-drive it without risking login/sudo) isn't something to attempt autonomously — stays a real "someone needs to sit down and package + test this deliberately" item, not chased further.
-- **Security note**: [CVE-2024-37408](https://linuxsecurity.com/news/security-projects/fingwit-biometric-authentication) — fingerprint-only auth on `su`/`sudo`/`polkit` can let a background process obtain privileges without a real scan prompt. Read before making fingerprint more automatic/prominent anywhere.
-- The greeter's PAM conversation (via `Quickshell.Services.Greetd`) is genuinely sequential too — real concurrent fingerprint+password at the greeter isn't achievable without driving the PAM conversation directly (`Quickshell.Services.Pam`), which is architecturally a lock-screen-shaped project (see §5, now built) — not a greeter tweak.
+- [x] Short fprintd timeout for `sudo`/TTY `login` (`fprintd.nix`: `timeout = 5`, `max-tries = 2`); disabled for `sshd` and `greetd`.
+- **Ceiling**: PAM's conversation is sequential — whichever module runs first blocks until success or timeout. No stock "race both".
+- **Prior art**: [Fingwit](https://github.com/xapp-project/fingwit)'s `pam_fingwit.so` decides up front whether a scan is likely and skips straight to password if not. Not packaged in nixpkgs.
+- **Security note**: [CVE-2024-37408](https://linuxsecurity.com/news/security-projects/fingwit-biometric-authentication) — fingerprint-only auth on `su`/`sudo`/`polkit` can let a background process gain privileges without a real prompt. Read before making fingerprint more automatic anywhere.
+- The greeter's `Quickshell.Services.Greetd` conversation is sequential too; true concurrent fingerprint+password needs `Quickshell.Services.Pam` directly (the lock screen's approach, §5).
 
 ---
 
-## 3. Launcher tabs
+## 3. Launcher
 
-`LauncherState.tabs` is a plain data list (`{id, label, glyph}`) — adding a fifth tab later is one entry, not a new code path. The tab row (pill-shaped, icon-only, hover/active-expands to icon+label) is built and live. The launcher box itself widens for Games/Files/Themes (960px vs. Applications' 564px) and each tab loads lazily (`Loader active: ...`) so Games/Files' background filesystem scans never run before that tab is opened.
+`LauncherState.tabs` is a plain data list (`{id, label, glyph}`) — a new tab
+is one entry. Tabs are pill-shaped (icon-only, expand to icon+label on
+hover/active) and every non-Applications tab loads lazily, so the Games and
+Files filesystem scans never run until that tab opens.
 
-### Games tab — built
-- `GamesLibrary.qml` discovers real Steam (`appmanifest_*.acf`) and Prism Launcher (`instance.cfg`) libraries via a couple of batched `grep`/`find` calls each (not one process per game), cross-referencing cover art (Steam's `library_600x900.jpg`, Prism's per-instance `profileImage/` directory) separately by id.
-- Recommended row (most-recently-played — the only honest signal without a real usage-scoring system), full library grid, and one grid per launcher, all confirmed rendering real games with real cover art.
-- Search (shared with the other tabs) filters *within* each section rather than collapsing the layout.
-- Adapter model is "one more Process block per launcher" in `GamesLibrary.qml`, not a plugin/script-file system — Lutris/Heroic aren't installed on this machine, so a heavier abstraction would be speculative. Adding one later is still a small, contained change.
+- [x] **Applications** — `ThemedIcon` tints app icons toward the theme accent
+- [x] **Games** — Steam (`appmanifest_*.acf`) and Prism Launcher (`instance.cfg`) libraries with cover art, discovered in a few batched `grep`/`find` calls. Recently-played row, full grid, per-launcher grids. A new launcher is one more `Process` block in `GamesLibrary.qml`.
+- [x] **Files** — real file manager: expand/collapse tree (`FilesTree.qml`), fuzzy-filtered grid with cross-directory "Elsewhere" results (`FilesPane.qml`), breadcrumb, context menu, rename/new/confirm prompts.
+- [x] **System** — left-nav sections: About, Install (Packages / Installed / Flatpak / Pending), Themes, Keybinds, Monitor, Display, Services, Maintenance (generations, disk usage, GC), Power, Jobs.
 
-### Files tab — built (v1; flagged for a future redesign pass)
-- `FilesTab.qml`: `Qt.labs.folderlistmodel`'s `FolderListModel` backs both a left-side subfolder list + breadcrumb and a right-side grid of the current directory's full contents, defaulting to `$HOME`.
-- v1 is a single navigable pane (descend/ascend), not a full expand/collapse multi-level tree — a real tree is more UI work than this pass needed, and this tab was explicitly called out for further design discussion before going further.
-- Search filters the tree/grid in place via `nameFilters`, and separately surfaces matches *outside* the current directory as a flat path list via one bounded `find -iname` call (substring matching, not true fuzzy scoring).
-
-### Themes tab — built
-- Top row cycles installed themes (reuses `ThemeState`/`ThemeLoader` as-is, no new discovery).
-- Second row shows the *active* theme's available wallpaper files (`ThemeEntryLoader`'s wallpaper-file discovery, `find`-based, excludes shader `.frag`/`.qsb` sources) and lets you pick one — `ThemeState.wallpaperOverrides` persists the choice per-theme, and `Theme.qml`'s `wallpaper` facade resolves it ahead of the theme.json-declared default (engine inferred from the picked file's extension). Confirmed live: picking a wallpaper takes effect immediately and survives switching to the other theme and back.
-- No settings section: no `theme.json` currently declares any configurable options, so a generic toggle/dropdown-schema renderer would be untested speculative plumbing for zero real consumers — deferred until a theme actually wants to declare one, consistent with "colors-only theme has no settings."
-
-### Icon/visual polish pass — built
-- `ThemedIcon.qml` — `MultiEffect`-based macOS-style tinting (desaturate + colorize toward the active theme's accent) wraps every app icon in the Applications tab, replacing plain `IconImage`.
-- Files tab folders/files render as themed Nerd Font glyphs (`` / ``) instead of relying on system icon-theme lookups per file type — sidesteps the "no icon theme installed" problem entirely for that tab and gives consistent, always-themed results.
-- Translucent backgrounds (`ThemeDefaults.alpha(base02, 0.5)`) added behind Files-tab grid icons and Games-tab cover-art fallbacks, replacing solid fills.
-- The old default/fallback icon for icon-less entries was replaced with a themed glyph rather than the generic broken-image look.
-
-### Found and fixed along the way
-- No icon theme package was actually installed system-wide (only cursor themes + empty `hicolor`) — every named-icon lookup across the *whole launcher*, not just the new tabs, was silently falling back to blank/generic icons despite `gsettings` already claiming "Adwaita". Added `adwaita-icon-theme` to `packages.nix` — needs `nh os switch` to take effect.
-- `Image.source` needs a bare filesystem path, not a constructed `file://` URL, to handle names with spaces/brackets correctly (Prism instance "Arcadia [RPG] new" broke outright with the URL form even after percent-encoding).
-- **Three-stage `Loader`/height bug**, all in `Launcher.qml`'s per-tab `Loader`s:
-  1. Explicit `height: item.height` on a `Loader` fights Qt's own default behavior (a sized `Loader` force-resizes its loaded item to match) — created a feedback loop that froze `ThemesTab`'s height at 0 despite `implicitHeight` correctly computing 128.
-  2. First fix attempt (`implicitHeight: root.height` inside `GamesTab`/`FilesTab`) was itself a genuine binding loop — `Item.height`'s own implicit default binding *is* `implicitHeight`, so anything that makes `implicitHeight` depend on `height`, even indirectly, silently freezes. Fixed by computing height once into an independent `readonly property real computedHeight` and binding both `height` and `implicitHeight` to that same property.
-  3. After removing the `Loader`'s explicit height entirely, switching through tabs in sequence showed heights accumulating (Files 1286px, Apps 1654px) rather than resetting — an inactive `Loader`'s reported height wasn't reliably snapping back to 0. Fixed with `visible: active` on each `Loader`, since `Column` excludes invisible children from its layout sum regardless of their reported size. Verified live across a full Themes→Games→Files→Apps→Apps switch cycle with no accumulation.
+Lessons worth keeping:
+- `Image.source` needs a bare filesystem path, not a constructed `file://` URL, for names with spaces or brackets.
+- **Loader sizing**: an explicit `height` on a `Loader` force-resizes its item (feedback loop, height froze at 0); making `implicitHeight` depend on `height` is a binding loop; inactive Loaders don't reliably report 0 height, so each per-tab `Loader` uses `visible: active` so the `Column` ignores it. Tabs now compute a fixed `computedHeight` and scroll internally.
+- `adwaita-icon-theme` has to be installed explicitly — without it every named-icon lookup silently fell back to blank icons.
 
 ---
 
 ## 4. Greeter
 
-`quickshell-greeter/` — separate Quickshell tree, runs as the unprivileged `greeter` user pre-login via `services.greetd` + `cage` (no wlr-layer-shell there, so it's a single `FloatingWindow`, not `PanelWindow`). Deliberately decoupled from the daily-driver shell's theme registry (`quickshell-greeter/theme/Colors.qml` is its own hand-picked palette) — an in-progress edit to the desktop shell should never risk the login screen.
+`quickshell-greeter/` — a separate Quickshell tree run as the unprivileged
+`greeter` user by `services.greetd` + `cage` (no layer-shell there, so a
+single `FloatingWindow`). Its palette (`theme/Colors.qml`) is hand-picked
+rather than imported from the desktop shell, so an in-progress shell edit
+can never break the login screen; visual drift is the accepted tradeoff.
 
-- [x] Password-only auth flow via `Quickshell.Services.Greetd`, session/user fixed (not enumerated at runtime).
-- [x] Status icons — `modules/status/{Battery,Brightness,Volume,Bluetooth}.qml`, trimmed adaptations of the bar's own modules, read-only (no click actions — nothing meaningful to change pre-login besides Wi-Fi, which already has its own picker).
-- [x] Animated wallpaper — `modules/greeter/Wallpaper.qml`, static+gif only (no shader machinery, not worth the build complexity for a login screen), reusing `catppuccin`'s existing `retro2_live.gif` rather than sourcing anything new.
-- [x] Fingerprint prompt shortened — `AuthState.onAuthMessage` substitutes "Scan fingerprint" for any message containing "finger", instead of relying on fprintd's exact (long) wording.
-  - Worth a follow-up check: `fprintd.nix` sets `security.pam.services.greetd.fprintAuth = false`, so a fingerprint prompt reaching the greeter at all was a little surprising. Didn't block the text fix, but the "why" is still open.
-- [x] Brightness status icon's `/sys/class/backlight/.../brightness` read — checked directly: `/sys/class/backlight/intel_backlight/brightness` is `root:root`, mode `644` (world-readable). No seat ACL or `video`-group membership is needed for a plain read regardless of which user owns the session — closes this out, no fix was ever needed.
+- [x] Password auth via `Quickshell.Services.Greetd`, fixed user/session
+- [x] Read-only status icons: battery, brightness, volume, Bluetooth, plus a Wi-Fi picker
+- [x] Animated wallpaper (static + gif only)
+- [x] Fingerprint prompt shortened to "Scan fingerprint"
+- [x] Brightness read is safe as `greeter` (`/sys/class/backlight/*/brightness` is world-readable)
+- Rollback to ReGreet: see the comment at the top of `modules/nixos/services/greetd.nix`
 
 ---
 
 ## 5. Lock screen
 
-Architecturally nothing like the greeter — greetd/cage only run **pre-login**. A lock screen has to run **inside the already-authenticated session**, using `Quickshell.Wayland`'s `WlSessionLock` / `WlSessionLockSurface` (`ext-session-lock-v1` — confirmed present in the installed Quickshell 0.3.1 qmltypes).
+Runs **inside** the authenticated session via `Quickshell.Wayland`'s
+`WlSessionLock` (`ext-session-lock-v1`), unlike the pre-login greeter.
 
-### v1 built (2026-09-12) — deliberately not wired to any trigger yet
-
-- `quickshell/modules/lock/{LockService.qml, LockView.qml, qmldir}` + `modules/nixos/services/quickshell-lock.nix` (new PAM service).
-- `LockService.qml` drives `Quickshell.Services.Pam`'s `PamContext` directly (not `Quickshell.Services.Greetd` — that's greetd's own separate pre-login protocol) against a new `security.pam.services.quickshell-lock` service. Phase machine (idle/prompting/authenticating/failed) mirrors `quickshell-greeter/modules/auth/AuthState.qml`'s proven-live shape, adapted to `PamContext`'s API (confirmed via the installed qmltypes, not guessed): `config`, `user`, `message`, `responseRequired`/`responseVisible`, signals `completed(result)`/`error`/`pamMessage`, methods `start()`/`abort()`/`respond()`.
-- The PAM service declaration is a bare `security.pam.services.quickshell-lock = {};` — confirmed via a real build that this alone produces a correct, complete stack (`pam_fprintd.so` sufficient, falling through to `pam_unix.so` for password, `pam_deny.so` otherwise) — `fprintd.nix`'s existing blanket `fprintAuth` default applies automatically, so fingerprint-or-password comes for free without saying so explicitly.
-- `LockView.qml` (per-screen lock surface content, parented onto `WlSessionLockSurface.contentItem`): clock, prompt/error text, password field. v1 background is a flat themed color, not the full `Wallpaper.qml` engine — that component is tightly coupled to being its own `PanelWindow`, not something to re-parent into a lock surface's content item for this pass. No Escape-to-dismiss anywhere, unlike every other overlay in this repo — a lock screen must not be dismissible without real authentication.
-- **Deliberately shipped inert**: nothing calls `LockService.lock()` from a keybind, idle timeout, or `loginctl lock-session` handler. The only trigger is a manual IPC call (`quickshell ipc call lock lock`) registered in `shell.qml`, meant to be run by hand once someone's ready to test the unlock path. A broken unlock path here has real consequences — getting stuck at a lock screen with no way back in — so this stays complete-but-untested-live rather than auto-wired, exactly the "build a switchable copy, don't make it live" treatment this kind of change needs.
-- **Likely resolved via a local-model investigation, not yet a live test**: whether `pam.start()` can just be called again directly after a `Failed` completion, or needs `active` toggled first. §7's local coding-agent had `qwen2.5-coder:7b` read the real `quickshell-service-pam.qmltypes` and this file directly (no hints given) — neither `start`'s nor `active`'s type signature documents a reset requirement, and it concluded (high confidence, but from type signatures alone, not a live PAM conversation) that calling `pam.start()` directly is fine. Treat this as strong supporting evidence, not a replacement for actually testing the unlock path live — still confirm on the very first real test.
-- Not carried over from Omarchy's reference (`shell/plugins/lock/Service.qml`/`LockView.qml`, ~840 lines total) since that source wasn't locally fetchable this session, so this is an original implementation grounded in the real Quickshell APIs rather than a port: stranded-lock recovery, a stabilize-timer before engaging, DPMS/idle reconciliation per monitor, and animated/video backgrounds are all still open — real ideas worth revisiting once the core password/fingerprint flow has been tested live at least once.
+- `quickshell/modules/lock/{LockService,LockView}.qml` + `modules/nixos/services/quickshell-lock.nix`.
+- `LockService` drives `Quickshell.Services.Pam`'s `PamContext` against a bare `security.pam.services.quickshell-lock = {}` — confirmed to build a complete fprintd-then-password stack from the global `fprintAuth` default.
+- `LockView` shows a clock, prompt/error text and a password field on a flat themed background. No Escape-to-dismiss.
+- **Shipped inert on purpose**: the only trigger is `quickshell ipc call lock lock` (and the launcher's Power section, labeled as untested). A broken unlock path means being locked out, so it stays unwired until tested live once.
+- Open question to confirm on the first live test: whether `pam.start()` can be called again directly after a failed attempt (type signatures suggest yes).
+- Omarchy's lock screen (`shell/plugins/lock/`) is the reference for the missing robustness pieces listed under Open work.
 
 ---
 
-## 6. Reference repos
+## 6. Bar
 
-- **[Omarchy](https://github.com/omacom/omarchy)** (branch `quattro`) — real Quickshell-based shell with a genuine plugin architecture (`shell/plugins/*/manifest.json` + isolated QML). Coupling to Omarchy-specific behavior mostly shows up as external CLI calls rather than embedded logic, so most of it is reference/re-derive material rather than drop-in — the lock screen (§5) is the one piece confirmed directly adoptable near-verbatim. No tab-based launcher there (its menu is a hierarchical drill-down, not Spotlight-style tabs) — the launcher tab design (§3) is original.
-- **[doannc2212/quickshell-config](https://github.com/doannc2212/quickshell-config)** — Ã  la carte reference bundling a status bar, launcher, notification daemon, and a runtime theme switcher with 206 bundled themes. Concrete prior art if the Themes tab (§3) grows a "browse community themes" feature later.
-- **[SirAllap/quickshell-popups](https://github.com/SirAllap/quickshell-popups)** — theme-aware popup widgets including an existing `custom/claude-usage` module — prior art if a Claude-usage bar widget ever gets built.
-- [Hyprland wiki: App Launchers](https://wiki.hypr.land/Useful-Utilities/App-Launchers/) / [Status Bars](https://wiki.hypr.land/Useful-Utilities/Status-Bars/) — general ecosystem, worth periodic re-checking.
+- [x] Waybar and Walker fully retired
+- [x] Per-icon popups via `BarIcon.popupComponent`; volume, network, Bluetooth, media and calendar flyouts, quick settings panel, OSD
+- [x] Real notification daemon: toasts with action buttons and inline reply, notification centre with history + DND (`modules/notifications/`)
+- [x] Quickshell polkit agent replaces polkit-gnome (`modules/auth/`)
 
----
+**Network flyout** (`NetworkPopup.qml`): Wi-Fi networks by signal strength,
+live scan while open, one-click connect for known/open networks, inline
+password field for new secured ones, `nmtui` link for everything else
+(hidden SSIDs, enterprise auth).
 
-## 7. AI Workstation
-
-Goal: this laptop's actual hardware state (an AMD RX 6800 XT eGPU that's only sometimes attached over Thunderbolt) drives model routing for **Qubi**, the local-AI assistant that used to be built here but is now [its own repo](https://github.com/CryptixMC/qubi), standalone at `~/Projects/qubi`. What stays here is genuinely host-specific: the eGPU/Thunderbolt hardening itself (`amd.nix`) and the small state-file bridge (`ai-workstation.nix`) that tells Qubi which model tier to use, written on every dock/undock event. Qubi's own design, reliability findings, Goose/ACP tuning, and chat-overlay development are now [Qubi's development log](https://github.com/CryptixMC/qubi/blob/main/docs/development-log.md) — this section no longer duplicates them. Full plan/findings log for the original build: `~/.claude/plans/lets-work-on-this-quizzical-crane.md`.
-
-### Phase 1a — eGPU hotplug hardening — built
-- `modules/nixos/hardware/amd.nix` already had a working hotplug system (udev rules on PCI vendor/device ID, `egpu-bar-fix.service`, `egpu-eject.service`, AER/ASPM kernel-param workarounds) — this pass closed specific gaps rather than building from scratch.
-- `boot.kernelPackages` pinned to `pkgs.linuxPackages_6_18` (verified via `nix eval` to be a no-op today, 6.18.50 either way) — stops a future `nix flake update` from silently shifting the kernel out from under the Thunderbolt/amdgpu workarounds.
-- `egpuEjectScript` gained a Stage 1.5: refuses to eject (clear `hyprctl notify` instead) if `gamescope` is running, since a live game's own DRM context could hang the unbind same as ROCm's.
-- Deleted `modules/nixos/apps/ollama.nix` — dead, unimported, hardcoded `acceleration = "cuda"` (wrong for this AMD-only host). Live config is `modules/nixos/services/ollama.nix`.
-- **Live-verified**: ROCm compute genuinely lands on the eGPU with zero displays attached to it (`ollama ps` → `100% GPU`) — closes the one gap the codebase's own comments flagged as never actually checked. Surprise-unplugging the cable (no `SUPER+SHIFT+U`) in that same headless state did **not** hang Hyprland — the primary safety bar for that state held.
-
-### Found and fixed along the way (Phase 1a)
-- **The udev backstop doesn't reliably re-fire after a crash.** After the surprise-unplug above, `egpu-eject.service` never fired via its remove-triggered udev rule at all (kernel handled teardown solo, with real but non-fatal errors: `ring kiq test failed`, a `GPU reset` that failed, a kernel `WARNING` in `kfd_device_queue_manager.c`). Reattaching later in the same boot, `egpu-bar-fix.service`'s add-triggered rule *also* didn't fire (`udevadm info` showed `USEC_INITIALIZED` still pointing at the original attach, not the reattach) — the kernel rebinds the driver natively either way, so it looks like everything's fine, but none of the higher-level automation runs.
-- **Root cause: a crashed removal leaves ROCm/KFD compute dead, not just the udev events.** `rocminfo` post-crash showed *zero* GPU agents despite `amdgpu` being cleanly bound with a valid BAR — display/PCI-level recovery is cosmetic, compute is gone until reboot. This is also why a model actively loaded at the moment of removal leaves an **unkillable orphaned `llama-server` process** (survives both `systemctl restart` and a full `systemctl stop` of `ollama.service`, despite correct `KillMode=control-group`) — it's genuinely stuck on a kernel-level wait for hardware that vanished.
-- Practical upshot: "reboot after any surprise/crashed eGPU removal" is a hard requirement for this whole automation stack to be trustworthy, not a nice-to-have. Not yet turned into an automated health check (e.g. comparing `rocminfo` agent count against `lspci` GPU presence) — worth doing before leaning on this further.
-
-### Phase 1b — the state bridge into Qubi — built
-- `modules/nixos/apps/ai-workstation.nix`: `/run/ai-workstation/state.json` (tmpfs, re-derived every boot — no impermanence exists in this repo so nothing else needed persisting), `ai-workstation-{dock,undock}-sync.service` oneshots that write the docked/undocked model tag, scoped NOPASSWD sudo rules mirroring the existing `egpu-eject` pattern.
-- Hooked into `amd.nix`'s existing `egpu-bar-fix`/`egpu-eject` scripts (fire-and-forget, `--no-block`) and the `SUPER+G` gaming keybind, reusing the same eGPU detection rather than building a second one.
-- **Live-verified end to end**: state file write → Qubi's config reconciliation → desktop notification, for both dock and undock paths, on real hardware.
-- Everything downstream of the state file — Goose config generation, model selection, extension/recipe tuning, the chat overlay, ACP backend — is now Qubi's own concern; see [Qubi's development log](https://github.com/CryptixMC/qubi/blob/main/docs/development-log.md) for that history, including the real PATH/sudo/yq bugs found wiring the two together.
-
-### Still open
-- **Reboot to clear the live stuck `llama-server` D-state process documented above** — genuinely blocking (can't be done autonomously without the user present).
-- End-to-end test `SUPER+G` through a real Steam/gamescope launch — `ollama stop` VRAM eviction and post-game state reconciliation are only unit-tested so far.
-- Finish the deferred Phase 1a checklist (D3 compute control, undocked clean-boot check, D3 surprise-unplug, suspend/resume) — genuinely needs physical eGPU docking/undocking and a real suspend/resume cycle, none of which are autonomously doable.
-- Live-trigger the lock screen end to end (with the user physically present to actually unlock it) — structurally checked but never actually invoked, deliberately.
+**Bluetooth flyout** (`BluetoothPopup.qml`): known devices with
+connect/disconnect and battery level. No pairing — `BluetoothAdapter` has
+no discovery trigger in this API — so `blueman-manager` is the escape hatch.
 
 ---
 
-## 8. Bar widgets — click-driven flyouts
+## 7. AI workstation
 
-Same upgrade `Volume.qml` already got over launching `pavucontrol` directly, applied to the other two bar icons that previously just shelled out to an external app on click.
+The laptop's eGPU state drives Qubi's model routing. What lives here is the
+host-specific part: the eGPU/Thunderbolt hardening (`amd.nix`) and the
+state-file bridge (`ai-workstation.nix`). Everything downstream of the state
+file is Qubi's concern — see its
+[development log](https://github.com/CryptixMC/qubi/blob/main/docs/development-log.md).
 
-- **Network** (`NetworkPopup.qml`): lists `Quickshell.Networking` Wi-Fi networks sorted by signal strength, real API confirmed via the installed qmltypes (`Network.{connect,disconnect,forget}`, `WifiNetwork.{signalStrength,security,connectWithPsk}`, `WifiDevice.scannerEnabled` toggled on while the popup's open so the list reflects a live scan, not a stale cache). Known networks and open/OWE ones connect with one click; an unknown secured network expands an inline password field in place (`connectWithPsk`) instead of a separate dialog. `nmtui` stays one click away via a "›" link for anything this doesn't cover (hidden SSIDs, enterprise auth).
-- **Bluetooth** (`BluetoothPopup.qml`): lists already-known/paired devices (`adapter.devices`) with click-to-connect/disconnect and battery percentage where available. Pairing a genuinely new device isn't covered — `BluetoothAdapter` has no direct discovery-trigger method in this API (only a read-only `discovering` status), so a real scan/pair UI wasn't buildable this pass without something to drive it; `blueman-manager` is the escape hatch for that case instead of a half-built pairing flow.
-- Both follow `VolumePopup.qml`'s exact structural pattern (`PopupWindow`, `HoverHandler`-driven auto-close, `BarIcon.onClickFn` toggle) — no new popup architecture introduced.
-- Validated via `qmllint` (no hard errors, only the same import-path noise the whole codebase's Quickshell-typed files produce under a bare invocation — confirmed by running it against the already-shipped `Launcher.qml` for comparison) and a full `nix flake check`/`nixos-rebuild build`. Not yet clicked on a real screen.
+### Phase 1a — eGPU hotplug hardening
+- [x] Kernel pinned (`linuxPackages_6_18`) so a flake update can't silently move it out from under the Thunderbolt/amdgpu workarounds
+- [x] `egpu-eject` refuses to eject while `gamescope` is running
+- [x] Headless ROCm compute verified on the eGPU (`ollama ps` → 100% GPU); a surprise unplug in that state did not hang Hyprland
+- [ ] Docked compute control, undocked clean boot, docked surprise-unplug, suspend/resume
+
+**Known failure mode**: after a crashed or surprise removal, udev backstops
+may not re-fire, and ROCm/KFD compute can be dead (`rocminfo` shows zero
+GPU agents) while `amdgpu` looks cleanly bound. A model loaded at that
+moment leaves an unkillable `llama-server`. **Reboot after any crashed
+removal.** `qubi-health` reports this state read-only.
+
+### Phase 1b — state bridge into Qubi
+- [x] `/run/ai-workstation/state.json` (tmpfs), `ai-workstation-{dock,undock}-sync` oneshots with scoped NOPASSWD sudo rules
+- [x] Hooked into `egpu-bar-fix`/`egpu-eject` and the `SUPER+G` gaming keybind
+- [x] Verified end to end on real hardware for dock and undock
+- [ ] Full `SUPER+G` launch → play → exit cycle
+
+---
+
+## 8. Reference repos
+
+- **[Omarchy](https://github.com/omacom/omarchy)** (branch `quattro`) — Quickshell shell with a real plugin architecture; its lock screen is the most directly reusable piece.
+- **[doannc2212/quickshell-config](https://github.com/doannc2212/quickshell-config)** — bar, launcher, notifications and a runtime theme switcher with 206 bundled themes; prior art for a "browse community themes" feature.
+- **[SirAllap/quickshell-popups](https://github.com/SirAllap/quickshell-popups)** — theme-aware popups including a `custom/claude-usage` module.
+- Hyprland wiki: [App Launchers](https://wiki.hypr.land/Useful-Utilities/App-Launchers/) · [Status Bars](https://wiki.hypr.land/Useful-Utilities/Status-Bars/)

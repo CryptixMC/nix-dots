@@ -10,11 +10,11 @@ let
   undockedModel = "qwen3-coder:latest";
 
   # qwen3:4b -- fits fully in this card's 16GB VRAM (81 tok/s) vs qwen3.6:latest's 31 tok/s.
-  # Deliberately differs from qubi-code's docked planner (goose.nix), which keeps
+  # Deliberately differs from Qubi's own docked planner, which keeps
   # qwen3.6:latest for reasoning depth over raw chat speed.
   dockedModel = "qwen3:4b";
 
-  # qubi-state-sync comes from goose.nix's home.packages (user PATH) -- called by bare
+  # qubi-state-sync comes from qubi-hwstate.nix's home.packages (user PATH) -- called by bare
   # name via login shell, not store path, matching amd.nix's root-context user-session calls.
   mkSyncScript =
     state: model:
@@ -102,7 +102,7 @@ in
           options = [ "NOPASSWD" ];
         }
         # Confines ollama.service to this i7-1260P's E-cores (8-15) while gaming, keeping
-        # P-cores free for the game (evidence: goose.nix's aiWorkstationGamingStart comment).
+        # P-cores free for the game (see qubi-hwstate.nix's gaming start script).
         # sudoers matches exact strings -- gaming-value and restore need separate rules.
         {
           command = "${pkgs.systemd}/bin/systemctl set-property ollama.service CPUQuota=700% AllowedCPUs=8-15";

@@ -33,8 +33,6 @@
   # Quickshell's Quick Settings panel reads/writes
   # Quickshell.Services.UPower.PowerProfiles, which talks to this daemon
   # over D-Bus -- without it the profile toggle has nothing to bind to.
-  # Also fixes a latent bug: home-manager/apps/goose.nix already shells out
-  # to `powerprofilesctl` assuming this daemon exists.
   services.power-profiles-daemon.enable = true;
 
   # Hyprland's own portal handles screencast/screenshot; the GTK portal

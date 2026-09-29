@@ -34,6 +34,6 @@
   # default to on) — there are reported PAM/fprintd + greeter interactions
   # (tuigreet, GDM, KDE lockscreen) that can end up blocking password login
   # entirely or, in some configs, bypassing auth. Worth its own careful pass
-  # once ReGreet's plain password flow is confirmed solid. See TODO.md §1/§2.
+  # once the greeter's plain password flow is confirmed solid. See TODO.md §2.
   security.pam.services.greetd.fprintAuth = false;
 }

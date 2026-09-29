@@ -56,7 +56,6 @@ in
     shellPath = "${home}/nix-dots/quickshell";
     themesDir = "${home}/nix-dots/themes";
     voice.enable = true;
-    # programs.qubi.goose.* is set in ./goose.nix.
 
     # Phase 4 Step 7 gate: "adding mcp-searxng is config-only." Placeholder
     # URL -- nix/nixos-module.nix's services.qubi.searxng module isn't

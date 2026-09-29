@@ -7,7 +7,7 @@ import QtQuick
 // daily-driver shell means an in-progress edit to the desktop bar/launcher
 // can never affect the login screen. Values are hand-picked to roughly
 // match the desktop's palette (same accent purple), not bridged/generated
-// from it — visual drift over time is an accepted tradeoff, see TODO.md §2.
+// from it — visual drift over time is an accepted tradeoff, see TODO.md §4.
 //
 // Restyled to the Ultraviolet design system's VIOLET role mapping, matching
 // themes/ultraviolet-v2/. Hand-transcribed on purpose: importing the main

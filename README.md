@@ -1,210 +1,166 @@
-# cryptix's NixOS Dotfiles
+# nix-dots
 
-Welcome to my NixOS configuration! This repository is designed for modularity, theming, and reproducibility across multiple machines. It leverages Nix flakes, Stylix for unified theming, and Home Manager for user-level configuration.
+cryptix's NixOS flake: one host (**carbon**, a ThinkPad T14 Gen 3 with an
+AMD RX 6800 XT Thunderbolt eGPU), Hyprland, a fully custom
+[Quickshell](https://quickshell.org) desktop, and Stylix theming.
 
----
-
-## TO-DO
-- [ ] get all modules to be styled via stylix
-- [ ] add a template for styles
-
----
-
-## Known Hardware Issues
-
-**carbon (ThinkPad T14 Gen3) — AMD RX 6800 XT eGPU over Thunderbolt**
-
-The eGPU (Adaptertek Tamales2, TB3/Titan Ridge) tunneled through the laptop's
-native TB4 controller was hard-hanging under sustained gaming load: a PCIe
-AER correctable-error flood would escalate and eventually hit an
-Uncorrectable (Fatal) error, which Linux's AER recovery can't handle for
-Thunderbolt-tunneled devices (no `error_detected` driver callback), wedging
-into a `hung_task` and a full system hang. Fixed by adding `pci=noaer` to
-`boot.kernelParams` in `modules/nixos/hardware/amd.nix` — see the comment
-there for the full root-cause writeup.
-
-**Unplugging the eGPU:** surprise removal makes amdgpu's teardown path time
-out (`ring kiq test failed`, `failed to halt cp gfx`), which wedges the
-Hyprland compositor into a full black screen (audio keeps working) that
-only a reboot clears — because amdgpu tries to talk to hardware that just
-electrically vanished mid-teardown. Press **SUPER+SHIFT+U** first: it stops
-ollama/kanshi, tells Hyprland to drop the eGPU-attached outputs, unbinds
-amdgpu while the link is still live (so its teardown completes against
-responsive hardware), then deauthorizes the Thunderbolt tunnel. Wait for
-the "safe to unplug" notification before pulling the cable. There's also a
-best-effort automatic udev rule for when you forget and yank it anyway
-(`egpu-eject.service` in `modules/nixos/hardware/amd.nix`), but it's racing
-the same hang and isn't guaranteed to win.
-
-If it wedges anyway: SSH in over Tailscale, check
-`journalctl -k -b --since "-2 min"` for the failure, then
-`sudo systemctl restart display-manager.service` (gets a fresh Hyprland
-session without a full reboot) or, failing that, a graceful `sudo reboot`.
-
-**Ollama/ROCm: "cudaMalloc failed: out of memory" on a large model after an
-aborted load.** If a model load is interrupted (e.g. the client gives up
-waiting mid-load), amdgpu can be left with fragmented/leaked VRAM that
-causes the *next* load attempt to fail with a ROCm OOM — even for a model
-that fit fine before. This is **not** a PCIe BAR/VRAM-aperture limit: the
-GPU's BAR 0 is fixed at 256MB by `egpu-bar-fix.service` (see above), but
-ROCm can still place full-size allocations well beyond that in "invisible"
-VRAM — confirmed live by loading a 36B model (~16GB) to completion on a
-freshly restarted `ollama.service`, with no BAR/kernel changes needed. If
-you hit this OOM, `sudo systemctl restart ollama.service` and retry before
-assuming a hardware ceiling.
-
-**Dock topology — don't daisy-chain the USB-C dock through the eGPU
-enclosure.** The laptop has two independent, CPU-integrated Thunderbolt 4
-controllers (confirmed via `lspci -tv`: separate root ports, separate
-NHIs) — not bandwidth-shared. But the ThinkPad USB-C Dock Gen 2's upstream
-cable was found plugged into the eGPU enclosure's own USB-C passthrough
-port instead of the laptop's second, idle TB4 port — daisy-chaining it
-through the enclosure's internal Titan Ridge chip, which *does* share
-bandwidth across its two ports (unlike the laptop's own two ports), so the
-dock's USB/Ethernet/audio traffic was contending with the GPU's own PCIe
-tunnel on the same cable. Fix: plug the dock directly into the laptop's
-second TB4 port. Verify empirically after moving it — run `iperf3`/a large
-file transfer over the dock's Ethernet concurrently with a GPU-bound game
-session and compare fps/frametime and throughput against a baseline from
-before the move, since this hasn't been confirmed against an authoritative
-Intel doc.
-
-**CPU package power limit (PROCHOT) throttling under sustained gaming
-load.** This T14 Gen 3's BIOS ships an unmanaged PL1 = 64W with an
-effectively meaningless 127.9s time window — i.e. sustained 64W forever —
-instead of the i7-1260P's stock 28W. Confirmed via
-`thermal_throttle/package_throttle_count` climbing continuously during
-play sessions (thousands of events, tens of seconds of cumulative
-throttling) and package temp still reading 74°C six minutes after a game
-exited. This starves the eGPU of submitted work — it was observed at 72%
-busy but drawing only 52W of its 272W cap, the signature of a GPU waiting
-on the CPU rather than being GPU-bound. Fixed system-wide (AC/battery-
-aware, not eGPU-gated, since it's a firmware bug rather than a
-gaming-specific tradeoff) by `throttled.service` in
-`modules/nixos/hardware/thinkpad-power.nix`, starting at a conservative
-PL1=35W/PL2=54W AC profile — tune via the same throttle-counter method
-used to diagnose this if it needs adjusting. Separately, CPU governor and
-GPU DPM are forced to performance/high only while the eGPU is docked
-(`egpu-perf-on`/`egpu-perf-off` in `modules/nixos/hardware/amd.nix`,
-piggybacking on the existing `egpu-bar-fix`/`egpu-eject` triggers).
+- **Roadmap / open work:** [TODO.md](TODO.md)
+- **Agent rules:** [AGENTS.md](AGENTS.md) (`CLAUDE.md` is a symlink to it)
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Directory Structure](#directory-structure)
-- [Theming with Stylix](#theming-with-stylix)
-- [Hosts](#hosts)
-- [Modules](#modules)
-- [Home Manager](#home-manager)
-- [How to Use](#how-to-use)
-- [Credits](#credits)
-
----
-
-## Overview
-
-This repo uses Nix flakes for reproducible system and user configurations. Key features include:
-
-- **Stylix** for unified, system-wide theming
-- Modular NixOS and Home Manager configs
-- Custom themes (see `themes/ultraviolet`)
-- Support for multiple hosts
-
----
-
-## Directory Structure
+## Layout
 
 ```
 nix-dots/
-├── hosts/          # Host-specific configs
-├── modules/        # Modular NixOS & Home Manager configs
-├── quickshell/     # The desktop shell (bar, launcher, lock, theme system)
-├── quickshell-greeter/ # Pre-login greeter (separate Quickshell tree, greetd)
-├── themes/         # Custom themes (e.g., Ultraviolet)
-├── pkgs/           # Locally-packaged derivations not (yet) in nixpkgs
-├── lib/            # Shared Nix helpers used across modules
-├── scripts/        # Maintenance scripts (see scripts/*)
-├── docs/           # Development history and notes
-├── flake.nix       # Flake entry point
-├── flake.lock      # Flake lock file
-└── README.md       # This file
+├── flake.nix              # inputs, carbon system, standalone home config, packages, checks
+├── hosts/carbon/          # configuration.nix (system), home.nix (user), hardware-configuration.nix
+├── modules/
+│   ├── nixos/             # system modules: core/ hardware/ services/ apps/ wm/
+│   ├── home-manager/      # user modules: core/ shell/ apps/ wm/
+│   └── style/stylix.nix   # imported by both the system and the home config
+├── lib/                   # shared Nix helpers (hyprBinds, mkUserScript, scriptWithPath)
+├── pkgs/                  # local derivations not in nixpkgs
+├── quickshell/            # the desktop shell: bar, launcher, notifications, lock, wallpaper, themes
+├── quickshell-greeter/    # pre-login greeter (separate Quickshell tree, run by greetd)
+├── themes/                # theme folders shared by Stylix and Quickshell
+└── .agents/skills/        # repo-specific agent skills (symlinked into .claude/skills/)
 ```
 
-Qubi, the local-AI assistant that used to live inside this repo (engine,
-MCP servers, mobile PWA, Quickshell overlays), is now its own project:
-[CryptixMC/qubi](https://github.com/CryptixMC/qubi), checked out standalone
-at `~/Projects/qubi` and pulled into the system as a flake input (see
-`flake.nix`). `quickshell/shell.qml` mounts its QML by absolute path so
-Quickshell's live-reload keeps working across the two checkouts.
+Nothing auto-discovers modules: a new one gets imported explicitly in
+`hosts/carbon/configuration.nix` or `hosts/carbon/home.nix`.
 
 ---
 
-## Theming with Stylix
+## Usage
 
-Stylix is configured system-wide (not via Home Manager) for consistent theming.
-The main theme is **Ultraviolet**, defined in `themes/ultraviolet/`.
+Home Manager is a **standalone** configuration, not a NixOS module, so the
+system and the user environment switch separately:
 
-- **Wallpaper:** `themes/ultraviolet/wallpapers/alyssa.png`
-- **Base16 colors:** `themes/ultraviolet/base16.yaml`
+```sh
+nh os switch            # or: sudo nixos-rebuild switch --flake .#carbon
+nh home switch          # or: home-manager switch --flake .#cryptix
+```
 
-Stylix is imported in `modules/style/stylix.nix` and enabled in each host config.
+Checking without switching:
 
----
+```sh
+nix flake check                          # evaluates both configs + the qubi boundary guard
+nixos-rebuild build --flake .#carbon
+nix build .#homeConfigurations.cryptix.activationPackage
+nix build .#kitten-space-agency          # also: oneclient, oneclient-new-cluster, proton-drive-cli
+nix fmt                                  # nixfmt-rfc-style
+```
 
-## Hosts
-
-Each machine has its own config in `hosts/`.
-Example: `hosts/carbon/` contains:
-
-- `configuration.nix` (system config)
-- `hardware-configuration.nix` (hardware details)
-- `home.nix` (user config)
-
----
-
-## Modules
-
-Reusable modules are in `modules/`:
-
-- `modules/nixos/` for system modules (core, hardware, services, apps, wm)
-- `modules/home-manager/` for user-level modules
-- `modules/style/` for Stylix, imported by both
+Flakes only see git-tracked files — `git add` new files (staging is enough)
+before any Nix command.
 
 ---
 
-## Home Manager
+## Desktop shell (Quickshell)
 
-User configuration is managed via Home Manager, integrated with flakes.
-See `hosts/carbon/home.nix` and `modules/home-manager/`.
+Quickshell is the only shell — Waybar, Walker, ReGreet and polkit-gnome
+have all been replaced. Run it standalone with `quickshell -p ./quickshell`.
+
+| Part | What it does |
+|---|---|
+| **Bar** (`modules/bar/`) | Workspaces, active window, media, clock/calendar, tray, CPU/RAM graphs, net speed, temperature, battery, backlight, volume/network/Bluetooth flyouts, quick settings, OSD |
+| **Launcher** (`modules/launcher/`) | Tabs: Applications · Games (Steam + Prism) · Files (tree + grid file manager) · System (about, install, themes, keybinds, monitor, display, services, maintenance, power, jobs) |
+| **Notifications** (`modules/notifications/`) | Real notification daemon, toasts with action buttons and inline reply, notification centre with DND |
+| **Polkit agent** (`modules/auth/`) | Quickshell holds the session's polkit slot and renders its own prompt |
+| **Lock screen** (`modules/lock/`) | `WlSessionLock` + PAM (password or fingerprint) — built but not wired to a trigger yet, see [TODO §5](TODO.md#5-lock-screen) |
+| **Wallpaper** (`modules/wallpaper/`) | Engines: `static`, `gif`, `shader`, `scene` (live QML scenes — Orbital, Neural — driven by real system stats) |
+| **Greeter** (`quickshell-greeter/`) | greetd + cage login screen, deliberately decoupled from the desktop shell's theme code |
+
+Main keybinds (full list in `modules/home-manager/wm/hyprland.nix`, or the
+launcher's System → Keybinds):
+
+| Keys | Action |
+|---|---|
+| `SUPER+R` | Toggle the launcher |
+| `SUPER+T` | Cycle the active theme live |
+| `SUPER+D` / `SUPER+K` | Qubi chat overlay |
+| `SUPER+G` | Steam in gamescope (evicts Ollama from VRAM around the session) |
+| `SUPER+SHIFT+U` | Safely eject the eGPU — wait for "safe to unplug" |
 
 ---
 
-## How to Use
+## Themes
 
-1. **Clone the repo:**
-   ```sh
-   git clone https://github.com/CryptixMC/nix-dots.git
-   cd nix-dots
-   ```
+Each theme is a folder in `themes/<name>/`:
 
-2. **Build your system:**
-   ```sh
-   sudo nixos-rebuild switch --flake .#carbon
-   ```
+- `base16.yaml` — **required**; feeds Stylix at build time and Quickshell at runtime
+- `theme.json` — optional token overrides (colors, radii, motion, wallpaper engine)
+- `wallpapers/` — images, GIFs, shaders
+- `components/` — optional per-theme QML overrides
 
-3. **Customize themes:**
-   - Edit files in `themes/ultraviolet/`
-   - Update `modules/style/stylix.nix` as needed
+| Theme | Notes |
+|---|---|
+| `ultraviolet` | Colors-only base theme; also Stylix's build-time scheme (`modules/style/stylix.nix`) |
+| `ultraviolet-v2` | Same palette remapped to the Ultraviolet design system's Violet roles, Orbital scene wallpaper — see its [README](themes/ultraviolet-v2/README.md) |
+| `catppuccin` | Catppuccin hand-mapped to this repo's base16 slot convention, shader wallpaper |
+
+Switching themes at runtime (`SUPER+T` or launcher → System → Themes)
+live-syncs the shell, Hyprland borders, Ghostty, and Zed's chrome with no
+rebuild.
+
+---
+
+## Qubi
+
+Qubi, the local-AI assistant, lives in its own repo
+([CryptixMC/qubi](https://github.com/CryptixMC/qubi)) and comes in as the
+`qubi` flake input. This repo only imports its modules and sets host values
+(`services.qubi` in `hosts/carbon/configuration.nix`, `programs.qubi` in
+`modules/home-manager/apps/qubi.nix`). The `qubi-boundary-guard` flake check
+fails if Qubi logic creeps into any `.nix`/`.qml` file outside the allowlist
+in `flake.nix`.
+
+The host-side bridge is `modules/nixos/apps/ai-workstation.nix`: it writes
+`/run/ai-workstation/state.json` (`docked` / `undocked` / `gaming`) on every
+eGPU dock/undock so Qubi can pick a model tier.
+
+---
+
+## Hardware notes (carbon)
+
+The full detail lives in comments next to each fix and in
+`.agents/skills/egpu-dock-undock/SKILL.md`.
+
+- **eGPU hard hangs under load** — PCIe AER fatal errors on the Thunderbolt
+  tunnel wedged the system. Fixed with `pci=noaer` in
+  `modules/nixos/hardware/amd.nix`.
+- **Unplugging the eGPU** — surprise removal can black-screen Hyprland.
+  Press `SUPER+SHIFT+U` first: it stops Ollama/kanshi, drops the eGPU
+  outputs, unbinds amdgpu while the link is live, then deauthorizes the
+  tunnel. `egpu-eject.service` has a best-effort udev backstop, but it
+  isn't guaranteed. If it wedges anyway: SSH in over Tailscale and
+  `sudo systemctl restart display-manager.service` or reboot.
+- **Reboot after any crashed removal** — it can leave ROCm/KFD compute dead
+  (`rocminfo` shows no GPU agents) even though the display side looks fine,
+  and an orphaned `llama-server` stuck in `D` state.
+- **ROCm "out of memory" after an aborted model load** is fragmented VRAM,
+  not a BAR limit — `sudo systemctl restart ollama.service` and retry.
+- **Dock topology** — plug the USB-C dock into the laptop's second TB4
+  port, not the eGPU enclosure's passthrough (which shares bandwidth with
+  the GPU tunnel).
+- **CPU power-limit throttling** — the BIOS ships PL1 = 64W forever.
+  `throttled.service` (`modules/nixos/hardware/thinkpad-power.nix`) sets
+  PL1 35W / PL2 54W on AC; CPU governor and GPU DPM go to performance only
+  while the eGPU is docked.
+
+---
+
+## Agent tooling
+
+- `AGENTS.md` — behavior rules for any coding agent in this repo (`CLAUDE.md` points at it)
+- `.agents/skills/` — `nix-dots-conventions`, `egpu-dock-undock`, `game-log-discovery`; symlinked into `.claude/skills/`
+- `.mcp.json` — local MCP servers (NixOS options, nixd LSP, Context7, ask-user, notes capture)
 
 ---
 
 ## Credits
 
-- [Stylix](https://github.com/danth/stylix)
-- [Base16](https://github.com/chriskempson/base16)
-- [NixOS](https://nixos.org/)
-- [Home Manager](https://github.com/nix-community/home-manager)
-
----
+[NixOS](https://nixos.org/) · [Home Manager](https://github.com/nix-community/home-manager) ·
+[Stylix](https://github.com/danth/stylix) · [Base16](https://github.com/chriskempson/base16) ·
+[Hyprland](https://hyprland.org/) · [Quickshell](https://quickshell.org/)

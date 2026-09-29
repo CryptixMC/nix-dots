@@ -375,7 +375,7 @@ in
           (mkExecBind "${mainMod} + R" "quickshell ipc -p ~/nix-dots/quickshell call launcher toggle")
           # Cycles the active theme live via IPC, no restart.
           (mkExecBind "${mainMod} + T" "quickshell ipc -p ~/nix-dots/quickshell call theme next")
-          # Chat overlay (see the qubi repo): talks to the `goose` CLI. D is primary, K an alias.
+          # Chat overlay (see the qubi repo). D is primary, K an alias.
           (mkExecBind "${mainMod} + D" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
           (mkExecBind "${mainMod} + K" "quickshell ipc -p ~/nix-dots/quickshell call chat toggle")
           # SUPER+H/B/X (session history/model browser/MCP manager) were dropped:
@@ -484,7 +484,7 @@ in
 
           # Steam + all games in one gamescope session (programs.steam.gamescopeSession,
           # games.nix), nested in this Hyprland session. ai-workstation-gaming-{start,stop}
-          # (modules/home-manager/apps/goose.nix) evict Ollama from VRAM around the game.
+          # (modules/home-manager/apps/qubi-hwstate.nix) evict Ollama from VRAM around the game.
           (mkExecBind "${mainMod} + G" "ai-workstation-gaming-start && gamescope --steam -W 1920 -H 1080 -f -- steam ; ai-workstation-gaming-stop")
 
         ];

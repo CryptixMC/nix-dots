@@ -72,10 +72,10 @@
       # the allowlist below starts mentioning Qubi -- i.e. the moment new
       # Qubi-specific logic creeps back into nix-dots instead of living in
       # the qubi repo. Scoped to *.nix/*.qml (the executable configuration
-      # surface) rather than every text file, so that docs/history/*,
-      # README.md, TODO.md, .mcp.json and theme *.json token files (data,
-      # not code -- and already covered by the qml side of the allowlist
-      # below) don't trip it; those are free to discuss Qubi.
+      # surface) rather than every text file, so that README.md, TODO.md,
+      # .mcp.json and theme *.json token files (data, not code -- and
+      # already covered by the qml side of the allowlist below) don't trip
+      # it; those are free to discuss Qubi.
       checks.x86_64-linux =
         let
           pkgs = nixpkgs.legacyPackages.x86_64-linux;

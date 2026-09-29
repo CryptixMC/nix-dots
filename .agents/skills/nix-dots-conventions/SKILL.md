@@ -32,7 +32,7 @@ description: Module layout, wrapper-script patterns, and hard-won Nix/home-manag
   garbage-collects automatically. Always resolve a tool's path from a
   *fresh* build's own closure, not an ambient glob.
 - Neither `nix flake check` nor a successful build catches QML runtime
-  errors (see the quickshell-qml-patterns skill) or live behavioral bugs
+  errors or live behavioral bugs
   (permission/PATH/sudo-matching issues) — those need live testing.
 
 ## Wrapper-script pattern
@@ -56,6 +56,10 @@ bare `sudo systemctl start foo`, even though both resolve to the same
 binary. Always call the exact absolute store path in the script that a
 NOPASSWD rule was written for.
 
+## `yq` into shell variables needs `-r`
+Without `-r`, `yq` keeps the quoted-string style and embeds literal quote
+characters in the value.
+
 ## `home.activation` ordering
 Real, confirmed order: `writeBoundary` → custom `home.activation` scripts
 → `linkGeneration`. A custom activation script referencing a `home.file`
@@ -65,9 +69,9 @@ instead of the `home.file`-managed symlink target when an activation
 script needs to read that content itself.
 
 ## QML linting is a separate gate from `nix flake check`
-`qml-lint-repo` (a wrapper script in `goose.nix`, in `home.packages`)
-runs `qmllint` with `--incompatible-type error` and everything else
-disabled — narrowly tuned to catch the one bug class that has actually
+`qml-lint-repo` runs `qmllint` with `--incompatible-type error` and
+everything else disabled (it used to live in the now-removed `goose.nix`;
+if it's no longer on PATH, run `qmllint` with those flags directly) — narrowly tuned to catch the one bug class that has actually
 crashed the live shell (a boolean `anchors {}` block on a plain
 Rectangle/Item instead of a real Anchors-typed property), while staying
 silent on this repo's real, working QML that other qmllint categories

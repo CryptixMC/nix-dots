@@ -253,8 +253,8 @@ PanelWindow {
 
             // Floating pill tabs, icon-only by default — hover or active
             // expands to icon+label (macOS-Spotlight-style, per the design
-            // brief). Only "apps" drives real content below; the rest are
-            // placeholders until their own passes (see TODO.md).
+            // brief). Applications renders inline below; Games/Files/System
+            // each get their own lazily-activated Loader further down.
             Row {
                 spacing: Theme.spacing.launcherTabGap
 

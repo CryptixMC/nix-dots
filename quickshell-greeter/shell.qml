@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import "modules/greeter"
 
-// Entry point for the greetd greeter (see TODO.md §2 and the greeter plan).
+// Entry point for the greetd greeter (see TODO.md §4).
 // Deliberately separate from quickshell/shell.qml — this runs as the
 // unprivileged "greeter" system user pre-login, with zero coupling to the
 // daily-driver bar/launcher shell.

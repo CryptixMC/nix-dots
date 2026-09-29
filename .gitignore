@@ -1,8 +1,10 @@
+# Nix build outputs
 result
+result-*
+
+# Local agent/tool scratch
 .claude/worktrees/
-.goose-handoff-session.log
+.claude/settings.local.json
 .playwright-mcp/
 graphify-out/
-SECTION_7_SUMMARY.md
-TEMP_TODO.md
 __pycache__/
