@@ -26,9 +26,7 @@
     # reload) and/or pass `--override-input qubi path:$HOME/Projects/qubi`
     # (engine); see that repo's README. Still private, hence git+ssh instead
     # of github:; switch to `github:CryptixMC/qubi` when it goes public.
-    # Tracks the qubi development branch until it merges to main; point
-    # this back at main (drop `?ref=...`) then.
-    qubi.url = "git+ssh://git@github.com/CryptixMC/qubi?ref=claude/amazing-einstein-x7qhd1";
+    qubi.url = "git+ssh://git@github.com/CryptixMC/qubi";
     qubi.inputs.nixpkgs.follows = "nixpkgs";
 
   };
