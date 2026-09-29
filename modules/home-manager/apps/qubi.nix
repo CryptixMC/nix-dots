@@ -2,6 +2,7 @@
   lib,
   pkgs,
   config,
+  options,
   inputs,
   ...
 }:
@@ -99,9 +100,11 @@ in
     tailscaleServe.enable = true;
   };
 
-  # Phase 2 DOCKED Step 4: heavy tier, docked-only (stopped/started by
+  # Phase 2 DOCKED Step 4: heavy tier on the eGPU (stopped/started by
   # qubi-gpu-release/qubi-gpu-attach on eGPU undock/dock, see
-  # modules/nixos/hardware/amd.nix). Render node is this host's stable
+  # modules/nixos/hardware/amd.nix, and started on demand by the engine for
+  # a heavy turn). Undocked, the same model runs on the CPU build instead
+  # (cpuFallback): slow, but heavy stays usable. Render node is this host's stable
   # by-path symlink for the eGPU (matches the iGPU pin convention used by
   # the greeter fix elsewhere in this tree) -- never the raw renderD*
   # name, which can renumber.
@@ -109,5 +112,10 @@ in
     enable = true;
     modelFile = "Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf";
     renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
+  }
+  # Only set when the pinned qubi has the option, so bumping flake.lock
+  # (not this file) is what turns it on.
+  // lib.optionalAttrs (options.services.qubi.llama.heavy ? cpuFallback) {
+    cpuFallback.enable = true;
   };
 }
