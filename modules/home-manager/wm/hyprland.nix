@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   # hl.dsp.*/mkLuaInline mechanics and why `config` needs settings.config.*
   # instead of a top-level call: lib/hyprBinds.nix, hyprland-lua-configtype-pitfall memory.
@@ -507,7 +512,10 @@ in
           -- PolkitAgentService.qml's own header for that detail and for
           -- why its D-Bus path includes a per-instance suffix (registration
           -- silently fails to survive a plain hot-reload at a fixed path).
-          hl.exec_cmd("quickshell -p ~/nix-dots/quickshell")
+          -- Hyprland is started by the greeter, not a login shell, so it never
+          -- sources home.sessionVariables; without this Quickshell has no
+          -- QUBI_SOCKET/QUBI_KNOWN_FOLDERS and Qubi dials a dead socket path.
+          hl.exec_cmd("sh -c 'unset __HM_SESS_VARS_SOURCED; . ${config.home.profileDirectory}/etc/profile.d/hm-session-vars.sh; exec quickshell -p ~/nix-dots/quickshell'")
           hl.exec_cmd('gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"')
           -- Clipboard history: cliphist's own db, fed by every wl-copy
           -- (including the hyprshot/satty --copy-command paths above and

@@ -10,6 +10,9 @@ PopupWindow {
     id: root
 
     property var anchorItem: null
+    // The notification server: its live notifications that still wait on an
+    // answer are listed first, with working buttons.
+    property var server: null
     anchor.item: anchorItem
     anchor.edges: Edges.Bottom
     anchor.gravity: Edges.Bottom
@@ -89,6 +92,122 @@ PopupWindow {
                         font.pixelSize: Theme.font.sizeBase
                         color: Theme.color.rightModuleFg
                         MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: NotificationState.clearHistory() }
+                    }
+                }
+            }
+
+            // Live notifications that wait on an answer (buttons or a reply
+            // field): their toast is gone but they are still open, so their
+            // buttons still work here.
+            Column {
+                id: waiting
+                width: parent.width
+                spacing: Theme.spacing.notifCenterGap
+                // Only when some live notification is answerable (the cards
+                // of the others are hidden and take no height).
+                visible: waitingCards.implicitHeight > 0
+
+                Text {
+                    text: "WAITING"
+                    color: Theme.color.accentPink
+                    font.family: Theme.font.family
+                    font.pixelSize: Theme.font.sizeSmall
+                    font.bold: true
+                }
+
+                Column {
+                    id: waitingCards
+                    width: parent.width
+                    spacing: Theme.spacing.notifCenterGap
+
+                    Repeater {
+                        model: root.server ? root.server.trackedNotifications : null
+
+                        Rectangle {
+                            id: live
+                            required property var modelData
+                            readonly property bool answerable: (live.modelData.actions ?? []).length > 0 || live.modelData.hasInlineReply
+                            readonly property var defaultAction: {
+                                const all = live.modelData.actions ?? [];
+                                for (let i = 0; i < all.length; i++) {
+                                    if (all[i].identifier === "default")
+                                        return all[i];
+                                }
+                                return null;
+                            }
+
+                            visible: answerable
+                            width: waiting.width
+                            height: visible ? liveColumn.implicitHeight + Theme.spacing.notifCenterCardPad * 2 : 0
+                            radius: Theme.radius.input
+                            color: ThemeDefaults.alpha(Theme.base16.base02, 0.6)
+                            border.width: Theme.spacing.borderHairline
+                            border.color: Theme.color.accentPurple
+
+                            // A body click runs the "default" action (Qubi: open
+                            // the pause card or the session).
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: live.defaultAction !== null
+                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: live.defaultAction.invoke()
+                            }
+
+                            Column {
+                                id: liveColumn
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    margins: Theme.spacing.notifCenterCardPad
+                                }
+                                spacing: 4
+
+                                Row {
+                                    width: parent.width
+                                    Text {
+                                        width: parent.width - 16
+                                        elide: Text.ElideRight
+                                        text: live.modelData.summary
+                                        color: Theme.color.tooltipFg
+                                        font.family: Theme.font.family
+                                        font.pixelSize: Theme.font.sizeSmall
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        width: 16
+                                        horizontalAlignment: Text.AlignRight
+                                        text: "✕"
+                                        color: dismissArea.containsMouse ? Theme.color.tooltipFg : Theme.color.tooltipMuted
+                                        font.family: Theme.font.family
+                                        font.pixelSize: Theme.font.sizeSmall
+                                        MouseArea {
+                                            id: dismissArea
+                                            anchors.fill: parent
+                                            anchors.margins: -4
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: live.modelData.dismiss()
+                                        }
+                                    }
+                                }
+                                Text {
+                                    visible: live.modelData.body.length > 0
+                                    width: parent.width
+                                    wrapMode: Text.Wrap
+                                    maximumLineCount: 4
+                                    elide: Text.ElideRight
+                                    text: live.modelData.body
+                                    color: Theme.color.tooltipMuted
+                                    font.family: Theme.font.family
+                                    font.pixelSize: Theme.font.sizeSmall
+                                }
+                                ActionButtons {
+                                    width: parent.width
+                                    notification: live.modelData
+                                }
+                            }
+                        }
                     }
                 }
             }

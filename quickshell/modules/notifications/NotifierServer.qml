@@ -29,5 +29,7 @@ NotificationServer {
     onNotification: notification => {
         notification.tracked = true;
         NotificationState.recordNotification(notification);
+        const id = notification.id;
+        notification.closed.connect(() => NotificationState.forgetToast(id));
     }
 }

@@ -20,7 +20,9 @@ PanelWindow {
     readonly property alias activeCount: notifRepeater.count
 
     screen: Quickshell.screens[0] ?? null
-    visible: server !== null && activeCount > 0
+    // A notification can outlive its toast (see the card's Timer), so the
+    // window shows only while some card is still visible.
+    visible: server !== null && activeCount > 0 && list.implicitHeight > 0
 
     anchors {
         top: true
@@ -31,6 +33,9 @@ PanelWindow {
     // fullscreen window — `layer` is not a plain PanelWindow property,
     // it's WlrLayershell's attached property.
     WlrLayershell.layer: WlrLayer.Overlay
+    // OnDemand: the toast never grabs the keyboard on its own, but a click
+    // into an inline-reply field can take focus so the reply can be typed.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     color: "transparent"
 
     implicitWidth: Theme.spacing.toastWidth
@@ -54,12 +59,38 @@ PanelWindow {
                 id: card
                 required property var modelData
 
+                readonly property var defaultAction: {
+                    const all = card.modelData.actions ?? [];
+                    for (let i = 0; i < all.length; i++) {
+                        if (all[i].identifier === "default")
+                            return all[i];
+                    }
+                    return null;
+                }
+
+                // Hidden once its toast time is up, if it still waits on an
+                // answer (it stays in the Notification Centre).
+                visible: !NotificationState.isToastHidden(card.modelData.id)
                 width: list.width
                 implicitHeight: column.implicitHeight + Theme.spacing.toastCardPadY
                 radius: Theme.radius.popup
                 color: Theme.color.tooltipBg
                 border.width: Theme.spacing.borderCard
                 border.color: card.modelData.urgency === NotificationUrgency.Critical ? Theme.color.accentPink : Theme.color.tooltipBorder
+
+                HoverHandler {
+                    id: cardHover
+                }
+
+                // A click on the body runs the notification's "default" action
+                // (declared first, so the buttons, reply field and close button
+                // stay on top of it).
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: card.defaultAction !== null
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: card.defaultAction.invoke()
+                }
 
                 Column {
                     id: column
@@ -92,6 +123,53 @@ PanelWindow {
                         font.pixelSize: Theme.font.sizeSmall
                         wrapMode: Text.Wrap
                     }
+
+                    ActionButtons {
+                        width: parent.width
+                        notification: card.modelData
+                    }
+
+                    Rectangle {
+                        visible: card.modelData.hasInlineReply
+                        width: parent.width
+                        height: Theme.spacing.launcherInputHeight
+                        radius: Theme.radius.input
+                        color: Theme.color.launcherInputBg
+                        border.width: Theme.spacing.borderHairline
+                        border.color: replyInput.activeFocus ? Theme.color.launcherInputBorder : Theme.color.tooltipBorder
+
+                        Text {
+                            visible: replyInput.text.length === 0
+                            anchors {
+                                left: parent.left
+                                leftMargin: Theme.spacing.launcherInputTextInset
+                                verticalCenter: parent.verticalCenter
+                            }
+                            text: card.modelData.inlineReplyPlaceholder || "Reply…"
+                            color: Theme.color.tooltipMuted
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                        }
+
+                        TextInput {
+                            id: replyInput
+                            anchors {
+                                fill: parent
+                                margins: Theme.spacing.launcherInputTextInset
+                            }
+                            verticalAlignment: TextInput.AlignVCenter
+                            color: Theme.color.tooltipFg
+                            font.family: Theme.font.family
+                            font.pixelSize: Theme.font.sizeSmall
+                            clip: true
+                            Keys.onReturnPressed: {
+                                if (text.trim().length > 0) {
+                                    card.modelData.sendInlineReply(text.trim());
+                                    text = "";
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Text {
@@ -122,10 +200,25 @@ PanelWindow {
                 // common value in the wild, and the one the old `> 0` check
                 // silently dropped, leaving toasts stuck forever with no
                 // way to close them.
+                // Held while the pointer is on the card or a reply is being
+                // typed, so a toast with buttons can't vanish mid-decision; the
+                // countdown restarts from full when the pointer leaves.
+                // A notification that waits on an answer (it has buttons or a
+                // reply field) only leaves the screen when its time is up: it
+                // is not expired, since expiring closes it for the app too
+                // (a Qubi pause would lose its notification). It stays live,
+                // buttons working, in the Notification Centre.
                 Timer {
-                    running: card.modelData.expireTimeout !== 0
-                    interval: card.modelData.expireTimeout > 0 ? card.modelData.expireTimeout : Theme.motion.toastTimeoutMs
-                    onTriggered: card.modelData.expire()
+                    running: card.visible && card.modelData.expireTimeout !== 0 && !cardHover.hovered && !replyInput.activeFocus
+                    // expireTimeout is in seconds (Quickshell converts the
+                    // spec's milliseconds); read as ms, a 5 s toast lasted 5 ms.
+                    interval: card.modelData.expireTimeout > 0 ? card.modelData.expireTimeout * 1000 : Theme.motion.toastTimeoutMs
+                    onTriggered: {
+                        if ((card.modelData.actions ?? []).length > 0 || card.modelData.hasInlineReply)
+                            NotificationState.hideToast(card.modelData.id);
+                        else
+                            card.modelData.expire();
+                    }
                 }
             }
         }

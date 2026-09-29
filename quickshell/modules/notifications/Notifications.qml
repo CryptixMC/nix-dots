@@ -43,5 +43,6 @@ BarIcon {
     NotifCenterPopup {
         id: popup
         anchorItem: root
+        server: root.server
     }
 }

@@ -3,3 +3,4 @@ NotifierServer 1.0 NotifierServer.qml
 Toast 1.0 Toast.qml
 Notifications 1.0 Notifications.qml
 NotifCenterPopup 1.0 NotifCenterPopup.qml
+ActionButtons 1.0 ActionButtons.qml
