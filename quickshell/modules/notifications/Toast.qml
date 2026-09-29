@@ -20,7 +20,9 @@ PanelWindow {
     readonly property alias activeCount: notifRepeater.count
 
     screen: Quickshell.screens[0] ?? null
-    visible: server !== null && activeCount > 0
+    // A notification can outlive its toast (see the card's Timer), so the
+    // window shows only while some card is still visible.
+    visible: server !== null && activeCount > 0 && list.implicitHeight > 0
 
     anchors {
         top: true
@@ -57,18 +59,6 @@ PanelWindow {
                 id: card
                 required property var modelData
 
-                // The notification's buttons. "default" is what a click on the
-                // body does and "inline-reply" is the reply field, so neither
-                // is drawn as a button.
-                readonly property var buttonActions: {
-                    const out = [];
-                    const all = card.modelData.actions ?? [];
-                    for (let i = 0; i < all.length; i++) {
-                        if (all[i].identifier !== "default" && all[i].identifier !== "inline-reply")
-                            out.push(all[i]);
-                    }
-                    return out;
-                }
                 readonly property var defaultAction: {
                     const all = card.modelData.actions ?? [];
                     for (let i = 0; i < all.length; i++) {
@@ -78,6 +68,9 @@ PanelWindow {
                     return null;
                 }
 
+                // Hidden once its toast time is up, if it still waits on an
+                // answer (it stays in the Notification Centre).
+                visible: !NotificationState.isToastHidden(card.modelData.id)
                 width: list.width
                 implicitHeight: column.implicitHeight + Theme.spacing.toastCardPadY
                 radius: Theme.radius.popup
@@ -131,43 +124,9 @@ PanelWindow {
                         wrapMode: Text.Wrap
                     }
 
-                    Flow {
-                        visible: card.buttonActions.length > 0
+                    ActionButtons {
                         width: parent.width
-                        spacing: Theme.spacing.toastLineGap
-
-                        Repeater {
-                            model: card.buttonActions
-
-                            Rectangle {
-                                id: actionButton
-                                required property var modelData
-
-                                width: actionLabel.implicitWidth + 2 * Theme.spacing.toastCardInset
-                                height: actionLabel.implicitHeight + Theme.spacing.toastCardInset
-                                radius: Theme.radius.input
-                                color: actionArea.containsMouse ? Theme.color.launcherItemSelectedBg : "transparent"
-                                border.width: Theme.spacing.borderHairline
-                                border.color: Theme.color.tooltipBorder
-
-                                Text {
-                                    id: actionLabel
-                                    anchors.centerIn: parent
-                                    text: actionButton.modelData.text
-                                    color: Theme.color.tooltipFg
-                                    font.family: Theme.font.family
-                                    font.pixelSize: Theme.font.sizeSmall
-                                }
-
-                                MouseArea {
-                                    id: actionArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: actionButton.modelData.invoke()
-                                }
-                            }
-                        }
+                        notification: card.modelData
                     }
 
                     Rectangle {
@@ -244,10 +203,22 @@ PanelWindow {
                 // Held while the pointer is on the card or a reply is being
                 // typed, so a toast with buttons can't vanish mid-decision; the
                 // countdown restarts from full when the pointer leaves.
+                // A notification that waits on an answer (it has buttons or a
+                // reply field) only leaves the screen when its time is up: it
+                // is not expired, since expiring closes it for the app too
+                // (a Qubi pause would lose its notification). It stays live,
+                // buttons working, in the Notification Centre.
                 Timer {
-                    running: card.modelData.expireTimeout !== 0 && !cardHover.hovered && !replyInput.activeFocus
-                    interval: card.modelData.expireTimeout > 0 ? card.modelData.expireTimeout : Theme.motion.toastTimeoutMs
-                    onTriggered: card.modelData.expire()
+                    running: card.visible && card.modelData.expireTimeout !== 0 && !cardHover.hovered && !replyInput.activeFocus
+                    // expireTimeout is in seconds (Quickshell converts the
+                    // spec's milliseconds); read as ms, a 5 s toast lasted 5 ms.
+                    interval: card.modelData.expireTimeout > 0 ? card.modelData.expireTimeout * 1000 : Theme.motion.toastTimeoutMs
+                    onTriggered: {
+                        if ((card.modelData.actions ?? []).length > 0 || card.modelData.hasInlineReply)
+                            NotificationState.hideToast(card.modelData.id);
+                        else
+                            card.modelData.expire();
+                    }
                 }
             }
         }

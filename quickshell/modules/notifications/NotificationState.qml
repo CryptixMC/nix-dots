@@ -37,4 +37,27 @@ QtObject {
     function clearHistory() {
         root.history = [];
     }
+
+    // Ids of live notifications whose toast has been put away (they wait on
+    // an answer, so they stay open in the Notification Centre instead of
+    // expiring). Replaced, not mutated, so bindings re-evaluate.
+    property var hiddenToasts: ({})
+
+    function hideToast(id) {
+        const next = Object.assign({}, root.hiddenToasts);
+        next[id] = true;
+        root.hiddenToasts = next;
+    }
+
+    function isToastHidden(id) {
+        return root.hiddenToasts[id] === true;
+    }
+
+    function forgetToast(id) {
+        if (!(id in root.hiddenToasts))
+            return;
+        const next = Object.assign({}, root.hiddenToasts);
+        delete next[id];
+        root.hiddenToasts = next;
+    }
 }
