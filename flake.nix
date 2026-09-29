@@ -18,9 +18,9 @@
     claude-desktop.url = "github:poeck/claude-desktop-nix-flake";
     claude-desktop.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Private repo, hence git+ssh. Tracks a dev branch; drop `?ref=` once it
-    # merges to main. For local dev: `--override-input qubi path:$HOME/Projects/qubi`.
-    qubi.url = "git+ssh://git@github.com/CryptixMC/qubi?ref=claude/amazing-einstein-x7qhd1";
+    # Private repo, hence git+ssh. For local dev:
+    # `--override-input qubi path:$HOME/Projects/qubi`.
+    qubi.url = "git+ssh://git@github.com/CryptixMC/qubi";
     qubi.inputs.nixpkgs.follows = "nixpkgs";
 
   };

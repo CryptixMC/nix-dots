@@ -46,7 +46,6 @@ Qubi's own roadmap lives in [its repo](https://github.com/CryptixMC/qubi).
 - [ ] Tune the `throttled` AC profile (PL1 35W / PL2 54W) using the package-throttle counter
 
 ### Flake housekeeping
-- [ ] Point the `qubi` input back at `main` once the development branch merges (drop `?ref=…` in `flake.nix`)
 - [ ] Switch `qubi` from `git+ssh` to `github:CryptixMC/qubi` once the repo is public
 - [ ] Retire the transitional entries in `lib/qubi-boundary-guard.nix`'s allowlist (`qubi-hwstate.nix`, `claude-usage.nix`, `ai-workstation.nix`, `lib/mkUserScript.nix`, `lib/scriptWithPath.nix`, `BarIcon.qml`) as Qubi takes over that logic
 - [ ] Run `nix flake check` in CI once the `qubi` input is fetchable there (public repo or a deploy key); today CI only runs the boundary check and `nixfmt`
