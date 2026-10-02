@@ -53,6 +53,10 @@ in
     themesDir = "${home}/nix-dots/desktop/themes";
     voice.enable = true;
 
+    # `qubi dev` builds from this checkout, and the engine treats it as Qubi's
+    # main checkout: its chats edit a qubi/<slug> worktree, never this tree.
+    dev.checkout = "${home}/Projects/qubi";
+
     # Placeholder URL: nothing listens there until the NixOS-level
     # services.qubi.searxng is enabled.
     extensions.searxng = config.programs.qubi.mcp.presets.searxng {
@@ -85,6 +89,15 @@ in
     tailscaleServe.enable = true;
   };
 
+  # The Rust engine's network transport for the phone: paired devices over a
+  # WebSocket behind `tailscale serve` (never Funnel). rpId and origin are this
+  # node's tailnet HTTPS name, which WebAuthn approvals are bound to.
+  services.qubi.net = {
+    enable = true;
+    rpId = "carbon.tail691394.ts.net";
+    origin = "https://carbon.tail691394.ts.net";
+  };
+
   # Heavy tier on the eGPU, stopped/started on undock/dock by amd.nix; undocked
   # it falls back to CPU. Use the by-path render node: renderD* can renumber.
   services.qubi.llama.heavy = {
@@ -97,4 +110,9 @@ in
   // lib.optionalAttrs (options.services.qubi.llama.heavy ? cpuFallback) {
     cpuFallback.enable = true;
   };
+
+  # Run fast and light on the eGPU when it is docked; share it with a game.
+  services.qubi.llama.fast.gpu.enable = true;
+  services.qubi.llama.light.gpu.enable = true;
+  services.qubi.llama.gpuPlacement.mode = "fit_beside_game";
 }
