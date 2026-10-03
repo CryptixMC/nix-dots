@@ -100,9 +100,15 @@ in
 
   # Heavy tier on the eGPU, stopped/started on undock/dock by amd.nix; undocked
   # it falls back to CPU. Use the by-path render node: renderD* can renumber.
+  # 26 of 30 on the heavy tier suite at 5.7 GB. The 30B coder this replaces
+  # fills the card and has dropped it off the bus under load.
   services.qubi.llama.heavy = {
     enable = true;
-    modelFile = "Qwen3-Coder-30B-A3B-Instruct-UD-Q3_K_XL.gguf";
+    modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
+    extraArgs = [
+      "--reasoning-budget"
+      "0"
+    ];
     renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
   }
   # Only set when the pinned qubi has the option, so bumping flake.lock
@@ -120,4 +126,5 @@ in
   services.qubi.llama.fast.gpu.enable = true;
   services.qubi.llama.light.gpu.enable = true;
   services.qubi.llama.gpuPlacement.mode = "fit_beside_game";
+  services.qubi.llama.gpuPlacement.heavyVramMb = 7500;
 }
