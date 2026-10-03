@@ -111,6 +111,11 @@ in
     cpuFallback.enable = true;
   };
 
+  # Beats Qwen3-1.7B on the fast-tier suite (31/40 against 25/40). Its hybrid
+  # attention cannot restore a saved slot, so the first request after a unit
+  # start re-reads the prompt.
+  services.qubi.llama.fast.modelFile = "Qwen3.5-2B-Q4_K_M.gguf";
+
   # Run fast and light on the eGPU when it is docked; share it with a game.
   services.qubi.llama.fast.gpu.enable = true;
   services.qubi.llama.light.gpu.enable = true;
