@@ -68,6 +68,9 @@ in
     # Written by modules/nixos/apps/ai-workstation.nix on dock/undock/gaming.
     hwStateFile = "/run/ai-workstation/state.json";
     backend = "rust";
+    # The Model Lab finds the bench task files here; the llama-server and
+    # `qubi-coding-bench` it resolves itself.
+    environment.QUBI_LAB_REPO = "${home}/Projects/qubi";
   };
 
   # The Python engine stays installed; `backend = "rust"` only picks which

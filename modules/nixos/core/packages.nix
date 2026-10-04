@@ -1,5 +1,18 @@
 { pkgs, ... }:
 {
+  # breakpad (protonmail-bridge-gui -> sentry-native) fails to link on current
+  # nixos-unstable: GCC devirtualizes a call into FastSourceLineResolver::Module,
+  # whose vtable isn't linked into the stackwalk tools. Drop once fixed upstream.
+  nixpkgs.overlays = [
+    (final: prev: {
+      breakpad = prev.breakpad.overrideAttrs (old: {
+        env = (old.env or { }) // {
+          NIX_CFLAGS_COMPILE = (old.env.NIX_CFLAGS_COMPILE or "") + " -fno-devirtualize";
+        };
+      });
+    })
+  ];
+
   environment.systemPackages = with pkgs; [
     podman
     distrobox

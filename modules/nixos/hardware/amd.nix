@@ -285,20 +285,31 @@ let
 
     # The DPM node only exists once amdgpu is bound; poll briefly.
     DPM=""
+    GPUDEV=""
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       for d in /sys/bus/pci/devices/0000:*; do
         [ "$(cat "$d/vendor" 2>/dev/null)" = "0x1002" ] || continue
         [ "$(cat "$d/device" 2>/dev/null)" = "0x73bf" ] || continue
         [ -e "$d/power_dpm_force_performance_level" ] || continue
         DPM="$d/power_dpm_force_performance_level"
+        GPUDEV="$d"
         break 2
       done
       sleep 1
     done
 
     if [ -n "$DPM" ]; then
-      echo high > "$DPM" 2>/dev/null || true
-      log "GPU power_dpm_force_performance_level -> high"
+      # `high` pinned the clocks and the junction reached 105 C at the stock
+      # fan speed, just before the link drops; `auto` clocks down when idle
+      # and a fixed fan speed keeps the card cool under load.
+      echo auto > "$DPM" 2>/dev/null || true
+      log "GPU power_dpm_force_performance_level -> auto"
+      for h in "$GPUDEV"/hwmon/hwmon*; do
+        [ -e "$h/pwm1_enable" ] || continue
+        echo 1 > "$h/pwm1_enable" 2>/dev/null || true
+        echo 150 > "$h/pwm1" 2>/dev/null || true
+        log "GPU fan -> manual, pwm1 150 of 255"
+      done
     else
       log "amdgpu DPM sysfs not found after 10s -- GPU still powering up?"
     fi
@@ -325,6 +336,10 @@ let
       [ -e "$d/power_dpm_force_performance_level" ] || continue
       echo auto > "$d/power_dpm_force_performance_level" 2>/dev/null || true
       log "GPU power_dpm_force_performance_level -> auto"
+      for h in "$d"/hwmon/hwmon*; do
+        [ -e "$h/pwm1_enable" ] || continue
+        echo 2 > "$h/pwm1_enable" 2>/dev/null || true
+      done
     done
   '';
 in
