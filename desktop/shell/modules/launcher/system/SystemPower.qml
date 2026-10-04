@@ -3,8 +3,8 @@ import Quickshell
 import Quickshell.Io
 import "../../../theme"
 
-// Lock / Logout / Suspend / Reboot / Shutdown. Only Reboot and Shutdown
-// need confirmation; the others are trivially reversible.
+// Lock / Restart Quickshell / Logout / Suspend / Reboot / Shutdown. Only
+// Reboot and Shutdown need confirmation; the others are trivially reversible.
 Item {
     id: root
     width: parent.width
@@ -89,6 +89,16 @@ Item {
             label: "Lock (unlock path never tested live — see TODO.md §5)"
             glyph: "⏼"
             onActivated: Quickshell.execDetached(["quickshell", "ipc", "-p", `${Quickshell.env("HOME")}/nix-dots/desktop/shell`, "call", "lock", "lock"])
+        }
+        PowerButton {
+            label: "Restart Quickshell"
+            glyph: "↻"
+            // A new process (not Quickshell.reload) so rebuilt plugins load; the
+            // session vars are re-sourced to pick up the new QML_IMPORT_PATH.
+            onActivated: Quickshell.execDetached(["sh", "-c", `
+                kill "$1"; while kill -0 "$1" 2>/dev/null; do sleep 0.1; done
+                unset __HM_SESS_VARS_SOURCED QML_IMPORT_PATH; . "$HOME/.nix-profile/etc/profile.d/hm-session-vars.sh"
+                exec quickshell -p "$2"`, "sh", String(Quickshell.processId), `${Quickshell.env("HOME")}/nix-dots/desktop/shell`])
         }
         PowerButton {
             label: "Log Out"
