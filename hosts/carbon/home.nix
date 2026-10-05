@@ -13,6 +13,7 @@
     ../../modules/home-manager/apps/zen-browser.nix
     ../../modules/home-manager/apps/zed.nix
     ../../modules/home-manager/apps/qubi-hwstate.nix
+    ../../modules/home-manager/apps/egpu-fault-guard.nix
     ../../modules/home-manager/apps/qubi.nix
     ../../modules/home-manager/apps/claude-usage.nix
     ../../modules/home-manager/apps/agents.nix
