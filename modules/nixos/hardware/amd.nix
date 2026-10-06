@@ -299,11 +299,12 @@ let
     done
 
     if [ -n "$DPM" ]; then
-      # `high` pinned the clocks and the junction reached 105 C at the stock
-      # fan speed, just before the link drops; `auto` clocks down when idle
-      # and a fixed fan speed keeps the card cool under load.
-      echo auto > "$DPM" 2>/dev/null || true
-      log "GPU power_dpm_force_performance_level -> auto"
+      # `high` pinned the clocks and `auto` let sustained prompt processing
+      # reach 100 C at 270 W with the fan at maximum, just before link drops;
+      # `profile_standard` held 68 to 73 C at 170 W for about 22 % less
+      # prompt speed. Games on the card run slower too.
+      echo profile_standard > "$DPM" 2>/dev/null || true
+      log "GPU power_dpm_force_performance_level -> profile_standard"
       for h in "$GPUDEV"/hwmon/hwmon*; do
         [ -e "$h/pwm1_enable" ] || continue
         echo 1 > "$h/pwm1_enable" 2>/dev/null || true
