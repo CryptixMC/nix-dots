@@ -107,12 +107,15 @@ in
   # fills the card and has dropped it off the bus under load.
   # Thinking stays on: on the held-out capability sections it passed 19 of 33
   # against 15 with it off, with fewer tool calls and the same median latency.
-  # 64K context measured at 6.7 GB of VRAM (8.1 GB at 128K), so long jobs
-  # stop overflowing the 32K window.
+  # 64K context measured at 6.7 GB of VRAM (8.1 GB for two 64K slots), so
+  # long jobs stop overflowing the 32K window.
   services.qubi.llama.heavy = {
     enable = true;
     modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
     contextSize = 65536;
+    # Two slots: with one, any second chat or workflow step evicted the
+    # prompt cache and re-read 7.2M prompt tokens in a week (2.6 h of prefill).
+    parallel = 2;
     renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
   }
   # Only set when the pinned qubi has the option, so bumping flake.lock
@@ -130,5 +133,5 @@ in
   services.qubi.llama.fast.gpu.enable = true;
   services.qubi.llama.light.gpu.enable = true;
   services.qubi.llama.gpuPlacement.mode = "fit_beside_game";
-  services.qubi.llama.gpuPlacement.heavyVramMb = 7500;
+  services.qubi.llama.gpuPlacement.heavyVramMb = 8500;
 }
