@@ -105,13 +105,14 @@ in
   # it falls back to CPU. Use the by-path render node: renderD* can renumber.
   # 26 of 30 on the heavy tier suite at 5.7 GB. The 30B coder this replaces
   # fills the card and has dropped it off the bus under load.
+  # Thinking stays on: on the held-out capability sections it passed 19 of 33
+  # against 15 with it off, with fewer tool calls and the same median latency.
+  # 64K context measured at 6.7 GB of VRAM (8.1 GB at 128K), so long jobs
+  # stop overflowing the 32K window.
   services.qubi.llama.heavy = {
     enable = true;
     modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
-    extraArgs = [
-      "--reasoning-budget"
-      "0"
-    ];
+    contextSize = 65536;
     renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
   }
   # Only set when the pinned qubi has the option, so bumping flake.lock
