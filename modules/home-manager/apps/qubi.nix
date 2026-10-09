@@ -137,6 +137,14 @@ in
 
   # OpenRouter on the engine's own tool loop. The key stays in a file only the
   # user writes; nothing is routed here until tierModels or the bench asks.
+  # The held-out sections every night on the docked GPU; regressions become roadmap proposals.
+  services.qubi.bench.nightly = {
+    enable = true;
+    hour = 3;
+    model = "/home/cryptix/.local/share/qubi/models/Qwen3.5-9B-Q4_K_M.gguf";
+    repo = "/home/cryptix/Projects/qubi-work";
+  };
+
   services.qubi.engineRust.providers.openrouter = {
     url = "https://openrouter.ai/api/v1";
     keyFile = "/home/cryptix/.config/qubi/secrets/openrouter.key";
