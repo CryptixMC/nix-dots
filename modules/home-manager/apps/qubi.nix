@@ -134,4 +134,16 @@ in
   services.qubi.llama.light.gpu.enable = true;
   services.qubi.llama.gpuPlacement.mode = "fit_beside_game";
   services.qubi.llama.gpuPlacement.heavyVramMb = 8500;
+
+  # OpenRouter on the engine's own tool loop. The key stays in a file only the
+  # user writes; nothing is routed here until tierModels or the bench asks.
+  services.qubi.engineRust.providers.openrouter = {
+    url = "https://openrouter.ai/api/v1";
+    keyFile = "/home/cryptix/.config/qubi/secrets/openrouter.key";
+    headers = {
+      "HTTP-Referer" = "https://github.com/cryptix/qubi";
+      "X-Title" = "Qubi";
+    };
+    dailyUsdCap = 2.0;
+  };
 }
