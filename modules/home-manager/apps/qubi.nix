@@ -57,6 +57,9 @@ in
     # main checkout: its chats edit a qubi/<slug> worktree, never this tree.
     dev.checkout = "${home}/Projects/qubi";
 
+    # The Ship button (Releases tab) pins, switches and health-checks from this flake.
+    release.flake = "${home}/nix-dots";
+
     # Placeholder URL: nothing listens there until the NixOS-level
     # services.qubi.searxng is enabled.
     extensions.searxng = config.programs.qubi.mcp.presets.searxng {
@@ -138,11 +141,17 @@ in
   # OpenRouter on the engine's own tool loop. The key stays in a file only the
   # user writes; nothing is routed here until tierModels or the bench asks.
   # The held-out sections every night on the docked GPU; regressions become roadmap proposals.
+  # Self-development: local models first, the API model only as an announced escalation.
+  services.qubi.selfdev = {
+    enable = true;
+    folder = "${home}/Projects/qubi";
+  };
+
   services.qubi.bench.nightly = {
     enable = true;
     hour = 3;
     model = "/home/cryptix/.local/share/qubi/models/Qwen3.5-9B-Q4_K_M.gguf";
-    repo = "/home/cryptix/Projects/qubi-work";
+    repo = "/home/cryptix/Projects/qubi";
   };
 
   services.qubi.engineRust.providers.openrouter = {
