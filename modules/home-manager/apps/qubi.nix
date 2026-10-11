@@ -53,6 +53,12 @@ in
     shellPath = "${home}/nix-dots/desktop/shell";
     themesDir = "${home}/nix-dots/desktop/themes";
     voice.enable = true;
+    # Streaming voice for the app (desktop and phone): live words, Smart Turn,
+    # Kokoro replies; the worker starts on the first voice request.
+    voice.client = {
+      enable = true;
+      voicedPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-voiced;
+    };
 
     # `qubi dev` builds from this checkout, and the engine treats it as Qubi's
     # main checkout: its chats edit a qubi/<slug> worktree, never this tree.
