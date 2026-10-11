@@ -102,6 +102,8 @@ in
     enable = true;
     rpId = "carbon.tail691394.ts.net";
     origin = "https://carbon.tail691394.ts.net";
+    # Devices signed in as this login get a token without a pairing code.
+    trustedTailnetLogins = [ "cryptixmc@proton.me" ];
   };
 
   # Heavy tier on the eGPU, stopped/started on undock/dock by amd.nix; undocked
