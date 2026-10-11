@@ -14,7 +14,8 @@ let
   # Served from the store so no checkout (.git included) reaches the tailnet.
   mobileRoot = pkgs.runCommand "qubi-mobile-root" { } ''
     mkdir -p $out
-    cp -r ${inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-mobile}/. $out/
+    cp -r ${inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-app-web}/. $out/
+    chmod -R u+w $out
     ln -s index.html $out/mobile_gui.html
   '';
 in
@@ -88,6 +89,9 @@ in
       qwenCodePackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qwen-code;
     };
   };
+
+  # The desktop app (Tauri); it reaches the engine over its local socket.
+  services.qubi.app.enable = true;
 
   services.qubi.mobile = {
     enable = true;
