@@ -157,16 +157,16 @@ Item {
         printErrors: false
     }
 
-    // Live-syncs Zed's chrome colors (not syntax colors), using stylix's generated
-    // ~/.config/zed/themes/stylix.json as a template. zed.nix's
-    // `theme = "Quickshell Live"` points at the output file.
+    // Preserve Stylix's semantic color roles and font styles while replacing its
+    // entire palette, including syntax, diagnostics, selections, and terminal colors.
     property var zedTemplate: null
 
     FileView {
         id: zedTemplateFile
         path: `${Quickshell.env("HOME")}/.config/zed/themes/stylix.json`
-        watchChanges: false
-        printErrors: false
+        watchChanges: true
+        printErrors: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 root.zedTemplate = JSON.parse(text());
@@ -257,7 +257,47 @@ Item {
         const obj = JSON.parse(JSON.stringify(root.zedTemplate));
         obj.name = "Quickshell Live";
         obj.themes[0].name = "Quickshell Live";
+        const source = root.zedTemplate.themes[0].style;
+        const roles = {
+            base00: source["editor.background"],
+            base01: source["surface.background"],
+            base02: source["element.selected"],
+            base03: source["terminal.ansi.bright_black"],
+            base04: source["text.muted"],
+            base05: source["editor.foreground"],
+
+            base07: source["terminal.bright_foreground"],
+            base08: source["terminal.ansi.red"],
+            base09: source.syntax.number.color,
+            base0A: source["terminal.ansi.yellow"],
+            base0B: source["terminal.ansi.green"],
+            base0C: source["terminal.ansi.cyan"],
+            base0D: source["terminal.ansi.blue"],
+            base0E: source["terminal.ansi.magenta"],
+            base0F: source.syntax.embedded.color
+        };
+        const palette = {};
+        for (const role of Object.keys(roles)) {
+            if (typeof roles[role] === "string")
+                palette[roles[role].slice(0, 7).toLowerCase()] = `#${root.base16[role]}`;
+        }
+        function recolor(value) {
+            if (typeof value === "string") {
+                const replacement = palette[value.slice(0, 7).toLowerCase()];
+                return replacement ? replacement + value.slice(7) : value;
+            }
+            if (Array.isArray(value))
+                return value.map(recolor);
+            if (value !== null && typeof value === "object") {
+                for (const key of Object.keys(value))
+                    value[key] = recolor(value[key]);
+            }
+            return value;
+        }
+        obj.themes[0].style = recolor(obj.themes[0].style);
         Object.assign(obj.themes[0].style, root.zedChromeStyle(root.base16));
+        const rgb = ThemeDefaults.hexToRgb(`#${root.base16.base00}`);
+        obj.themes[0].appearance = (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) > 0.5 ? "light" : "dark";
         zedFile.setText(JSON.stringify(obj, null, 2));
     }
 

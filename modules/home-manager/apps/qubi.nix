@@ -51,7 +51,6 @@ in
       }
     ];
     shellPath = "${home}/nix-dots/desktop/shell";
-    themesDir = "${home}/nix-dots/desktop/themes";
     voice.enable = true;
     # Streaming voice for the app (desktop and phone): live words, Smart Turn,
     # Kokoro replies; the worker starts on the first voice request.
@@ -99,9 +98,9 @@ in
   # The desktop app (Tauri); it reaches the engine over its local socket.
   services.qubi.app.enable = true;
 
-  services.qubi.mobile = {
+  services.qubi.app.serve = {
     enable = true;
-    root = mobileRoot;
+    package = mobileRoot;
     tailscaleServe.enable = true;
   };
 

@@ -66,7 +66,7 @@ neither `theme.json` nor `components/`.
 **Live-synced** the instant `ThemeState.setTheme()`/`cycleTheme()` runs:
 - Hyprland active/inactive border colors (`hyprctl eval` + `hl.config(...)` — the Lua config backend doesn't support `hyprctl keyword`)
 - Ghostty colors, via a `config-file` include loaded after its `theme = stylix` baseline
-- Zed **chrome only** — written to `~/.config/zed/themes/quickshell-live.json` using Stylix's generated `stylix.json` as the template; `zed.nix` forces `theme = "Quickshell Live"`. Syntax colors stay at whatever Stylix last generated — a lot of surface for a small cosmetic win.
+- Zed — UI, syntax, diagnostics, selections, and terminal colors written to `~/.config/zed/themes/quickshell-live.json` using Stylix's generated `stylix.json` for semantic roles and font styles; `zed.nix` forces `theme = "Quickshell Live"`.
 
 **Zen browser**: `programs.zen-browser.profiles.<name>.presets.catppuccin` is a
 real option, but the module asserts "exactly one default profile" as soon as
