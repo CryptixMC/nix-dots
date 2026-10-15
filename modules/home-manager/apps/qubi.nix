@@ -50,21 +50,13 @@ in
         description = "Qubi itself";
       }
     ];
-    shellPath = "${home}/nix-dots/desktop/shell";
-    voice.enable = true;
     # Streaming voice for the app (desktop and phone): live words, Smart Turn,
     # Kokoro replies; the worker starts on the first voice request.
-    voice.client = {
-      enable = true;
-      voicedPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-voiced;
-    };
 
     # `qubi dev` builds from this checkout, and the engine treats it as Qubi's
     # main checkout: its chats edit a qubi/<slug> worktree, never this tree.
-    dev.checkout = "${home}/Projects/qubi";
 
     # The Ship button (Releases tab) pins, switches and health-checks from this flake.
-    release.flake = "${home}/nix-dots";
 
     # Placeholder URL: nothing listens there until the NixOS-level
     # services.qubi.searxng is enabled.
@@ -75,7 +67,6 @@ in
 
   services.qubi.engine = {
     # Written by modules/nixos/apps/ai-workstation.nix on dock/undock/gaming.
-    hwStateFile = "/run/ai-workstation/state.json";
     # The Model Lab finds the bench task files here; the llama-server and
     # `qubi-coding-bench` it resolves itself.
     environment.QUBI_LAB_REPO = "${home}/Projects/qubi";
@@ -93,9 +84,9 @@ in
   };
 
   # The desktop app (Tauri); it reaches the engine over its local socket.
-  services.qubi.app.enable = true;
+  services.qubi.modules.app.enable = true;
 
-  services.qubi.app.serve = {
+  services.qubi.modules.app.serve = {
     enable = true;
     package = mobileRoot;
     tailscaleServe.enable = true;
@@ -104,7 +95,7 @@ in
   # The Rust engine's network transport for the phone: paired devices over a
   # WebSocket behind `tailscale serve` (never Funnel). rpId and origin are this
   # node's tailnet HTTPS name, which WebAuthn approvals are bound to.
-  services.qubi.net = {
+  services.qubi.modules.net = {
     enable = true;
     rpId = "carbon.tail691394.ts.net";
     origin = "https://carbon.tail691394.ts.net";
@@ -120,7 +111,7 @@ in
   # against 15 with it off, with fewer tool calls and the same median latency.
   # 64K context measured at 6.7 GB of VRAM (8.1 GB for two 64K slots), so
   # long jobs stop overflowing the 32K window.
-  services.qubi.llama.heavy = {
+  services.qubi.modules.llama.heavy = {
     enable = true;
     modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
     contextSize = 65536;
@@ -131,31 +122,25 @@ in
   }
   # Only set when the pinned qubi has the option, so bumping flake.lock
   # (not this file) is what turns it on.
-  // lib.optionalAttrs (options.services.qubi.llama.heavy ? cpuFallback) {
+  // lib.optionalAttrs (options.services.qubi.modules.llama.heavy ? cpuFallback) {
     cpuFallback.enable = true;
   };
 
   # Beats Qwen3-1.7B on the fast-tier suite (31/40 against 25/40). Its hybrid
   # attention cannot restore a saved slot, so the first request after a unit
   # start re-reads the prompt.
-  services.qubi.llama.fast.modelFile = "Qwen3.5-2B-Q4_K_M.gguf";
+  services.qubi.modules.llama.fast.modelFile = "Qwen3.5-2B-Q4_K_M.gguf";
 
   # Run fast and light on the eGPU when it is docked; share it with a game.
-  services.qubi.llama.fast.gpu.enable = true;
-  services.qubi.llama.light.gpu.enable = true;
-  services.qubi.llama.gpuPlacement.mode = "fit_beside_game";
-  services.qubi.llama.gpuPlacement.heavyVramMb = 8500;
+  services.qubi.modules.llama.fast.gpu.enable = true;
+  services.qubi.modules.llama.light.gpu.enable = true;
+  services.qubi.modules.llama.gpu.mode = "fit_beside_game";
+  services.qubi.modules.llama.gpu.heavyVramMb = 8500;
 
   # OpenRouter on the engine's own tool loop. The key stays in a file only the
   # user writes; nothing is routed here until tierModels or the bench asks.
   # The held-out sections every night on the docked GPU; regressions become roadmap proposals.
-  # Self-development: local models first, the API model only as an announced escalation.
-  services.qubi.selfdev = {
-    enable = true;
-    folder = "${home}/Projects/qubi";
-  };
-
-  services.qubi.bench.nightly = {
+  services.qubi.modules.lab.nightly = {
     enable = true;
     hour = 3;
     model = "/home/cryptix/.local/share/qubi/models/Qwen3.5-9B-Q4_K_M.gguf";
@@ -170,5 +155,21 @@ in
       "X-Title" = "Qubi";
     };
     dailyUsdCap = 2.0;
+  };
+
+  services.qubi.modules.shell.path = "${home}/nix-dots/desktop/shell";
+  services.qubi.modules.voice.cli.enable = true;
+  services.qubi.modules.voice.enable = true;
+  services.qubi.modules.voice.voicedPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-voiced;
+  services.qubi.modules.develop.checkout = "${home}/Projects/qubi";
+  services.qubi.modules.release.flake = "${home}/nix-dots";
+  services.qubi.modules.llama.hwStateFile = "/run/ai-workstation/state.json";
+  services.qubi.modules = {
+    develop.enable = true;
+    release.enable = true;
+    import.enable = true;
+    lab.enable = true;
+    llama.enable = true;
+    shell.enable = true;
   };
 }

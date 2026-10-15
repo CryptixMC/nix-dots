@@ -36,14 +36,14 @@
 
   services.qubi = {
     user = "cryptix";
-    egpu = {
+    modules.llama = {
       enable = true;
-      gpuDeviceId = "1002:73bf";
+      deviceId = "1002:73bf";
       pciSlot.outer = "0000:50:00.0";
       pciSlot.inner = "0000:51:01.0";
       thunderboltUniqueId = "b9010000-0062-640e-83f2-8ddd4a93f908";
     };
-    gpu.userControl = true;
+    modules.llama.userControl = true;
     searxng = {
       enable = true;
       secretKeyFile = "/etc/qubi/searxng.env";
