@@ -107,9 +107,6 @@ in
   # a second chat does not evict the prompt cache), the CPU otherwise. Every
   # role names it; API models come through provider modules.
   services.qubi.modules.llama = {
-    fast.enable = false;
-    light.enable = false;
-    heavy.enable = false;
     models."qwen3.5-9b" = {
       modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
       port = 8095;
@@ -117,19 +114,24 @@ in
       parallel = 2;
       memoryMax = "32G";
       placement = "auto";
-      gpu = {
-        enable = true;
-        vramMb = 8500;
-        renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
-      };
       tags = [ "quick answers" "tool calling" "file edits" "planning" "research" "coding" ];
     };
-    gpu.mode = "fit_beside_game";
   };
-  services.qubi.engineRust.roles = {
-    talk.models = [ "qwen3.5-9b" ];
-    build.models = [ "qwen3.5-9b" ];
-    deep.models = [ "qwen3.5-9b" ];
+  # The local model answers unless a chat picks another; the OpenRouter ones
+  # are listed by name in every model picker. DeepSeek V4 Flash passed 24 of 34
+  # bench tasks at about half a cent each, Qwen 3.7 Flash 21 at a fifth of a cent.
+  services.qubi.engineRust.defaultModel = "qwen3.5-9b";
+  services.qubi.engineRust.models = {
+    "deepseek-v4-flash" = {
+      provider = "openrouter";
+      id = "deepseek/deepseek-v4-flash";
+      tags = [ "tool calling" "coding" ];
+    };
+    "qwen3.7-flash" = {
+      provider = "openrouter";
+      id = "qwen/qwen3.7-flash";
+      tags = [ "tool calling" ];
+    };
   };
 
   # OpenRouter on the engine's own tool loop. The key stays in a file only the

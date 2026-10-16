@@ -44,7 +44,8 @@
       thunderboltUniqueId = "b9010000-0062-640e-83f2-8ddd4a93f908";
     };
     modules.llama.userControl = true;
-    modules.llama.gpuModels = [ "qwen3.5-9b" ];
+    # No eGPU on this laptop.
+    modules.llama.gpuModels = [ ];
     searxng = {
       enable = true;
       secretKeyFile = "/etc/qubi/searxng.env";
