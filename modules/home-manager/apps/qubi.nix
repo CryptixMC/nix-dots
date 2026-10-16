@@ -114,8 +114,15 @@ in
       parallel = 2;
       memoryMax = "32G";
       placement = "auto";
+      # On the eGPU when docked; the by-path render node, since renderD* can renumber.
+      gpu = {
+        enable = true;
+        vramMb = 8500;
+        renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
+      };
       tags = [ "quick answers" "tool calling" "file edits" "planning" "research" "coding" ];
     };
+    gpu.mode = "fit_beside_game";
   };
   # The local model answers unless a chat picks another; the OpenRouter ones
   # are listed by name in every model picker. DeepSeek V4 Flash passed 24 of 34
