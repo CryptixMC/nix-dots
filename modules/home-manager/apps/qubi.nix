@@ -103,39 +103,34 @@ in
     trustedTailnetLogins = [ "cryptixmc@proton.me" ];
   };
 
-  # Heavy tier on the eGPU, stopped/started on undock/dock by amd.nix; undocked
-  # it falls back to CPU. Use the by-path render node: renderD* can renumber.
-  # 26 of 30 on the heavy tier suite at 5.7 GB. The 30B coder this replaces
-  # fills the card and has dropped it off the bus under load.
-  # Thinking stays on: on the held-out capability sections it passed 19 of 33
-  # against 15 with it off, with fewer tool calls and the same median latency.
-  # 64K context measured at 6.7 GB of VRAM (8.1 GB for two 64K slots), so
-  # long jobs stop overflowing the 32K window.
-  services.qubi.modules.llama.heavy = {
-    enable = true;
-    modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
-    contextSize = 65536;
-    # Two slots: with one, any second chat or workflow step evicted the
-    # prompt cache and re-read 7.2M prompt tokens in a week (2.6 h of prefill).
-    parallel = 2;
-    renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
-  }
-  # Only set when the pinned qubi has the option, so bumping flake.lock
-  # (not this file) is what turns it on.
-  // lib.optionalAttrs (options.services.qubi.modules.llama.heavy ? cpuFallback) {
-    cpuFallback.enable = true;
+  # One local model: the 9B on the eGPU when docked (64K context, two slots so
+  # a second chat does not evict the prompt cache), the CPU otherwise. Every
+  # role names it; API models come through provider modules.
+  services.qubi.modules.llama = {
+    fast.enable = false;
+    light.enable = false;
+    heavy.enable = false;
+    models."qwen3.5-9b" = {
+      modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
+      port = 8095;
+      contextSize = 65536;
+      parallel = 2;
+      memoryMax = "32G";
+      placement = "auto";
+      gpu = {
+        enable = true;
+        vramMb = 8500;
+        renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
+      };
+      tags = [ "quick answers" "tool calling" "file edits" "planning" "research" "coding" ];
+    };
+    gpu.mode = "fit_beside_game";
   };
-
-  # Beats Qwen3-1.7B on the fast-tier suite (31/40 against 25/40). Its hybrid
-  # attention cannot restore a saved slot, so the first request after a unit
-  # start re-reads the prompt.
-  services.qubi.modules.llama.fast.modelFile = "Qwen3.5-2B-Q4_K_M.gguf";
-
-  # Run fast and light on the eGPU when it is docked; share it with a game.
-  services.qubi.modules.llama.fast.gpu.enable = true;
-  services.qubi.modules.llama.light.gpu.enable = true;
-  services.qubi.modules.llama.gpu.mode = "fit_beside_game";
-  services.qubi.modules.llama.gpu.heavyVramMb = 8500;
+  services.qubi.engineRust.roles = {
+    talk.models = [ "qwen3.5-9b" ];
+    build.models = [ "qwen3.5-9b" ];
+    deep.models = [ "qwen3.5-9b" ];
+  };
 
   # OpenRouter on the engine's own tool loop. The key stays in a file only the
   # user writes; nothing is routed here until tierModels or the bench asks.
