@@ -27,11 +27,12 @@ Gemini, Qubi, …). Tool-specific files only point here:
 
 ## Git
 
-- Never `git commit`, `git push`, or `git merge` into a real branch without
-  an explicit go-ahead for that specific action in the current conversation.
-  Earlier approvals and "the diff looks done" don't count. This holds in
-  unattended runs too, unless pushing was explicitly put in scope beforehand.
-- Never push to `main` directly.
+- Committing, pushing and merging are part of the job. Commit your own work,
+  push it, and merge it into `main` when the build is green. No per-action
+  go-ahead is needed, including in unattended runs.
+- Push to `main` directly; there is no PR-only workflow here.
+- Still leave unrelated uncommitted work alone: never revert, reset, stash or
+  clean changes that are not yours.
 
 ## Keeping the repo clean
 

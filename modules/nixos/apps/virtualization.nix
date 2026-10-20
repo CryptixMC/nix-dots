@@ -17,4 +17,7 @@
     lazydocker
     docker-compose
   ];
+
+  # Qubi development VM (QEMU + SPICE + SSH + vsock)
+  imports = [ ./qubi-vm.nix ];
 }

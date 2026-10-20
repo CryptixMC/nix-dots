@@ -120,7 +120,14 @@ in
         vramMb = 8500;
         renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
       };
-      tags = [ "quick answers" "tool calling" "file edits" "planning" "research" "coding" ];
+      tags = [
+        "quick answers"
+        "tool calling"
+        "file edits"
+        "planning"
+        "research"
+        "coding"
+      ];
     };
     gpu.mode = "fit_beside_game";
   };
@@ -132,7 +139,10 @@ in
     "deepseek-v4-flash" = {
       provider = "openrouter";
       id = "deepseek/deepseek-v4-flash";
-      tags = [ "tool calling" "coding" ];
+      tags = [
+        "tool calling"
+        "coding"
+      ];
     };
     "qwen3.7-flash" = {
       provider = "openrouter";
@@ -164,7 +174,8 @@ in
   services.qubi.modules.shell.path = "${home}/nix-dots/desktop/shell";
   services.qubi.modules.voice.cli.enable = true;
   services.qubi.modules.voice.enable = true;
-  services.qubi.modules.voice.voicedPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-voiced;
+  services.qubi.modules.voice.voicedPackage =
+    inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-voiced;
   services.qubi.modules.develop.checkout = "${home}/Projects/qubi";
   services.qubi.modules.release.flake = "${home}/nix-dots";
   services.qubi.modules.llama.hwStateFile = "/run/ai-workstation/state.json";

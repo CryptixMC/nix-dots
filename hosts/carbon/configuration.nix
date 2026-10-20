@@ -36,6 +36,10 @@
 
   services.qubi = {
     user = "cryptix";
+    # The Qubi development VM's host-side helper. The machine itself stays
+    # off until `qubi-vm boot`, so the host does not carry an 8 GiB guest
+    # through every reboot.
+    vm.enable = true;
     modules.llama = {
       enable = true;
       deviceId = "1002:73bf";

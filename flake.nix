@@ -35,6 +35,17 @@
       ...
     }@inputs:
     {
+      # The shape of the Qubi development VM. The guest system and the host
+      # helpers both read these, so the ports cannot drift apart.
+      qubiVm = {
+        memorySize = 8192;
+        cores = 4;
+        sshPort = 2222;
+        spicePort = 5900;
+        vncPort = 5901;
+        agentUser = "agent";
+      };
+
       # Local packages, buildable standalone (`nix build .#kitten-space-agency`).
       packages.x86_64-linux =
         let
@@ -54,9 +65,23 @@
           ori = pkgs.callPackage ./pkgs/ori { };
           oneclient-new-cluster = pkgs.callPackage ./pkgs/oneclient-new-cluster { };
           proton-drive-cli = pkgs.callPackage ./pkgs/proton-drive-cli { };
+          # Bootable Qubi dev VM (QEMU + SPICE + SSH forward + vsock).
+          # Built from the same nixosConfigurations.qubi-vm the guest module
+          # describes, so there is one source of truth.
+          qubi-vm = self.nixosConfigurations.qubi-vm.config.system.build.vm;
+          qubi-vm-cli = import ./lib/qubi-vm-cli.nix {
+            inherit pkgs;
+            vmRunner = "${self.packages.x86_64-linux.qubi-vm}/bin/run-nixos-vm";
+            sshPort = self.qubiVm.sshPort;
+            spicePort = self.qubiVm.spicePort;
+            vncPort = self.qubiVm.vncPort;
+            agentUser = self.qubiVm.agentUser;
+          };
         };
 
-      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-rfc-style;
+      # The tree wrapper only hands .nix files to the formatter; the bare
+      # binary chokes on the non-Nix files in this repository.
+      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-tree;
 
       checks.x86_64-linux.qubi-boundary-guard = import ./lib/qubi-boundary-guard.nix {
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
@@ -65,8 +90,32 @@
       };
 
       nixosConfigurations = {
+        # Qubi development VM guest. Single source of truth for the guest
+        # system: the host-side module (modules/nixos/apps/qubi-vm.nix) builds
+        # the bootable image from THIS configuration via vmVariant.
+        qubi-vm = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          specialArgs = {
+            inherit inputs;
+            nixpkgsPath = nixpkgs;
+            qubiPkg = inputs.qubi.packages.x86_64-linux.default or inputs.qubi.packages.x86_64-linux.qubi-rust;
+            qubiAppPkg =
+              inputs.qubi.packages.x86_64-linux.qubi-app or inputs.qubi.packages.x86_64-linux.default;
+            qubiAgentPkg = inputs.qubi.packages.x86_64-linux.qwen-code;
+            agentSshKey = builtins.readFile ./keys/agent.pub;
+            qubiVm = self.qubiVm;
+          };
+          modules = [
+            ./modules/nixos/apps/qubi-vm-guest.nix
+          ];
+        };
+
         carbon = nixpkgs.lib.nixosSystem {
-          specialArgs = { inherit inputs; };
+          specialArgs = {
+            inherit inputs;
+            qubiVm = self.qubiVm;
+            qubiVmPkg = self.packages.x86_64-linux.qubi-vm;
+          };
           modules = [
             ./hosts/carbon/configuration.nix
             stylix.nixosModules.stylix
