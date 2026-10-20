@@ -41,6 +41,7 @@
     android-tools # adb/fastboot; udev rules give USB-debugging access
     claude-code
     claude-agent-acp
+    (pkgs.callPackage ../../../pkgs/ori { })
     hyprshot # region/window/output screenshots, piped to satty (binds in wm/hyprland.nix)
     satty
     wl-clipboard

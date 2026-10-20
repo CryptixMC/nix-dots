@@ -51,6 +51,7 @@
         {
           kitten-space-agency = pkgs.callPackage ./pkgs/kitten-space-agency { };
           oneclient = pkgs.callPackage ./pkgs/oneclient { };
+          ori = pkgs.callPackage ./pkgs/ori { };
           oneclient-new-cluster = pkgs.callPackage ./pkgs/oneclient-new-cluster { };
           proton-drive-cli = pkgs.callPackage ./pkgs/proton-drive-cli { };
         };
