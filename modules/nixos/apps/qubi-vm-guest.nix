@@ -28,6 +28,24 @@ let
     OPENAI_API_KEY = "sk-local-noauth"
     OPENAI_BASE_URL = "http://127.0.0.1:8095/v1"
     OPENAI_MODEL = "Qwen3.5-9B-Q4_K_M"
+
+    # The guest's own screen: the computer MCP server captures the :99 X
+    # session and drives its mouse and keyboard, so a chat that runs in the
+    # guest works the guest's app. The host reaches the same session over
+    # VNC, so a human watches what the chat does.
+    [[mcp]]
+    name = "computer"
+    command = "${qubiPkg}/bin/qubi-computer-mcp"
+    args = [ ]
+    start = "lazy"
+
+    [mcp.env]
+    DISPLAY = ":99"
+
+    [mcp.tool_allow]
+    fast = [ "*" ]
+    light = [ "*" ]
+    heavy = [ "*" ]
   '';
 in
 {
@@ -216,6 +234,10 @@ in
         "XDG_DATA_HOME=/home/qubi/.local/share"
         "XDG_CACHE_HOME=/home/qubi/.cache"
         "QUBI_MODULES_DIR=/home/qubi/.config/qubi/modules.d"
+        # The computer MCP server's child needs the X display and the
+        # screen tools on its PATH.
+        "DISPLAY=:99"
+        "QUBI_MCP_RUNTIME_PATH=${pkgs.xdotool}/bin:${pkgs.scrot}/bin"
       ];
     };
   };
