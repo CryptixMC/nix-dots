@@ -80,6 +80,14 @@ in
     agents = {
       claudeAgentAcpPackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.claude-agent-acp;
       qwenCodePackage = inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qwen-code;
+      # The OpenRouter key, as the credential each agent's manifest entry
+      # names: ANTHROPIC_AUTH_TOKEN for ori-claude, OPENAI_API_KEY for
+      # qwen-openrouter. The engine reads it from the file systemd hands
+      # it, so the value is in no unit file and in no manifest.
+      secretFiles = {
+        ANTHROPIC_AUTH_TOKEN = "${home}/.config/qubi/secrets/openrouter.key";
+        OPENAI_API_KEY = "${home}/.config/qubi/secrets/openrouter.key";
+      };
     };
   };
 
