@@ -88,6 +88,10 @@ in
         ANTHROPIC_AUTH_TOKEN = "${home}/.config/qubi/secrets/openrouter.key";
         OPENAI_API_KEY = "${home}/.config/qubi/secrets/openrouter.key";
       };
+      # The model the "qwen-openrouter" agent runs on. The option that
+      # used to name it was a placeholder, so the agent's env names it
+      # now and the build refuses the agent without it.
+      env.OPENAI_MODEL = "qwen/qwen3-coder";
     };
   };
 
