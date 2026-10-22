@@ -27,6 +27,7 @@
     };
     envExtra = ''
       eval "$(direnv hook zsh)"
+      export NIX_CFLAGS_COMPILE="" NIX_CFLAGS_LINK="" NIX_LDFLAGS=""
     '';
   };
 }
