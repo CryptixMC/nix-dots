@@ -62,4 +62,16 @@
 
   # Magic SysRq as last-resort recovery if the eGPU wedges the session.
   boot.kernel.sysctl."kernel.sysrq" = 1;
+
+  # Build output and worktrees live on their own partition so they cannot fill /.
+  # nofail: a missing or broken build disk never stops the boot.
+  fileSystems."/home/cryptix/build" = {
+    device = "/dev/disk/by-label/build";
+    fsType = "ext4";
+    options = [
+      "noatime"
+      "nofail"
+    ];
+  };
+  systemd.tmpfiles.rules = [ "d /home/cryptix/build 0755 cryptix users -" ];
 }
