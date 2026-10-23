@@ -123,6 +123,9 @@ in
 
   users.users.qubi = {
     isNormalUser = true;
+    # The host-side computer tools ssh in as the desktop owner: a Wayland
+    # socket only accepts its own user.
+    openssh.authorizedKeys.keys = [ agentSshKey ];
     ignoreShellProgramCheck = true;
     group = "users";
     extraGroups = [
