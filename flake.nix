@@ -43,6 +43,7 @@
         sshPort = 2222;
         spicePort = 5900;
         vncPort = 5901;
+        desktop = "hyprland";
         agentUser = "agent";
       };
 

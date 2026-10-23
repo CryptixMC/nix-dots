@@ -154,6 +154,7 @@ pkgs.writeShellScriptBin "qubi-vm" ''
       -o UserKnownHostsFile="$KNOWN_HOSTS" \
       -o ExitOnForwardFailure=yes \
       -L "$local_sock":/run/qubi/qubi-engine.sock \
+      -L "127.0.0.1:$((VNC_PORT + 1)):localhost:$((VNC_PORT + 1))" \
       "$AGENT@localhost" > "$STATE/tunnel.log" 2>&1 &
     echo $! > "$STATE/tunnel.pid"
     echo "qubi-vm: guest engine socket forwarded to $local_sock"

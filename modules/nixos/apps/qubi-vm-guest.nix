@@ -40,12 +40,24 @@ let
     start = "lazy"
 
     [mcp.env]
-    DISPLAY = ":99"
+    ${if hyprlandMode then "WAYLAND_DISPLAY=wayland-1" else "DISPLAY=\":99\""}
 
     [mcp.tool_allow]
     fast = [ "*" ]
     light = [ "*" ]
     heavy = [ "*" ]
+  '';
+
+  # The desktop to run inside the guest: "x11" (Xvfb + openbox + x11vnc) or
+  # "hyprland" (headless Hyprland + wayvnc).
+  hyprlandMode = qubiVm.desktop == "hyprland";
+
+  hyprConf = pkgs.writeText "hyprland.conf" ''
+    monitor = HEADLESS-1, 1920x1080@60, 0x0, 1
+    exec-once = hyprctl output create headless HEADLESS-1
+    misc {
+      disable_hyprland_logo = true
+    }
   '';
 in
 {
@@ -135,38 +147,45 @@ in
 
   programs.zsh.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    # The local ACP coding agent the engine's manifest points at. It speaks
-    # ACP over stdio and runs on the host's model server through the bridge.
-    qubiAgentPkg
-    # Screen capture and pointer control for the guest's own X session.
-    xorg-server
-    xdotool
-    scrot
-    imagemagick
-    wmctrl
-    xclip
-    openbox
-    x11vnc
-    # Wayland helpers, for a seatd-based session later on.
-    grim
-    slurp
-    ydotool
-    wtype
-    wl-clipboard
-    playwright
-    htop
-    btop
-    jq
-    socat
-    spice-gtk
-    virt-viewer
-    git
-    vim
-    neovim
-    zsh
-    tmux
-  ];
+  environment.systemPackages =
+    with pkgs;
+    [
+      # The local ACP coding agent the engine's manifest points at. It speaks
+      # ACP over stdio and runs on the host's model server through the bridge.
+      qubiAgentPkg
+      # Screen capture and pointer control for the guest's own X session.
+      xorg-server
+      xdotool
+      scrot
+      imagemagick
+      wmctrl
+      xclip
+      openbox
+      x11vnc
+      # Wayland helpers, for a seatd-based session later on.
+      grim
+      slurp
+      ydotool
+      wtype
+      wl-clipboard
+      playwright
+      htop
+      btop
+      jq
+      socat
+      spice-gtk
+      virt-viewer
+      git
+      vim
+      neovim
+      zsh
+      tmux
+      wlrctl
+    ]
+    ++ lib.optionals hyprlandMode [
+      hyprland
+      wayvnc
+    ];
 
   # The engine and the app talk over a unix socket in the qubi user's own
   # runtime directory. A dedicated directory avoids depending on a login
@@ -226,25 +245,27 @@ in
       ExecStart = "${qubiPkg}/bin/qubi-engine --socket /run/qubi/qubi-engine.sock --llm-endpoint http://127.0.0.1:8095/v1/chat/completions";
       Restart = "on-failure";
       RestartSec = 5;
-      Environment = [
-        "HOME=/home/qubi"
-        "XDG_RUNTIME_DIR=/run/qubi"
-        "XDG_CONFIG_HOME=/home/qubi/.config"
-        "XDG_STATE_HOME=/home/qubi/.local/state"
-        "XDG_DATA_HOME=/home/qubi/.local/share"
-        "XDG_CACHE_HOME=/home/qubi/.cache"
-        "QUBI_MODULES_DIR=/home/qubi/.config/qubi/modules.d"
-        # The computer MCP server's child needs the X display and the
-        # screen tools on its PATH.
-        "DISPLAY=:99"
-        "QUBI_MCP_RUNTIME_PATH=${pkgs.xdotool}/bin:${pkgs.scrot}/bin"
-      ];
+      Environment =
+        lib.optionals (!hyprlandMode) [ "DISPLAY=:99" ]
+        ++ lib.optionals hyprlandMode [ "WAYLAND_DISPLAY=wayland-1" ]
+        ++ [
+          "HOME=/home/qubi"
+          "XDG_RUNTIME_DIR=/run/qubi"
+          "XDG_CONFIG_HOME=/home/qubi/.config"
+          "XDG_STATE_HOME=/home/qubi/.local/state"
+          "XDG_DATA_HOME=/home/qubi/.local/share"
+          "XDG_CACHE_HOME=/home/qubi/.cache"
+          "QUBI_MODULES_DIR=/home/qubi/.config/qubi/modules.d"
+          # The computer MCP server's child needs the display and the
+          # screen tools on its PATH.
+          "QUBI_MCP_RUNTIME_PATH=${pkgs.xdotool}/bin:${pkgs.scrot}/bin"
+        ];
     };
   };
 
   # The app needs a display. A headless X server on :99 is the one display
   # that works in a VM with no GPU: grim needs Wayland, xdotool needs XTEST.
-  systemd.services.qubi-xvfb = {
+  systemd.services.qubi-xvfb = lib.mkIf (!hyprlandMode) {
     description = "Headless X server for the Qubi app session";
     wantedBy = [ "multi-user.target" ];
     after = [ "qubi-vm-prepare.service" ];
@@ -258,7 +279,7 @@ in
     };
   };
 
-  systemd.services.qubi-wm = {
+  systemd.services.qubi-wm = lib.mkIf (!hyprlandMode) {
     description = "Window manager for the Qubi app session";
     wantedBy = [ "multi-user.target" ];
     after = [ "qubi-xvfb.service" ];
@@ -281,27 +302,34 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [
       "qubi-engine.service"
-      "qubi-xvfb.service"
-    ];
-    requires = [ "qubi-xvfb.service" ];
+    ]
+    ++ (lib.optionals (!hyprlandMode) [ "qubi-xvfb.service" ])
+    ++ (lib.optionals hyprlandMode [ "qubi-hyprland.service" ]);
+    requires =
+      (lib.optionals (!hyprlandMode) [ "qubi-xvfb.service" ])
+      ++ (lib.optionals hyprlandMode [ "qubi-hyprland.service" ]);
     serviceConfig = {
       Type = "simple";
       User = "qubi";
       ExecStart = "${qubiAppPkg}/bin/qubi-app";
       Restart = "on-failure";
       RestartSec = 5;
-      Environment = [
-        "HOME=/home/qubi"
-        "DISPLAY=:99"
-        "QUBI_SOCKET=/run/qubi/qubi-engine.sock"
-        "XDG_RUNTIME_DIR=/run/qubi"
-        "XDG_CONFIG_HOME=/home/qubi/.config"
-        "XDG_STATE_HOME=/home/qubi/.local/state"
-        "GDK_BACKEND=x11"
-        "LIBGL_ALWAYS_SOFTWARE=1"
-        "WEBKIT_DISABLE_COMPOSITING_MODE=1"
-        "WEBKIT_DISABLE_DMABUF_RENDERER=1"
-      ];
+      Environment =
+        (lib.optionals (!hyprlandMode) [
+          "DISPLAY=:99"
+          "GDK_BACKEND=x11"
+        ])
+        ++ (lib.optionals hyprlandMode [ "WAYLAND_DISPLAY=wayland-1" ])
+        ++ [
+          "HOME=/home/qubi"
+          "QUBI_SOCKET=/run/qubi/qubi-engine.sock"
+          "XDG_RUNTIME_DIR=/run/qubi"
+          "XDG_CONFIG_HOME=/home/qubi/.config"
+          "XDG_STATE_HOME=/home/qubi/.local/state"
+          "LIBGL_ALWAYS_SOFTWARE=1"
+          "WEBKIT_DISABLE_COMPOSITING_MODE=1"
+          "WEBKIT_DISABLE_DMABUF_RENDERER=1"
+        ];
     };
   };
 
@@ -310,15 +338,82 @@ in
   systemd.services.qubi-vnc = {
     description = "VNC export of the Qubi app session";
     wantedBy = [ "multi-user.target" ];
-    after = [ "qubi-xvfb.service" ];
-    requires = [ "qubi-xvfb.service" ];
+    after =
+      (lib.optionals (!hyprlandMode) [ "qubi-xvfb.service" ])
+      ++ (lib.optionals hyprlandMode [ "qubi-hyprland.service" ]);
+    requires =
+      (lib.optionals (!hyprlandMode) [ "qubi-xvfb.service" ])
+      ++ (lib.optionals hyprlandMode [ "qubi-hyprland.service" ]);
     serviceConfig = {
       Type = "simple";
       User = "qubi";
-      ExecStart = "${pkgs.x11vnc}/bin/x11vnc -display :99 -rfbport ${toString qubiVm.vncPort} -forever -shared -nopw -noxdamage";
+      ExecStart = (
+        if hyprlandMode then
+          "${pkgs.wayvnc}/bin/wayvnc -r -S /run/qubi/wayvnc-raw.sock 0.0.0.0 ${toString qubiVm.vncPort}"
+        else
+          "${pkgs.x11vnc}/bin/x11vnc -display :99 -rfbport ${toString qubiVm.vncPort} -forever -shared -nopw -noxdamage"
+      );
       Restart = "on-failure";
       RestartSec = 2;
-      Environment = [ "HOME=/home/qubi" ];
+      Environment = (
+        if hyprlandMode then
+          [
+            "WAYLAND_DISPLAY=wayland-1"
+            "XDG_RUNTIME_DIR=/run/qubi"
+            "HOME=/home/qubi"
+          ]
+        else
+          [ "HOME=/home/qubi" ]
+      );
+    };
+  };
+
+  # Headless Hyprland desktop (alternative to X11 session).
+  systemd.services.qubi-hyprland = lib.mkIf hyprlandMode {
+    description = "Headless Hyprland desktop";
+    wantedBy = [ "multi-user.target" ];
+    after = [
+      "qubi-engine.service"
+      "qubi-vm-prepare.service"
+    ];
+    requires = [ "qubi-engine.service" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "qubi";
+      Environment = [
+        "HOME=/home/qubi"
+        "XDG_RUNTIME_DIR=/run/qubi"
+        "AQ_BACKENDS=headless"
+        "WLR_BACKENDS=headless"
+        "LIBGL_ALWAYS_SOFTWARE=1"
+        "WAYLAND_DISPLAY=wayland-1"
+      ];
+      ExecStart = "${pkgs.hyprland}/bin/Hyprland --config ${hyprConf}";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+    unitConfig = {
+      StartLimitIntervalSec = 60;
+      StartLimitBurst = 5;
+    };
+  };
+
+  systemd.services.qubi-vnc-ws = lib.mkIf hyprlandMode {
+    description = "WebSocket VNC export of the Qubi app session (Hyprland)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "qubi-hyprland.service" ];
+    requires = [ "qubi-hyprland.service" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "qubi";
+      ExecStart = "${pkgs.wayvnc}/bin/wayvnc -r -w -S /run/qubi/wayvnc-ws.sock 0.0.0.0 ${toString (qubiVm.vncPort + 1)}";
+      Restart = "on-failure";
+      RestartSec = 2;
+      Environment = [
+        "WAYLAND_DISPLAY=wayland-1"
+        "XDG_RUNTIME_DIR=/run/qubi"
+        "HOME=/home/qubi"
+      ];
     };
   };
 
@@ -376,7 +471,12 @@ in
         host.port = qubiVm.vncPort;
         guest.port = qubiVm.vncPort;
       }
-    ];
+    ]
+    ++ lib.optional hyprlandMode {
+      from = "host";
+      host.port = qubiVm.vncPort + 1;
+      guest.port = qubiVm.vncPort + 1;
+    };
     qemu.options = [
       "-spice port=${toString qubiVm.spicePort},disable-ticketing=on"
       # A VGA device so SPICE shows the guest console instead of a blank
@@ -399,6 +499,9 @@ in
     qubiVm.sshPort
     qubiVm.spicePort
     qubiVm.vncPort
-  ];
+  ]
+  ++ lib.optional hyprlandMode (qubiVm.vncPort + 1);
   networking.firewall.allowedUDPPorts = [ ];
+  # WebSocket VNC port is only open when running headless Hyprland.
+  networking.firewall.extraCommands = lib.optionalString hyprlandMode "iptables -I INPUT -p tcp --dport ${toString (qubiVm.vncPort + 1)} -j ACCEPT";
 }
