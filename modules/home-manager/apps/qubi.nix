@@ -115,9 +115,9 @@ in
     trustedTailnetLogins = [ "cryptixmc@proton.me" ];
   };
 
-  # One local model: the 9B on the eGPU when docked (64K context, two slots so
-  # a second chat does not evict the prompt cache), the CPU otherwise. Every
-  # role names it; API models come through provider modules.
+  # One local model: the 9B on the eGPU when docked (one 256K slot), the CPU
+  # otherwise (64K, two slots so a second chat does not evict the prompt cache).
+  # Every role names it; API models come through provider modules.
   services.qubi.modules.llama = {
     models."qwen3.5-9b" = {
       modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
@@ -127,10 +127,19 @@ in
       memoryMax = "32G";
       placement = "auto";
       # On the eGPU when docked; the by-path render node, since renderD* can renumber.
+      # One 256K slot with n-gram speculation: measured on the RX 6800-class card,
+      # edits ran 3-4x faster (141-202 tok/s against 49) at the same speed for new
+      # code, in 10.9 GB. A 2B draft model was slower (34 tok/s).
       gpu = {
         enable = true;
-        vramMb = 8500;
+        vramMb = 11500;
         renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
+        contextSize = 262144;
+        parallel = 1;
+        extraArgs = [
+          "--spec-type"
+          "ngram-mod"
+        ];
       };
       tags = [
         "quick answers"
