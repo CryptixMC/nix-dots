@@ -128,6 +128,20 @@
         cryptix = home-manager.lib.homeManagerConfiguration {
           pkgs = import nixpkgs {
             system = "x86_64-linux";
+            overlays = [
+              # piper-tts needs pyopenjtalk-plus, whose test matches the old
+              # Python TypeError wording; drop once fixed upstream.
+              (final: prev: {
+                pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                  (pyFinal: pyPrev: {
+                    pyopenjtalk-plus = pyPrev.pyopenjtalk-plus.overridePythonAttrs (old: {
+                      disabledTests = (old.disabledTests or [ ])
+                        ++ [ "test_run_njd_from_mecab_invalid_input_should_not_break_next_call" ];
+                    });
+                  })
+                ];
+              })
+            ];
           };
           modules = [
             ./hosts/carbon/home.nix
