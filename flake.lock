@@ -360,11 +360,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1792795241,
-        "narHash": "sha256-P4zIC17PR6IUs6uo3onnAywAqcvBxCgl0aW/BEyb94E=",
+        "lastModified": 1792939724,
+        "narHash": "sha256-HaXZySXweAgsqBrdh5l7Lk7HbZbwFVC2OlcJv4KP7Oo=",
         "ref": "refs/heads/main",
-        "rev": "03a5b248ca543243ebae1fcf37ddd466f14618a5",
-        "revCount": 843,
+        "rev": "acfe5977498e14a2762d9403472e96cd58d661e1",
+        "revCount": 917,
         "type": "git",
         "url": "ssh://git@github.com/CryptixMC/qubi"
       },

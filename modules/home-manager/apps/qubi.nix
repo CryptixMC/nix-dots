@@ -127,18 +127,21 @@ in
       memoryMax = "32G";
       placement = "auto";
       # On the eGPU when docked; the by-path render node, since renderD* can renumber.
-      # One 256K slot with n-gram speculation: measured on the RX 6800-class card,
-      # edits ran 3-4x faster (141-202 tok/s against 49) at the same speed for new
-      # code, in 10.9 GB. A 2B draft model was slower (34 tok/s).
+      # The MTP build of the 9B in one 256K slot, drafting with its own MTP head
+      # plus n-grams: on the RX 6800-class card new code ran at 84 tok/s and edits
+      # at 218 (49 and 141-202 for the plain Q4 with n-grams), in 13.2 GB, and it
+      # scored best of the local models on the tools/edit/work sections.
+      # sha256 1732d6616554b102be9bc41684cd094f471e1b3067f5e5a89eb5a86a5a4f2a6c
       gpu = {
         enable = true;
-        vramMb = 11500;
+        modelFile = "Qwen3.5-9B-MTP-Q5_K_M.gguf";
+        vramMb = 13300;
         renderNode = "/dev/dri/by-path/pci-0000:54:00.0-render";
         contextSize = 262144;
         parallel = 1;
         extraArgs = [
           "--spec-type"
-          "ngram-mod"
+          "draft-mtp,ngram-mod"
         ];
       };
       tags = [
@@ -178,7 +181,7 @@ in
   services.qubi.modules.lab.nightly = {
     enable = true;
     hour = 3;
-    model = "/home/cryptix/.local/share/qubi/models/Qwen3.5-9B-Q4_K_M.gguf";
+    model = "/home/cryptix/.local/share/qubi/models/Qwen3.5-9B-MTP-Q5_K_M.gguf";
     repo = "/home/cryptix/Projects/qubi";
   };
 
