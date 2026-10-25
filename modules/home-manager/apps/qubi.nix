@@ -116,13 +116,14 @@ in
   };
 
   # One local model: the 9B on the eGPU when docked (one 256K slot), the CPU
-  # otherwise (64K, two slots so a second chat does not evict the prompt cache).
+  # otherwise (128K, two slots so a second chat does not evict the prompt cache;
+  # 12.2 GB resident). The engine sizes chats to the CPU window, the smaller one.
   # Every role names it; API models come through provider modules.
   services.qubi.modules.llama = {
     models."qwen3.5-9b" = {
       modelFile = "Qwen3.5-9B-Q4_K_M.gguf";
       port = 8095;
-      contextSize = 65536;
+      contextSize = 131072;
       parallel = 2;
       memoryMax = "32G";
       placement = "auto";
@@ -159,6 +160,13 @@ in
   # are listed by name in every model picker. DeepSeek V4 Flash passed 24 of 34
   # bench tasks at about half a cent each, Qwen 3.7 Flash 21 at a fifth of a cent.
   services.qubi.engineRust.defaultModel = "qwen3.5-9b";
+  # Three quarters of the 128K local window, so long agent runs keep what they
+  # read instead of compacting every few rounds and reading it again.
+  services.qubi.engineRust.contextBudget = {
+    fast = 5000;
+    light = 5000;
+    heavy = 98304;
+  };
   services.qubi.engineRust.models = {
     "deepseek-v4-flash" = {
       provider = "openrouter";
