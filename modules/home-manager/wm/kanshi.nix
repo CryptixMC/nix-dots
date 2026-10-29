@@ -1,8 +1,19 @@
-{ ... }:
+{ lib, ... }:
+let
+  # Written by the launcher Display page; listed first so its profiles win.
+  runtimeProfiles = "~/.local/state/quickshell-kanshi.conf";
+in
 {
+  # kanshi refuses to start if an included file is missing.
+  home.activation.kanshiRuntimeProfiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run mkdir -p "$HOME/.local/state"
+    run touch "$HOME/.local/state/quickshell-kanshi.conf"
+  '';
+
   services.kanshi = {
     enable = true;
     settings = [
+      { include = runtimeProfiles; }
       {
         profile.name = "docked";
         profile.outputs = [

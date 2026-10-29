@@ -3,16 +3,20 @@ import Quickshell
 import Quickshell.Io
 import "../../../theme"
 
-// Live monitor layout: drag to arrange, pick mode/scale/rotation, set primary.
-// `hyprctl keyword` fails with the Lua config backend, so changes go through
-// `hyprctl eval hl.monitor(...)`. They're runtime-only: kanshi and the static
-// config win again on hotplug or reload.
+// Monitor layout: drag to arrange, pick mode/scale/rotation, set primary.
+// kanshi re-applies its profile whenever outputs change and its output state
+// overrides Hyprland's monitor rules, so edits are saved as a kanshi profile
+// for the current set of outputs (included first by kanshi.nix) and applied
+// with `kanshictl reload`. That also makes them persist across replugs.
 Item {
     id: root
     width: parent.width
     implicitHeight: column.implicitHeight
 
-    property var monitors: []
+    // Disabled outputs aren't drawn but still belong in the saved profile,
+    // since kanshi only matches a profile that covers every connected output.
+    property var allMonitors: []
+    readonly property var monitors: root.allMonitors.filter(m => !m.disabled)
     property bool usingFallback: false
     property string selectedName: ""
 
@@ -38,38 +42,79 @@ Item {
         };
     }
 
-    function currentMode(m) {
-        return `${m.width}x${m.height}@${Number(m.refreshRate).toFixed(2)}`;
+    // Same "make model*" shape as the hand-written profiles in kanshi.nix.
+    function criteria(m) {
+        return `${m.make} ${m.model}*`;
     }
 
-    function monitorExpr(m, overrides) {
+    // One profile per output set, so each dock/undock combination keeps its own layout.
+    function profileName() {
+        return "display-" + root.allMonitors.map(m => root.criteria(m)).sort().join("-").replace(/[^A-Za-z0-9]+/g, "_");
+    }
+
+    function outputLine(m, overrides) {
+        if (m.disabled)
+            return `  output "${root.criteria(m)}" disable`;
         const o = Object.assign({
-            mode: root.currentMode(m),
+            mode: `${m.width}x${m.height}@${Number(m.refreshRate).toFixed(3)}Hz`,
             x: m.x,
             y: m.y,
             scale: m.scale,
-            transform: m.transform
+            transform: m.transform % 4
         }, overrides);
-        return `hl.monitor({output = "${m.name}", mode = "${o.mode}", position = "${Math.round(o.x)}x${Math.round(o.y)}", scale = "${o.scale}", transform = ${o.transform}})`;
+        const transform = ["normal", "90", "180", "270"][o.transform];
+        return `  output "${root.criteria(m)}" enable mode ${o.mode} position ${Math.round(o.x)},${Math.round(o.y)} scale ${o.scale} transform ${transform}`;
     }
 
-    function apply(exprs) {
-        Quickshell.execDetached(["hyprctl", "eval", exprs.join("\n")]);
-        refreshTimer.restart();
+    // Drops this output set's profile from the runtime file, keeping other sets'.
+    function otherProfiles() {
+        const name = root.profileName();
+        return profilesFile.text().split(/\n(?=profile )/).filter(b => b.trim() && !b.startsWith(`profile ${name} `)).map(b => b.trim()).join("\n\n");
+    }
+
+    function writeProfiles(text) {
+        profilesFile.setText(text ? text + "\n" : "");
+        reloadTimer.restart();
+    }
+
+    // overridesByName: { "DP-5": { transform: 1 }, ... }
+    function apply(overridesByName) {
+        const lines = root.allMonitors.map(m => root.outputLine(m, overridesByName[m.name] ?? {}));
+        const block = `profile ${root.profileName()} {\n${lines.join("\n")}\n}`;
+        const others = root.otherProfiles();
+        root.writeProfiles(others ? `${block}\n\n${others}` : block);
     }
 
     function setMonitor(m, overrides) {
-        root.apply([root.monitorExpr(m, overrides)]);
+        root.apply({
+            [m.name]: overrides
+        });
+    }
+
+    // Back to the hand-written kanshi.nix profile for this output set.
+    function resetLayout() {
+        root.writeProfiles(root.otherProfiles());
     }
 
     // Hyprland has no primary flag; anchoring the monitor at 0x0 is what XWayland
     // and most apps treat as primary, so shift the whole layout and focus it.
     function setPrimary(m) {
-        const dx = -m.x, dy = -m.y;
-        root.apply(root.monitors.map(o => root.monitorExpr(o, {
-                x: o.x + dx,
-                y: o.y + dy
-            })).concat([`hl.dispatch(hl.dsp.focus({ monitor = "${m.name}" }))`]));
+        const overrides = {};
+        for (const o of root.monitors)
+            overrides[o.name] = {
+                x: o.x - m.x,
+                y: o.y - m.y
+            };
+        root.apply(overrides);
+        Quickshell.execDetached(["hyprctl", "eval", `hl.dispatch(hl.dsp.focus({ monitor = "${m.name}" }))`]);
+    }
+
+    FileView {
+        id: profilesFile
+        path: `${Quickshell.env("HOME")}/.local/state/quickshell-kanshi.conf`
+        blockLoading: true
+        watchChanges: false
+        printErrors: false
     }
 
     // Moves a dropped monitor flush against the nearest edge of another one,
@@ -140,6 +185,16 @@ Item {
         };
     }
 
+    // Gives the FileView write a moment to land before kanshi rereads it.
+    Timer {
+        id: reloadTimer
+        interval: 150
+        onTriggered: {
+            Quickshell.execDetached(["kanshictl", "reload"]);
+            refreshTimer.restart();
+        }
+    }
+
     Timer {
         id: refreshTimer
         interval: 400
@@ -148,7 +203,7 @@ Item {
 
     Process {
         id: hyprctlProc
-        command: ["hyprctl", "monitors", "-j"]
+        command: ["hyprctl", "monitors", "all", "-j"]
         environment: ({
                 "LD_LIBRARY_PATH": ""
             })
@@ -158,9 +213,12 @@ Item {
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
                 root.usingFallback = true;
-                root.monitors = Quickshell.screens.map(s => ({
+                root.allMonitors = Quickshell.screens.map(s => ({
                             name: s.name,
                             description: s.model ?? s.name,
+                            make: "",
+                            model: s.model ?? s.name,
+                            disabled: false,
                             width: s.width,
                             height: s.height,
                             refreshRate: 0,
@@ -175,11 +233,11 @@ Item {
                         }));
             } else {
                 try {
-                    root.monitors = JSON.parse(hyprctlOut.text);
+                    root.allMonitors = JSON.parse(hyprctlOut.text);
                     root.usingFallback = false;
                 } catch (e) {
-                    console.warn(`SystemDisplay: failed to parse hyprctl monitors -j: ${e}`);
-                    root.monitors = [];
+                    console.warn(`SystemDisplay: failed to parse hyprctl monitors all -j: ${e}`);
+                    root.allMonitors = [];
                 }
             }
             if (!root.selected && root.monitors.length > 0)
@@ -434,6 +492,10 @@ Item {
                     onActivated: root.setPrimary(root.selected)
                 }
                 Chip {
+                    label: "Reset to default"
+                    onActivated: root.resetLayout()
+                }
+                Chip {
                     label: "Refresh"
                     onActivated: root.refresh()
                 }
@@ -442,7 +504,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.Wrap
-                text: "Changes apply live and last until the next hotplug or Hyprland reload."
+                text: "Saved per set of connected monitors in ~/.local/state/quickshell-kanshi.conf. Reset returns to the kanshi.nix profile."
                 color: Theme.color.launcherPlaceholderFg
                 font.family: Theme.font.family
                 font.pixelSize: Theme.font.sizeSmall - 1
