@@ -23,6 +23,19 @@ let
   browser = "zen-twilight";
 
   workspaceBinds = hyprBinds.workspaceBinds mainMod;
+
+  # The EC can wedge the internal keyboard mid-press; disabling it stops the
+  # stuck key repeating while an external keyboard is in use.
+  toggleInternalKeyboard = pkgs.writeShellScript "toggle-internal-keyboard" ''
+    state="$XDG_RUNTIME_DIR/internal-keyboard-off"
+    if [ -e "$state" ]; then
+      rm -f "$state"; enabled=true; msg="Internal keyboard on"
+    else
+      touch "$state"; enabled=false; msg="Internal keyboard off"
+    fi
+    hyprctl eval "hl.device({ name = \"at-translated-set-2-keyboard\", enabled = $enabled })"
+    hyprctl notify -1 3000 0 "$msg"
+  '';
 in
 {
   # satty's -o doesn't create missing parent directories.
@@ -401,6 +414,7 @@ in
         (mkExecBind "${mainMod} + F" browser)
         (mkExecBind "${mainMod} + A" claudeApp)
         (mkBind "${mainMod} + L" (dsp "hl.dsp.window.fullscreen()") null)
+        (mkExecBind "${mainMod} + F12" "${toggleInternalKeyboard}")
 
         (mkBind "${mainMod} + left" (dsp "hl.dsp.focus({ direction = \"left\" })") null)
         (mkBind "${mainMod} + right" (dsp "hl.dsp.focus({ direction = \"right\" })") null)

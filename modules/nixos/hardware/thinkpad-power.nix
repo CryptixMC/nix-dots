@@ -72,4 +72,8 @@ in
   };
 
   environment.systemPackages = [ pkgs.throttled ];
+
+  # BIOS and EC updates come through LVFS; the EC drops the internal keyboard
+  # after long hot sessions until a reboot re-initialises it.
+  services.fwupd.enable = true;
 }
