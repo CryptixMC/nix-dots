@@ -13,7 +13,12 @@
   };
 
   # Android container for game automation; binderfs is already in the kernel.
-  virtualisation.waydroid.enable = true;
+  virtualisation.waydroid = {
+    enable = true;
+    # The kernel has nf_tables but no legacy ip_tables module, so waydroid-net.sh
+    # must use nft or the session fails to start.
+    package = pkgs.waydroid-nftables;
+  };
 
   environment.systemPackages = with pkgs; [
     docker
