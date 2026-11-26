@@ -141,6 +141,21 @@
         "type": "github"
       }
     },
+    "crane_2": {
+      "locked": {
+        "lastModified": 1794962885,
+        "narHash": "sha256-zrweT2tXbcWiJMACOhOr2eYFJKVa6g59ouRaZ3BS5Do=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "95e62def851e9d650f0eab63cb4f59a3306e20bd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
     "firefox-gnome-theme": {
       "flake": false,
       "locked": {
@@ -373,12 +388,35 @@
         "url": "ssh://git@github.com/CryptixMC/qubi"
       }
     },
+    "qubi-core": {
+      "inputs": {
+        "crane": "crane_2",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_2"
+      },
+      "locked": {
+        "lastModified": 1795730187,
+        "narHash": "sha256-K2sirZ8IKNaW4+HMqfTkuDBfBhl2oBa/L969tlhkaUY=",
+        "ref": "refs/heads/main",
+        "rev": "e156b41b06b820731ec7977b32540d1d9c66e122",
+        "revCount": 34,
+        "type": "git",
+        "url": "ssh://git@github.com/CryptixMC/qubi-core"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/CryptixMC/qubi-core"
+      }
+    },
     "root": {
       "inputs": {
         "claude-desktop": "claude-desktop",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
         "qubi": "qubi",
+        "qubi-core": "qubi-core",
         "stylix": "stylix",
         "zen-browser": "zen-browser"
       }
@@ -396,6 +434,27 @@
         "owner": "oxalica",
         "repo": "rust-overlay",
         "rev": "fb058ecf6d14837ea152a3d5225ce7f88ee5cde1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rust-overlay_2": {
+      "inputs": {
+        "nixpkgs": [
+          "qubi-core",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795604585,
+        "narHash": "sha256-rsB/BPQf+Q9p7O7WhqtmG64b3F175ly7swafxWS1etM=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "67021b279bfffe654a0201ede805748a255ae5a7",
         "type": "github"
       },
       "original": {

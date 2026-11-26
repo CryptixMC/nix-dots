@@ -23,6 +23,10 @@
     qubi.url = "git+ssh://git@github.com/CryptixMC/qubi";
     qubi.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Qubi core: the new app (core inside, Linux and Android). Private, hence git+ssh.
+    qubi-core.url = "git+ssh://git@github.com/CryptixMC/qubi-core";
+    qubi-core.inputs.nixpkgs.follows = "nixpkgs";
+
   };
 
   outputs =

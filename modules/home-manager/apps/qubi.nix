@@ -95,8 +95,11 @@ in
     };
   };
 
-  # The desktop app (Tauri); it reaches the engine over its local socket.
+  # The desktop app is the new Qubi, with core inside (qubi-core). It shares
+  # the old app's identifier and data folder, so it replaces it rather than
+  # sitting beside it; the old engine services below keep running for now.
   services.qubi.modules.app.enable = true;
+  services.qubi.modules.app.package = inputs.qubi-core.packages.${pkgs.stdenv.hostPlatform.system}.qubi-app;
 
   services.qubi.modules.app.serve = {
     enable = true;
