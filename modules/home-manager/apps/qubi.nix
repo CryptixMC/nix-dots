@@ -9,15 +9,6 @@
 
 let
   home = config.home.homeDirectory;
-
-  # mobile_gui.html is the start_url of the PWA already installed on the phone.
-  # Served from the store so no checkout (.git included) reaches the tailnet.
-  mobileRoot = pkgs.runCommand "qubi-mobile-root" { } ''
-    mkdir -p $out
-    cp -r ${inputs.qubi.packages.${pkgs.stdenv.hostPlatform.system}.qubi-app-web}/. $out/
-    chmod -R u+w $out
-    ln -s index.html $out/mobile_gui.html
-  '';
 in
 {
   imports = [ inputs.qubi.homeModules.qubi ];
@@ -101,11 +92,8 @@ in
   services.qubi.modules.app.enable = true;
   services.qubi.modules.app.package = inputs.qubi-core.packages.${pkgs.stdenv.hostPlatform.system}.qubi-app;
 
-  services.qubi.modules.app.serve = {
-    enable = true;
-    package = mobileRoot;
-    tailscaleServe.enable = true;
-  };
+  # The old phone PWA is retired: the phone runs the Qubi app, synced through Turso.
+  services.qubi.modules.app.serve.enable = false;
 
   # The Rust engine's network transport for the phone: paired devices over a
   # WebSocket behind `tailscale serve` (never Funnel). rpId and origin are this
